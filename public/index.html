@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <title>AI Scrum Team Orchestrator</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: radial-gradient(circle at top left, #0f172a, #020617);
+      color: #e5e7eb;
+      min-height: 100vh;
+      display: flex;
+      align-items: stretch;
+      justify-content: center;
+    }
+    .app {
+      max-width: 1100px;
+      width: 100%;
+      padding: 32px 20px 40px;
+    }
+    .card {
+      background: rgba(15, 23, 42, 0.92);
+      border-radius: 18px;
+      padding: 24px 24px 28px;
+      box-shadow: 0 24px 60px rgba(15, 23, 42, 0.9);
+      border: 1px solid rgba(148, 163, 184, 0.35);
+      backdrop-filter: blur(16px);
+    }
+    h1 {
+      margin: 0 0 8px;
+      font-size: 26px;
+      letter-spacing: 0.03em;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    h1 span.logo {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 32px;
+      height: 32px;
+      border-radius: 999px;
+      background: radial-gradient(circle at 30% 0, #22c55e, #22d3ee);
+      box-shadow: 0 0 0 1px rgba(34, 197, 94, 0.28),
+                  0 14px 35px rgba(56, 189, 248, 0.5);
+      font-size: 18px;
+    }
+    .subtitle {
+      margin: 0 0 20px;
+      color: #9ca3af;
+      font-size: 14px;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: minmax(0, 2.1fr) minmax(0, 1.2fr);
+      gap: 20px;
+    }
+    @media (max-width: 840px) {
+      .grid {
+        grid-template-columns: minmax(0, 1fr);
+      }
+    }
+    .panel {
+      background: radial-gradient(circle at top left, rgba(15, 23, 42, 0.95), rgba(15, 23, 42, 0.7));
+      border-radius: 14px;
+      padding: 16px 16px 18px;
+      border: 1px solid rgba(75, 85, 99, 0.7);
+    }
+    .panel-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+    .panel-title {
+      font-size: 14px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.09em;
+      color: #9ca3af;
+    }
+    .status-pill {
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      background: rgba(22, 163, 74, 0.08);
+      border: 1px solid rgba(22, 163, 74, 0.6);
+      color: #bbf7d0;
+    }
+    .status-pill.idle {
+      background: rgba(55, 65, 81, 0.5);
+      border-color: rgba(75, 85, 99, 0.8);
+      color: #e5e7eb;
+    }
+    .status-pill.error {
+      background: rgba(185, 28, 28, 0.16);
+      border-color: rgba(239, 68, 68, 0.85);
+      color: #fecaca;
+    }
+    .field-group {
+      display: grid;
+      grid-template-columns: 1.2fr 1fr;
+      gap: 8px 16px;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+    .field-label {
+      font-size: 12px;
+      color: #9ca3af;
+    }
+    .field-value {
+      font-size: 13px;
+      color: #e5e7eb;
+      text-align: right;
+    }
+    .field-value.muted {
+      color: #6b7280;
+    }
+    button.primary {
+      width: 100%;
+      margin-top: 12px;
+      padding: 10px 14px;
+      border-radius: 999px;
+      border: none;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      font-size: 12px;
+      cursor: pointer;
+      background: linear-gradient(to right, #22c55e, #22d3ee);
+      color: #020617;
+      box-shadow: 0 16px 40px rgba(34, 197, 94, 0.55);
+      transition: transform 0.13s ease, box-shadow 0.13s ease, filter 0.13s ease;
+    }
+    button.primary:hover {
+      transform: translateY(-1px);
+      filter: brightness(1.05);
+      box-shadow: 0 20px 50px rgba(34, 197, 94, 0.8);
+    }
+    button.primary:disabled {
+      opacity: 0.5;
+      cursor: default;
+      box-shadow: none;
+      transform: none;
+    }
+    .hint {
+      margin-top: 10px;
+      font-size: 11px;
+      color: #9ca3af;
+    }
+    .log-area {
+      margin-top: 4px;
+      padding: 10px;
+      border-radius: 10px;
+      background: rgba(15, 23, 42, 0.9);
+      max-height: 220px;
+      overflow: auto;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      font-size: 11px;
+      border: 1px solid rgba(55, 65, 81, 0.9);
+    }
+    .log-line {
+      white-space: pre-wrap;
+      color: #9ca3af;
+    }
+    .log-line.info { color: #e5e7eb; }
+    .log-line.error { color: #fecaca; }
+    .log-line.warn { color: #facc15; }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 11px;
+      color: #a5b4fc;
+      background: rgba(55, 48, 163, 0.35);
+      border-radius: 999px;
+      padding: 2px 8px;
+      border: 1px solid rgba(129, 140, 248, 0.6);
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div class="card">
+      <h1>
+        <span class="logo">A</span>
+        AI Scrum Team Orchestrator
+      </h1>
+      <p class="subtitle">
+        Orquesta un equipo de agentes (PO, Dev, QA, Scrum Master) sobre Claude.ai para planificar sprints,
+        generar artefactos y construir aplicaciones de extremo a extremo.
+      </p>
+
+      <div class="grid">
+        <section class="panel">
+          <div class="panel-header">
+            <div class="panel-title">Proyecto actual</div>
+            <div id="status-pill" class="status-pill idle">IDLE</div>
+          </div>
+
+          <div id="project-meta" class="field-group">
+            <div class="field-label">Nombre</div>
+            <div class="field-value muted">Cargando...</div>
+
+            <div class="field-label">Sprints máximos</div>
+            <div class="field-value muted">—</div>
+
+            <div class="field-label">Estado ejecución</div>
+            <div class="field-value muted">Sin iniciar</div>
+          </div>
+
+          <button id="start-btn" class="primary">
+            Iniciar proyecto
+          </button>
+          <div class="hint">
+            Asegúrate de haber configurado las credenciales de Claude.ai en Settings antes de iniciar.
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-header">
+            <div class="panel-title">Actividad reciente</div>
+            <span class="badge">
+              <span style="width:8px;height:8px;border-radius:999px;background:#22c55e;"></span>
+              Live WebSocket
+            </span>
+          </div>
+          <div id="log" class="log-area">
+            <div class="log-line">Esperando eventos del orquestador...</div>
+          </div>
+        </section>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const $status = document.getElementById('status-pill');
+    const $meta = document.getElementById('project-meta');
+    const $log = document.getElementById('log');
+    const $start = document.getElementById('start-btn');
+
+    function appendLog(entry) {
+      const line = document.createElement('div');
+      line.className = 'log-line ' + (entry.level || 'info');
+      line.textContent = `[${new Date(entry.timestamp || Date.now()).toLocaleTimeString()}] ` +
+        (entry.agent ? `[${entry.agent}] ` : '') +
+        entry.message;
+      $log.appendChild(line);
+      $log.scrollTop = $log.scrollHeight;
+    }
+
+    function setStatus(status) {
+      const s = (status || '').toLowerCase();
+      $status.textContent = (status || 'UNKNOWN').toUpperCase();
+      $status.classList.remove('idle', 'error');
+      if (s === 'idle' || s === '') {
+        $status.classList.add('idle');
+      } else if (s === 'error') {
+        $status.classList.add('error');
+      }
+    }
+
+    async function loadConfig() {
+      try {
+        const res = await fetch('/api/config');
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const { config } = await res.json();
+        const fields = $meta.querySelectorAll('.field-value');
+        if (fields.length >= 3) {
+          fields[0].textContent = config?.project?.name || '—';
+          fields[1].textContent = config?.scrum?.maxSprints ?? '—';
+          fields[2].textContent = 'Listo para iniciar';
+          fields[2].classList.remove('muted');
+        }
+      } catch (e) {
+        appendLog({ level: 'error', message: 'Error cargando configuración: ' + e.message });
+      }
+    }
+
+    async function startProject() {
+      $start.disabled = true;
+      appendLog({ message: 'Solicitando inicio de proyecto...' });
+      try {
+        const res = await fetch('/api/start', { method: 'POST', headers: { 'Content-Type': 'application/json' } });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          throw new Error(data.error || ('HTTP ' + res.status));
+        }
+        appendLog({ message: data.message || 'Proyecto iniciado' });
+      } catch (e) {
+        appendLog({ level: 'error', message: 'No se pudo iniciar el proyecto: ' + e.message });
+        $start.disabled = false;
+      }
+    }
+
+    function connectWS() {
+      const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const ws = new WebSocket(proto + '//' + location.host);
+
+      ws.addEventListener('open', () => {
+        appendLog({ message: 'Conectado al WebSocket del orquestador.' });
+      });
+
+      ws.addEventListener('message', (evt) => {
+        try {
+          const msg = JSON.parse(evt.data);
+          if (msg.type === 'log') {
+            appendLog(msg.data);
+          } else if (msg.type === 'status') {
+            setStatus(msg.data.status || msg.data);
+          } else if (msg.type === 'error') {
+            setStatus('error');
+            appendLog({ level: 'error', message: msg.data.message || 'Error en el orquestador' });
+          } else if (msg.type === 'completed') {
+            setStatus('completed');
+            $start.disabled = false;
+            appendLog({ message: 'Proyecto completado. Output: ' + (msg.data.outputDir || '') });
+          }
+        } catch (e) {
+          appendLog({ level: 'warn', message: 'Evento WS no parseable' });
+        }
+      });
+
+      ws.addEventListener('close', () => {
+        appendLog({ level: 'warn', message: 'WebSocket cerrado. Reintentando en 3s...' });
+        setTimeout(connectWS, 3000);
+      });
+    }
+
+    $start.addEventListener('click', startProject);
+
+    loadConfig();
+    connectWS();
+  </script>
+</body>
+</html>
+

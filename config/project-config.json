@@ -1,0 +1,58 @@
+{
+  "project": {
+    "name": "JobTracker Pro",
+    "description": "Aplicación web para seguimiento de procesos de selección activos mediante integración con email y plataformas de empleo",
+    "version": "0.1.0"
+  },
+  "scrum": {
+    "sprintDurationDays": 1,
+    "maxSprints": 5,
+    "autoAdvance": true,
+    "reviewBeforeAdvance": true
+  },
+  "agents": {
+    "backend": "local",
+    "headless": false,
+    "slowMo": 100,
+    "timeout": 180000,
+    "sessionDir": "./sessions",
+    "shareSession": true,
+    "userDataDir": "",
+    "local": {
+      "baseUrl": "http://localhost:11434",
+      "model": "llama3.2",
+      "embedModel": "nomic-embed-text",
+      "rag": {
+        "enabled": true,
+        "indexPaths": ["./outputs", "./prompts"],
+        "topK": 5
+      }
+    },
+    "note": "backend: 'claude' | 'local'. Con 'local' se usa Ollama + RAG; con 'claude' se usa la web de Claude.ai."
+  },
+  "outputs": {
+    "saveArtifacts": true,
+    "autoOpenDashboard": true,
+    "port": 3000
+  },
+  "target": {
+    "features": [
+      "Integración Gmail para seguimiento de emails de selección",
+      "Integración LinkedIn para oportunidades activas",
+      "Integración InfoJobs, Indeed y Tecnoempleo",
+      "Dashboard de procesos activos con estado",
+      "Detección automática de respuestas de empresas",
+      "Alertas de nuevas oportunidades no solicitadas",
+      "Análisis de tendencias del mercado laboral",
+      "Skills más demandadas en tiempo real",
+      "Autenticación segura con almacenamiento local",
+      "Exportación de datos a CSV/PDF"
+    ],
+    "techStack": {
+      "frontend": "HTML5, CSS3, Vanilla JavaScript",
+      "backend": "Node.js + Express",
+      "database": "SQLite (local)",
+      "integrations": ["Gmail API/IMAP", "LinkedIn Scraping", "Job Board APIs"]
+    }
+  }
+}

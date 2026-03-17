@@ -1,0 +1,1569 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Scrum Team — Orchestrator</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Syne:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #070b12;
+    --surface: #0d1421;
+    --surface2: #131c2e;
+    --border: #1e2d45;
+    --accent: #00d4ff;
+    --accent2: #7b2fff;
+    --success: #00ff88;
+    --warning: #ffb800;
+    --error: #ff3d5a;
+    --text: #c8daf0;
+    --text-dim: #4a6080;
+    --text-bright: #e8f4ff;
+    --glow: 0 0 20px rgba(0, 212, 255, 0.3);
+    --glow-sm: 0 0 10px rgba(0, 212, 255, 0.2);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: 
+      radial-gradient(ellipse 80% 50% at 20% 20%, rgba(0,212,255,0.04) 0%, transparent 60%),
+      radial-gradient(ellipse 60% 40% at 80% 80%, rgba(123,47,255,0.04) 0%, transparent 60%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* HEADER */
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 24px;
+    background: rgba(13,20,33,0.9);
+    border-bottom: 1px solid var(--border);
+    backdrop-filter: blur(20px);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .logo-icon {
+    width: 36px; height: 36px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    box-shadow: var(--glow);
+  }
+
+  .logo-text {
+    font-family: 'Syne', sans-serif;
+    font-size: 16px;
+    font-weight: 800;
+    color: var(--text-bright);
+    letter-spacing: -0.5px;
+  }
+
+  .logo-sub {
+    font-size: 10px;
+    color: var(--text-dim);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+  }
+
+  .header-status {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .status-badge {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 14px;
+    border-radius: 20px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    font-size: 11px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+
+  .status-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--text-dim);
+    transition: all 0.3s;
+  }
+
+  .status-dot.active { background: var(--success); box-shadow: 0 0 8px var(--success); animation: pulse 1.5s infinite; }
+  .status-dot.running { background: var(--accent); box-shadow: 0 0 8px var(--accent); animation: pulse 1s infinite; }
+  .status-dot.error { background: var(--error); box-shadow: 0 0 8px var(--error); }
+  .status-dot.completed { background: var(--success); box-shadow: 0 0 8px var(--success); }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.6; transform: scale(0.9); }
+  }
+
+  /* NAV TABS */
+  .nav-tabs {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 0 24px;
+    overflow-x: auto;
+  }
+
+  .nav-tab {
+    padding: 12px 18px;
+    cursor: pointer;
+    color: var(--text-dim);
+    font-size: 11px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    border-bottom: 2px solid transparent;
+    transition: all 0.2s;
+    white-space: nowrap;
+    background: none;
+    border-left: none;
+    border-right: none;
+    border-top: none;
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  .nav-tab:hover { color: var(--text); }
+  .nav-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+  /* MAIN LAYOUT */
+  .main-content {
+    position: relative;
+    z-index: 1;
+    display: none;
+    flex-direction: column;
+    gap: 0;
+  }
+  .main-content.active { display: flex; }
+
+  .panel-grid {
+    display: grid;
+    grid-template-columns: 1fr 360px;
+    gap: 0;
+    min-height: calc(100vh - 110px);
+  }
+
+  .panel-main {
+    padding: 20px 24px;
+    border-right: 1px solid var(--border);
+    overflow-y: auto;
+    max-height: calc(100vh - 110px);
+  }
+
+  .panel-side {
+    padding: 20px;
+    overflow-y: auto;
+    max-height: calc(100vh - 110px);
+    background: var(--surface);
+  }
+
+  /* CARDS */
+  .card {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+    margin-bottom: 16px;
+  }
+
+  .card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 14px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .card-title {
+    font-family: 'Syne', sans-serif;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--text-dim);
+  }
+
+  /* AGENTS GRID */
+  .agents-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+    margin-bottom: 20px;
+  }
+
+  .agent-card {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+    position: relative;
+    overflow: hidden;
+    transition: border-color 0.3s;
+  }
+
+  .agent-card.active {
+    border-color: var(--accent);
+    box-shadow: inset 0 0 30px rgba(0,212,255,0.05), var(--glow-sm);
+  }
+
+  .agent-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--accent), transparent);
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+  .agent-card.active::before { opacity: 1; animation: scanline 2s linear infinite; }
+
+  @keyframes scanline {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(100%); }
+  }
+
+  .agent-avatar {
+    width: 40px; height: 40px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    margin-bottom: 10px;
+  }
+
+  .agent-name {
+    font-family: 'Syne', sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-bright);
+    margin-bottom: 2px;
+  }
+
+  .agent-role {
+    font-size: 10px;
+    color: var(--text-dim);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    margin-bottom: 10px;
+  }
+
+  .agent-task {
+    font-size: 11px;
+    color: var(--accent);
+    background: rgba(0,212,255,0.08);
+    padding: 6px 10px;
+    border-radius: 6px;
+    border-left: 2px solid var(--accent);
+    min-height: 30px;
+    display: flex;
+    align-items: center;
+  }
+
+  .agent-status-indicator {
+    position: absolute;
+    top: 12px; right: 12px;
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--text-dim);
+  }
+
+  .agent-status-indicator.active { background: var(--success); box-shadow: 0 0 6px var(--success); animation: pulse 1s infinite; }
+  .agent-status-indicator.working { background: var(--accent); box-shadow: 0 0 6px var(--accent); animation: pulse 0.8s infinite; }
+  .agent-status-indicator.waiting { background: var(--warning); box-shadow: 0 0 6px var(--warning); }
+
+  /* SPRINT BOARD */
+  .sprint-board {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 12px;
+    margin-top: 12px;
+  }
+
+  .sprint-col {
+    background: rgba(255,255,255,0.02);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px;
+  }
+
+  .sprint-col-title {
+    font-size: 10px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-bottom: 10px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .sprint-item {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 8px 10px;
+    margin-bottom: 8px;
+    font-size: 11px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .sprint-item:hover {
+    border-color: var(--accent);
+    background: rgba(0,212,255,0.05);
+  }
+
+  .sprint-item-id {
+    font-size: 9px;
+    color: var(--accent);
+    letter-spacing: 1px;
+    margin-bottom: 3px;
+  }
+
+  .sprint-item-title { color: var(--text); line-height: 1.4; }
+
+  .priority-badge {
+    display: inline-block;
+    padding: 1px 6px;
+    border-radius: 3px;
+    font-size: 9px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    margin-top: 5px;
+  }
+
+  .priority-HIGH { background: rgba(255,61,90,0.2); color: var(--error); }
+  .priority-MEDIUM { background: rgba(255,184,0,0.2); color: var(--warning); }
+  .priority-LOW { background: rgba(0,212,255,0.15); color: var(--accent); }
+
+  /* LOG TERMINAL */
+  .terminal {
+    background: #020509;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  .terminal-header {
+    background: var(--surface2);
+    padding: 8px 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .terminal-dot {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+  }
+
+  .terminal-body {
+    padding: 12px;
+    height: 280px;
+    overflow-y: auto;
+    font-size: 11px;
+    line-height: 1.7;
+  }
+
+  .terminal-body::-webkit-scrollbar { width: 4px; }
+  .terminal-body::-webkit-scrollbar-track { background: transparent; }
+  .terminal-body::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  .log-entry { display: flex; gap: 8px; margin-bottom: 2px; }
+  .log-time { color: var(--text-dim); flex-shrink: 0; }
+  .log-agent { flex-shrink: 0; }
+  .log-msg {}
+  .log-info .log-agent { color: var(--accent); }
+  .log-warn .log-agent { color: var(--warning); }
+  .log-error .log-agent { color: var(--error); }
+  .log-success .log-agent { color: var(--success); }
+
+  /* ARTIFACTS */
+  .artifact-list { display: flex; flex-direction: column; gap: 8px; }
+
+  .artifact-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .artifact-item:hover {
+    border-color: var(--accent);
+    box-shadow: var(--glow-sm);
+  }
+
+  .artifact-icon { font-size: 16px; }
+  .artifact-name { font-size: 12px; color: var(--text); flex: 1; }
+  .artifact-meta { font-size: 10px; color: var(--text-dim); }
+  .artifact-new {
+    background: rgba(0,212,255,0.15);
+    color: var(--accent);
+    font-size: 9px;
+    padding: 2px 6px;
+    border-radius: 3px;
+    letter-spacing: 1px;
+  }
+
+  /* BUTTONS */
+  .btn {
+    padding: 10px 20px;
+    border-radius: 8px;
+    border: none;
+    cursor: pointer;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    transition: all 0.2s;
+    font-weight: 500;
+  }
+
+  .btn-primary {
+    background: linear-gradient(135deg, var(--accent), #0099cc);
+    color: #000;
+    box-shadow: var(--glow-sm);
+  }
+  .btn-primary:hover { transform: translateY(-1px); box-shadow: var(--glow); }
+  .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+  .btn-secondary {
+    background: var(--surface2);
+    color: var(--text);
+    border: 1px solid var(--border);
+  }
+  .btn-secondary:hover { border-color: var(--accent); color: var(--accent); }
+
+  .btn-danger {
+    background: rgba(255,61,90,0.15);
+    color: var(--error);
+    border: 1px solid rgba(255,61,90,0.3);
+  }
+
+  /* PROGRESS */
+  .progress-bar {
+    height: 4px;
+    background: var(--border);
+    border-radius: 2px;
+    overflow: hidden;
+    margin: 8px 0;
+  }
+
+  .progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    border-radius: 2px;
+    transition: width 0.5s ease;
+    position: relative;
+  }
+
+  .progress-fill::after {
+    content: '';
+    position: absolute;
+    top: 0; right: 0; bottom: 0;
+    width: 40px;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4));
+    animation: shimmer 1.5s infinite;
+  }
+
+  @keyframes shimmer {
+    0% { transform: translateX(-40px); }
+    100% { transform: translateX(40px); }
+  }
+
+  /* FORM INPUTS */
+  .form-group { margin-bottom: 14px; }
+  .form-label {
+    display: block;
+    font-size: 10px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-bottom: 6px;
+  }
+
+  .form-input {
+    width: 100%;
+    padding: 9px 12px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    transition: border-color 0.2s;
+  }
+
+  .form-input:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(0,212,255,0.1);
+  }
+
+  .form-input[type="password"] { letter-spacing: 2px; }
+
+  .form-section {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+    margin-bottom: 16px;
+  }
+
+  .form-section-title {
+    font-family: 'Syne', sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--accent);
+    margin-bottom: 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  /* SPRINT STATS */
+  .stats-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+
+  .stat-box {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px;
+    text-align: center;
+  }
+
+  .stat-value {
+    font-family: 'Syne', sans-serif;
+    font-size: 24px;
+    font-weight: 800;
+    color: var(--accent);
+    line-height: 1;
+    margin-bottom: 4px;
+  }
+
+  .stat-label {
+    font-size: 9px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--text-dim);
+  }
+
+  /* MODAL */
+  .modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.8);
+    backdrop-filter: blur(4px);
+    z-index: 1000;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+  .modal-overlay.open { display: flex; }
+
+  .modal {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    width: 100%;
+    max-width: 800px;
+    max-height: 80vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+  }
+
+  .modal-header {
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: var(--surface2);
+  }
+
+  .modal-title {
+    font-family: 'Syne', sans-serif;
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text-bright);
+  }
+
+  .modal-body {
+    padding: 20px;
+    overflow-y: auto;
+    flex: 1;
+  }
+
+  .modal-close {
+    background: none;
+    border: none;
+    color: var(--text-dim);
+    cursor: pointer;
+    font-size: 20px;
+    line-height: 1;
+  }
+
+  pre.code-block {
+    background: #020509;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px;
+    font-size: 11px;
+    overflow-x: auto;
+    line-height: 1.6;
+    color: #88ccff;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
+  /* NOTIFICATION */
+  .notification {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    padding: 12px 18px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    font-size: 12px;
+    z-index: 2000;
+    transform: translateX(120%);
+    transition: transform 0.3s ease;
+    max-width: 320px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+  }
+  .notification.show { transform: translateX(0); }
+  .notification.success { border-color: var(--success); }
+  .notification.error { border-color: var(--error); }
+  .notification.warning { border-color: var(--warning); }
+
+  /* SPINNER */
+  .spinner {
+    width: 16px; height: 16px;
+    border: 2px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    display: inline-block;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ACTION REQUIRED BANNER */
+  .action-required {
+    background: linear-gradient(135deg, rgba(255,184,0,0.1), rgba(255,61,90,0.1));
+    border: 1px solid var(--warning);
+    border-radius: 10px;
+    padding: 14px 18px;
+    margin-bottom: 16px;
+    display: none;
+  }
+  .action-required.visible { display: flex; gap: 12px; align-items: flex-start; }
+
+  .scrollbar-custom::-webkit-scrollbar { width: 4px; }
+  .scrollbar-custom::-webkit-scrollbar-track { background: transparent; }
+  .scrollbar-custom::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-icon">⚡</div>
+    <div>
+      <div class="logo-text">AI SCRUM TEAM</div>
+      <div class="logo-sub">Orchestrator v1.0</div>
+    </div>
+  </div>
+  <div class="header-status">
+    <div class="status-badge" id="connectionBadge">
+      <div class="status-dot" id="wsBadgeDot"></div>
+      <span id="wsBadgeText">DISCONNECTED</span>
+    </div>
+    <div class="status-badge" id="projectStatusBadge">
+      <div class="status-dot" id="projectStatusDot"></div>
+      <span id="projectStatusText">IDLE</span>
+    </div>
+  </div>
+</header>
+
+<div class="nav-tabs">
+  <button class="nav-tab active" onclick="showTab('dashboard')">⬡ Dashboard</button>
+  <button class="nav-tab" onclick="showTab('agents')">👥 Agentes</button>
+  <button class="nav-tab" onclick="showTab('sprints')">🗂 Sprints</button>
+  <button class="nav-tab" onclick="showTab('artifacts')">📦 Artefactos</button>
+  <button class="nav-tab" onclick="showTab('logs')">📋 Logs</button>
+  <button class="nav-tab" onclick="showTab('settings')">⚙ Settings</button>
+</div>
+
+<!-- TAB: DASHBOARD -->
+<div class="main-content active" id="tab-dashboard">
+  <div class="panel-grid">
+    <div class="panel-main scrollbar-custom">
+      
+      <div id="actionRequired" class="action-required">
+        <span style="font-size:20px">⚠️</span>
+        <div>
+          <div style="font-weight:600; color: var(--warning); margin-bottom: 4px">Acción Requerida</div>
+          <div id="actionMessage" style="color: var(--text)"></div>
+        </div>
+      </div>
+
+      <div class="stats-row">
+        <div class="stat-box">
+          <div class="stat-value" id="statSprint">0</div>
+          <div class="stat-label">Sprint Actual</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-value" id="statArtifacts">0</div>
+          <div class="stat-label">Artefactos</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-value" id="statBugs" style="color: var(--error)">0</div>
+          <div class="stat-label">Bugs</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-value" id="statCoverage" style="color: var(--success)">0%</div>
+          <div class="stat-label">Cobertura QA</div>
+        </div>
+      </div>
+
+      <!-- PROGRESS OVERALL -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">Progreso del Proyecto</div>
+          <span id="progressText" style="color:var(--accent); font-size:12px">0 / 5 sprints</span>
+        </div>
+        <div class="progress-bar">
+          <div class="progress-fill" id="mainProgress" style="width:0%"></div>
+        </div>
+        <div id="currentPhase" style="font-size:11px; color:var(--text-dim); margin-top:8px">
+          Esperando inicio...
+        </div>
+      </div>
+
+      <!-- AGENTS GRID -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">Equipo de Agentes</div>
+          <span id="activeAgentCount" style="font-size:11px; color:var(--text-dim)">0 activos</span>
+        </div>
+        <div class="agents-grid">
+          <div class="agent-card" id="agent-scrummaster">
+            <div class="agent-status-indicator" id="dot-scrummaster"></div>
+            <div class="agent-avatar" style="background: linear-gradient(135deg, #00d4ff22, #00d4ff44);">🧭</div>
+            <div class="agent-name">Carlos</div>
+            <div class="agent-role">Scrum Master</div>
+            <div class="agent-task" id="task-scrummaster">En espera...</div>
+          </div>
+          <div class="agent-card" id="agent-productowner">
+            <div class="agent-status-indicator" id="dot-productowner"></div>
+            <div class="agent-avatar" style="background: linear-gradient(135deg, #7b2fff22, #7b2fff44);">📋</div>
+            <div class="agent-name">Sarah</div>
+            <div class="agent-role">Product Owner</div>
+            <div class="agent-task" id="task-productowner">En espera...</div>
+          </div>
+          <div class="agent-card" id="agent-developer">
+            <div class="agent-status-indicator" id="dot-developer"></div>
+            <div class="agent-avatar" style="background: linear-gradient(135deg, #00ff8822, #00ff8844);">💻</div>
+            <div class="agent-name">Alex</div>
+            <div class="agent-role">Developer / Architect</div>
+            <div class="agent-task" id="task-developer">En espera...</div>
+          </div>
+          <div class="agent-card" id="agent-qatester">
+            <div class="agent-status-indicator" id="dot-qatester"></div>
+            <div class="agent-avatar" style="background: linear-gradient(135deg, #ffb80022, #ffb80044);">🔍</div>
+            <div class="agent-name">María</div>
+            <div class="agent-role">QA Tester</div>
+            <div class="agent-task" id="task-qatester">En espera...</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- RECENT ARTIFACTS -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">Últimos Artefactos</div>
+          <button class="btn btn-secondary" onclick="showTab('artifacts')" style="padding:4px 10px; font-size:10px">Ver todos</button>
+        </div>
+        <div id="recentArtifacts" class="artifact-list">
+          <div style="color:var(--text-dim); font-size:11px; padding:8px">
+            Los artefactos aparecerán aquí cuando el proyecto esté en ejecución
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- SIDE PANEL: MINI TERMINAL -->
+    <div class="panel-side scrollbar-custom">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px">
+        <div style="font-family:'Syne',sans-serif; font-weight:600; font-size:12px; color:var(--text-bright)">Activity Feed</div>
+        <button class="btn btn-secondary" id="startBtn" onclick="startProject()" style="padding:8px 16px; font-size:10px">
+          ▶ Iniciar
+        </button>
+      </div>
+      
+      <div class="terminal">
+        <div class="terminal-header">
+          <div class="terminal-dot" style="background:#ff5f57"></div>
+          <div class="terminal-dot" style="background:#febc2e"></div>
+          <div class="terminal-dot" style="background:#28c840"></div>
+          <span style="color:var(--text-dim); font-size:10px; margin-left:8px">scrum-master ~ logs</span>
+        </div>
+        <div class="terminal-body" id="terminalBody">
+          <div class="log-entry log-info">
+            <span class="log-time">00:00:00</span>
+            <span class="log-agent">[SYSTEM]</span>
+            <span class="log-msg"> AI Scrum Team Orchestrator listo.</span>
+          </div>
+          <div class="log-entry log-info">
+            <span class="log-time">00:00:00</span>
+            <span class="log-agent">[SYSTEM]</span>
+            <span class="log-msg"> Configura las credenciales en Settings y luego inicia el proyecto.</span>
+          </div>
+        </div>
+      </div>
+
+      <div style="margin-top:16px">
+        <div style="font-family:'Syne',sans-serif; font-weight:600; font-size:12px; color:var(--text-bright); margin-bottom:10px">
+          Sprint Progress
+        </div>
+        <div id="sprintMiniList"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- TAB: SPRINTS -->
+<div class="main-content" id="tab-sprints">
+  <div style="padding: 24px">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px">
+      <div>
+        <div style="font-family:'Syne',sans-serif; font-size:20px; font-weight:800; color:var(--text-bright)">Sprint Board</div>
+        <div style="color:var(--text-dim); font-size:11px; margin-top:4px">Estado de los sprints y user stories</div>
+      </div>
+    </div>
+    <div id="sprintBoardContainer">
+      <div style="color:var(--text-dim); font-size:12px; padding:20px; text-align:center">
+        El sprint board aparecerá cuando el proyecto esté en ejecución
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- TAB: ARTIFACTS -->
+<div class="main-content" id="tab-artifacts">
+  <div style="padding: 24px">
+    <div style="font-family:'Syne',sans-serif; font-size:20px; font-weight:800; color:var(--text-bright); margin-bottom:20px">Artefactos del Proyecto</div>
+    <div id="artifactsGrid" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap:14px"></div>
+  </div>
+</div>
+
+<!-- TAB: LOGS -->
+<div class="main-content" id="tab-logs">
+  <div style="padding: 24px">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px">
+      <div style="font-family:'Syne',sans-serif; font-size:20px; font-weight:800; color:var(--text-bright)">Logs Completos</div>
+      <div style="display:flex; gap:8px">
+        <select id="logFilter" class="form-input" style="width:160px; padding:6px 10px" onchange="filterLogs()">
+          <option value="">Todos los agentes</option>
+          <option value="ScrumMaster">Scrum Master</option>
+          <option value="ProductOwner">Product Owner</option>
+          <option value="Developer">Developer</option>
+          <option value="QA">QA Tester</option>
+        </select>
+        <button class="btn btn-secondary" onclick="clearLogs()">Limpiar</button>
+      </div>
+    </div>
+    <div class="terminal" style="height: calc(100vh - 200px)">
+      <div class="terminal-body scrollbar-custom" id="fullLogBody" style="height:100%; max-height:none"></div>
+    </div>
+  </div>
+</div>
+
+<!-- TAB: SETTINGS -->
+<div class="main-content" id="tab-settings">
+  <div style="padding: 24px; max-width: 800px">
+    <div style="font-family:'Syne',sans-serif; font-size:20px; font-weight:800; color:var(--text-bright); margin-bottom:4px">Configuración</div>
+    <div style="color:var(--text-dim); font-size:11px; margin-bottom:24px">Credenciales y configuración del proyecto — todo se guarda en local</div>
+
+    <div class="form-section">
+      <div class="form-section-title">🤖 Claude.ai (Requerido)</div>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px">
+        <div class="form-group">
+          <label class="form-label">Email</label>
+          <input class="form-input" type="email" id="claude_email" placeholder="tu@email.com">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Contraseña</label>
+          <input class="form-input" type="password" id="claude_password" placeholder="••••••••">
+        </div>
+      </div>
+    </div>
+
+    <div class="form-section">
+      <div class="form-section-title">📧 Gmail (para tracking de emails)</div>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px">
+        <div class="form-group">
+          <label class="form-label">Email Gmail</label>
+          <input class="form-input" type="email" id="gmail_email" placeholder="tu@gmail.com">
+        </div>
+        <div class="form-group">
+          <label class="form-label">App Password <span style="color:var(--text-dim)">(no contraseña normal)</span></label>
+          <input class="form-input" type="password" id="gmail_password" placeholder="xxxx xxxx xxxx xxxx">
+        </div>
+      </div>
+      <div style="font-size:10px; color:var(--text-dim); margin-top:6px">
+        ⚠ Usa una App Password de Google: myaccount.google.com → Security → App passwords
+      </div>
+    </div>
+
+    <div class="form-section">
+      <div class="form-section-title">💼 Plataformas de Empleo (opcionales)</div>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px">
+        <div class="form-group">
+          <label class="form-label">LinkedIn Email</label>
+          <input class="form-input" type="email" id="linkedin_email" placeholder="tu@email.com">
+        </div>
+        <div class="form-group">
+          <label class="form-label">LinkedIn Password</label>
+          <input class="form-input" type="password" id="linkedin_password" placeholder="••••••••">
+        </div>
+        <div class="form-group">
+          <label class="form-label">InfoJobs Email</label>
+          <input class="form-input" type="email" id="infojobs_email" placeholder="tu@email.com">
+        </div>
+        <div class="form-group">
+          <label class="form-label">InfoJobs Password</label>
+          <input class="form-input" type="password" id="infojobs_password" placeholder="••••••••">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Indeed Email</label>
+          <input class="form-input" type="email" id="indeed_email" placeholder="tu@email.com">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Indeed Password</label>
+          <input class="form-input" type="password" id="indeed_password" placeholder="••••••••">
+        </div>
+      </div>
+    </div>
+
+    <div class="form-section">
+      <div class="form-section-title">⚙ Configuración del Proyecto</div>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px">
+        <div class="form-group">
+          <label class="form-label">Nombre del Proyecto</label>
+          <input class="form-input" type="text" id="proj_name" value="JobTracker Pro">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Nº Máx. Sprints</label>
+          <input class="form-input" type="number" id="proj_sprints" value="5" min="1" max="10">
+        </div>
+        <div class="form-group" style="grid-column: span 2">
+          <label class="form-label">Descripción del Proyecto</label>
+          <textarea class="form-input" id="proj_description" rows="3" style="resize:vertical">Aplicación web para seguimiento de procesos de selección activos mediante integración con email y plataformas de empleo</textarea>
+        </div>
+      </div>
+      <div style="display:flex; gap:12px; align-items:center; margin-top:8px">
+        <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-size:11px">
+          <input type="checkbox" id="headless_mode" style="accent-color:var(--accent)">
+          Modo headless (sin ventana de navegador)
+        </label>
+        <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-size:11px">
+          <input type="checkbox" id="share_session" checked style="accent-color:var(--accent)">
+          Compartir sesión (recomendado)
+        </label>
+      </div>
+    </div>
+
+    <div style="display:flex; gap:12px">
+      <button class="btn btn-primary" onclick="saveSettings()">💾 Guardar Configuración</button>
+      <button class="btn btn-secondary" onclick="loadSettings()">↺ Recargar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ARTIFACT MODAL -->
+<div class="modal-overlay" id="artifactModal">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title" id="modalTitle">Artefacto</div>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <pre class="code-block" id="modalContent"></pre>
+    </div>
+  </div>
+</div>
+
+<!-- NOTIFICATION -->
+<div class="notification" id="notification"></div>
+
+<script>
+  // === WEBSOCKET ===
+  let ws = null;
+  let reconnectTimer = null;
+  const allLogs = [];
+  const allArtifacts = [];
+  let projectState = { status: 'idle', currentSprint: 0, maxSprints: 5, sprints: [] };
+
+  function connectWS() {
+    const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+    ws = new WebSocket(`${proto}//${location.host}`);
+    
+    ws.onopen = () => {
+      updateConnectionStatus(true);
+      clearInterval(reconnectTimer);
+    };
+    
+    ws.onclose = () => {
+      updateConnectionStatus(false);
+      reconnectTimer = setTimeout(connectWS, 3000);
+    };
+    
+    ws.onmessage = (e) => {
+      try {
+        const msg = JSON.parse(e.data);
+        handleMessage(msg);
+      } catch(err) {}
+    };
+  }
+
+  function updateConnectionStatus(connected) {
+    const dot = document.getElementById('wsBadgeDot');
+    const text = document.getElementById('wsBadgeText');
+    dot.className = 'status-dot ' + (connected ? 'active' : '');
+    text.textContent = connected ? 'CONNECTED' : 'DISCONNECTED';
+  }
+
+  function handleMessage(msg) {
+    const { type, data } = msg;
+    
+    switch(type) {
+      case 'log': handleLog(data); break;
+      case 'status': handleStatus(data); break;
+      case 'phase': handlePhase(data); break;
+      case 'sprint_start': handleSprintStart(data); break;
+      case 'sprint_update': handleSprintUpdate(data); break;
+      case 'agent_working': handleAgentWorking(data); break;
+      case 'agent_ready': handleAgentReady(data); break;
+      case 'agent_initializing': handleAgentInit(data); break;
+      case 'artifact_created': handleArtifact(data); break;
+      case 'action_required': handleActionRequired(data); break;
+      case 'completed': handleCompleted(data); break;
+      case 'error': handleError(data); break;
+      case 'state': { projectState = data; updateFromState(data); break; }
+    }
+  }
+
+  function handleLog(data) {
+    allLogs.push(data);
+    addTerminalLine(data, 'terminalBody');
+    addTerminalLine(data, 'fullLogBody');
+    updateStats();
+  }
+
+  function addTerminalLine(data, targetId) {
+    const el = document.getElementById(targetId);
+    if (!el) return;
+    
+    const time = new Date(data.timestamp).toLocaleTimeString();
+    const levelClass = data.level === 'error' ? 'log-error' : 
+                       data.level === 'warn' ? 'log-warn' : 'log-info';
+    
+    const line = document.createElement('div');
+    line.className = `log-entry ${levelClass}`;
+    line.innerHTML = `<span class="log-time">${time}</span><span class="log-agent">[${(data.agent||'SYS').substring(0,12)}]</span><span class="log-msg"> ${escHtml(data.message)}</span>`;
+    el.appendChild(line);
+    
+    // Auto-scroll
+    if (el.scrollTop + el.clientHeight >= el.scrollHeight - 50) {
+      el.scrollTop = el.scrollHeight;
+    }
+    
+    // Limit lines
+    while (el.children.length > 500) el.removeChild(el.firstChild);
+  }
+
+  function handleStatus(data) {
+    projectState.status = data.status || data;
+    const status = projectState.status;
+    
+    const dot = document.getElementById('projectStatusDot');
+    const text = document.getElementById('projectStatusText');
+    
+    const map = {
+      'idle': ['', 'IDLE'],
+      'initializing': ['running', 'INIT...'],
+      'running': ['running', 'RUNNING'],
+      'completed': ['completed', 'COMPLETED'],
+      'error': ['error', 'ERROR']
+    };
+    
+    const [cls, label] = map[status] || ['', status.toUpperCase()];
+    dot.className = 'status-dot ' + cls;
+    text.textContent = label;
+    
+    const startBtn = document.getElementById('startBtn');
+    if (status === 'running' || status === 'initializing') {
+      startBtn.disabled = true;
+      startBtn.innerHTML = '<span class="spinner"></span> Running';
+    } else if (status === 'completed') {
+      startBtn.disabled = true;
+      startBtn.innerHTML = '✓ Completado';
+    } else {
+      startBtn.disabled = false;
+      startBtn.innerHTML = '▶ Iniciar';
+    }
+  }
+
+  function handlePhase(data) {
+    document.getElementById('currentPhase').textContent = 
+      `Fase ${data.phase}: ${data.name}`;
+  }
+
+  function handleSprintStart(data) {
+    projectState.currentSprint = data.sprint;
+    updateProgressBar();
+    notify(`Sprint ${data.sprint} iniciado`, 'success');
+    updateSprintBoard();
+  }
+
+  function handleSprintUpdate(data) {
+    const idx = projectState.sprints.findIndex(s => s.number === data.sprint);
+    if (idx >= 0) projectState.sprints[idx] = { ...projectState.sprints[idx], ...data };
+    else projectState.sprints.push(data);
+    updateSprintBoard();
+    updateSprintMiniList();
+  }
+
+  function handleAgentWorking(data) {
+    const key = data.agent || data.agentKey;
+    setAgentWorking(key, data.task);
+  }
+
+  function handleAgentReady(data) {
+    const key = data.agentKey || data.agent;
+    setAgentStatus(key, 'active', 'Listo');
+  }
+
+  function handleAgentInit(data) {
+    const key = data.agentKey || data.agent;
+    setAgentStatus(key, 'waiting', 'Inicializando...');
+  }
+
+  function setAgentWorking(key, task) {
+    const normalizedKey = normalizeAgentKey(key);
+    setAgentStatus(normalizedKey, 'working', task);
+    
+    const card = document.getElementById(`agent-${normalizedKey}`);
+    if (card) card.classList.add('active');
+  }
+
+  function setAgentStatus(key, status, task) {
+    const dot = document.getElementById(`dot-${key}`);
+    const taskEl = document.getElementById(`task-${key}`);
+    
+    if (dot) dot.className = 'agent-status-indicator ' + status;
+    if (taskEl) taskEl.textContent = task || '';
+    
+    if (status !== 'working') {
+      const card = document.getElementById(`agent-${key}`);
+      if (card) card.classList.remove('active');
+    }
+  }
+
+  function normalizeAgentKey(key) {
+    const map = {
+      'scrumMaster': 'scrummaster',
+      'scrum-master': 'scrummaster',
+      'productOwner': 'productowner',
+      'product-owner': 'productowner',
+      'developer': 'developer',
+      'qaTester': 'qatester',
+      'qa-tester': 'qatester'
+    };
+    return map[key] || key.toLowerCase().replace(/[-_]/g, '');
+  }
+
+  function handleArtifact(data) {
+    allArtifacts.push({ ...data, timestamp: new Date().toISOString() });
+    
+    const icons = { prd: '📋', architecture: '🏗', testPlan: '🧪', 
+                    implementation: '💻', qaReport: '🔍', retrospective: '🔄',
+                    sprintPlan: '🗂', default: '📄' };
+    
+    const icon = icons[data.type] || icons.default;
+    const name = formatArtifactName(data.type, data.sprint);
+    
+    // Recent artifacts (dashboard)
+    const recentEl = document.getElementById('recentArtifacts');
+    const existing = recentEl.querySelector('.no-artifacts');
+    if (existing) existing.remove();
+    
+    const item = createArtifactItem(icon, name, data);
+    recentEl.insertBefore(item, recentEl.firstChild);
+    
+    // Limit to 5 recent
+    while (recentEl.children.length > 5) recentEl.removeChild(recentEl.lastChild);
+    
+    // Full artifacts tab
+    updateArtifactsGrid();
+    
+    document.getElementById('statArtifacts').textContent = allArtifacts.length;
+    notify(`Artefacto creado: ${name}`, 'success');
+  }
+
+  function createArtifactItem(icon, name, data) {
+    const item = document.createElement('div');
+    item.className = 'artifact-item';
+    item.innerHTML = `
+      <span class="artifact-icon">${icon}</span>
+      <span class="artifact-name">${name}</span>
+      <span class="artifact-new">NEW</span>
+    `;
+    item.onclick = () => showArtifact(data);
+    
+    // Remove NEW badge after 5s
+    setTimeout(() => {
+      const badge = item.querySelector('.artifact-new');
+      if (badge) badge.remove();
+    }, 5000);
+    
+    return item;
+  }
+
+  function formatArtifactName(type, sprint) {
+    const names = {
+      prd: 'Product Requirements Doc',
+      architecture: 'Architecture Design',
+      testPlan: 'Test Plan',
+      implementation: `Sprint ${sprint} Implementation`,
+      qaReport: `Sprint ${sprint} QA Report`,
+      retrospective: `Sprint ${sprint} Retrospective`,
+      sprintPlan: 'Sprint Plan',
+    };
+    return names[type] || type;
+  }
+
+  function handleActionRequired(data) {
+    const banner = document.getElementById('actionRequired');
+    const msgEl = document.getElementById('actionMessage');
+    banner.classList.add('visible');
+    msgEl.textContent = data.message;
+    notify('⚠ Acción requerida - Revisa el navegador', 'warning');
+  }
+
+  function handleCompleted(data) {
+    notify('🎉 Proyecto completado! App generada en ' + data.outputDir, 'success');
+    document.getElementById('currentPhase').textContent = '✓ Proyecto completado - App disponible en ' + (data.outputDir || './outputs');
+  }
+
+  function handleError(data) {
+    notify('Error: ' + data.message, 'error');
+  }
+
+  function updateFromState(state) {
+    projectState = state;
+    handleStatus({ status: state.status });
+    document.getElementById('statSprint').textContent = state.currentSprint || 0;
+    updateProgressBar();
+    updateSprintBoard();
+    updateSprintMiniList();
+  }
+
+  function updateProgressBar() {
+    const max = projectState.maxSprints || 5;
+    const current = projectState.currentSprint || 0;
+    const pct = Math.round((current / max) * 100);
+    document.getElementById('mainProgress').style.width = pct + '%';
+    document.getElementById('progressText').textContent = `${current} / ${max} sprints`;
+    document.getElementById('statSprint').textContent = current;
+  }
+
+  function updateStats() {
+    // Count bugs from logs
+    const bugLogs = allLogs.filter(l => l.message?.toLowerCase().includes('bug'));
+    // Update would come from QA reports in real use
+  }
+
+  function updateSprintBoard() {
+    const container = document.getElementById('sprintBoardContainer');
+    const sprints = projectState.sprints;
+    if (!sprints || sprints.length === 0) return;
+    
+    const statusCols = {
+      'planning': { label: 'Planificando', color: 'var(--text-dim)' },
+      'development': { label: 'En Desarrollo', color: 'var(--accent)' },
+      'testing': { label: 'En Testing', color: 'var(--warning)' },
+      'bug-fixing': { label: 'Corrigiendo', color: 'var(--error)' },
+      'review': { label: 'En Review', color: 'var(--accent2)' },
+      'completed': { label: 'Completado', color: 'var(--success)' }
+    };
+
+    container.innerHTML = `<div class="sprint-board">
+      ${Object.entries(statusCols).map(([status, cfg]) => `
+        <div class="sprint-col">
+          <div class="sprint-col-title" style="color:${cfg.color}">${cfg.label}</div>
+          ${sprints.filter(s => s.status === status).map(s => `
+            <div class="sprint-item">
+              <div class="sprint-item-id">SPRINT-${s.number}</div>
+              <div class="sprint-item-title">${s.plan?.parsed?.sprint?.goal || `Sprint ${s.number}`}</div>
+              <span class="priority-badge priority-HIGH">${s.status}</span>
+            </div>
+          `).join('')}
+        </div>
+      `).join('')}
+    </div>`;
+  }
+
+  function updateSprintMiniList() {
+    const el = document.getElementById('sprintMiniList');
+    const sprints = projectState.sprints;
+    
+    if (!sprints || sprints.length === 0) {
+      el.innerHTML = '<div style="color:var(--text-dim); font-size:11px">Sin sprints aún</div>';
+      return;
+    }
+    
+    const statusIcons = { completed: '✅', 'in-progress': '⚡', planning: '📋', error: '❌' };
+    
+    el.innerHTML = Array.from({ length: projectState.maxSprints || 5 }, (_, i) => {
+      const sprint = sprints.find(s => s.number === i + 1);
+      const status = sprint?.status || 'pending';
+      const icon = statusIcons[status] || '○';
+      const isActive = (i + 1) === projectState.currentSprint;
+      
+      return `<div style="display:flex; align-items:center; gap:10px; padding:8px 0; border-bottom:1px solid var(--border);">
+        <div style="font-size:14px">${icon}</div>
+        <div style="flex:1">
+          <div style="font-size:11px; color:${isActive ? 'var(--accent)' : 'var(--text)'}">Sprint ${i+1}</div>
+          <div style="font-size:10px; color:var(--text-dim)">${sprint?.plan?.parsed?.sprint?.goal?.substring(0, 40) || '...'}</div>
+        </div>
+        ${isActive ? '<div class="spinner"></div>' : ''}
+      </div>`;
+    }).join('');
+  }
+
+  function updateArtifactsGrid() {
+    const grid = document.getElementById('artifactsGrid');
+    const icons = { prd: '📋', architecture: '🏗', testPlan: '🧪', 
+                    implementation: '💻', qaReport: '🔍', retrospective: '🔄' };
+    
+    grid.innerHTML = allArtifacts.map((a, i) => `
+      <div class="artifact-item" onclick="showArtifact(${i})" style="flex-direction:column; align-items:flex-start; padding:14px">
+        <div style="display:flex; align-items:center; gap:10px; width:100%; margin-bottom:8px">
+          <span style="font-size:20px">${icons[a.type] || '📄'}</span>
+          <div>
+            <div class="artifact-name">${formatArtifactName(a.type, a.sprint)}</div>
+            <div class="artifact-meta">${new Date(a.timestamp).toLocaleTimeString()}</div>
+          </div>
+        </div>
+        <div style="width:100%; background:rgba(0,212,255,0.05); border-radius:6px; padding:8px; font-size:10px; color:var(--text-dim); overflow:hidden; max-height:60px">
+          ${escHtml(JSON.stringify(a.data?.parsed || {}).substring(0, 200))}...
+        </div>
+      </div>
+    `).join('');
+  }
+
+  function showArtifact(dataOrIndex) {
+    const data = typeof dataOrIndex === 'number' ? allArtifacts[dataOrIndex] : dataOrIndex;
+    document.getElementById('modalTitle').textContent = formatArtifactName(data.type, data.sprint);
+    document.getElementById('modalContent').textContent = JSON.stringify(data.data || data, null, 2);
+    document.getElementById('artifactModal').classList.add('open');
+  }
+
+  function closeModal() {
+    document.getElementById('artifactModal').classList.remove('open');
+  }
+
+  // === SETTINGS ===
+  async function loadSettings() {
+    try {
+      const res = await fetch('/api/config');
+      const { config, credentials } = await res.json();
+      
+      document.getElementById('claude_email').value = credentials.claude?.email || '';
+      document.getElementById('gmail_email').value = credentials.gmail?.email || '';
+      document.getElementById('linkedin_email').value = credentials.linkedin?.email || '';
+      document.getElementById('infojobs_email').value = credentials.infojobs?.email || '';
+      document.getElementById('indeed_email').value = credentials.indeed?.email || '';
+      document.getElementById('proj_name').value = config.project?.name || '';
+      document.getElementById('proj_description').value = config.project?.description || '';
+      document.getElementById('proj_sprints').value = config.scrum?.maxSprints || 5;
+      document.getElementById('headless_mode').checked = config.agents?.headless || false;
+      document.getElementById('share_session').checked = config.agents?.shareSession ?? true;
+    } catch(e) {
+      notify('Error cargando configuración', 'error');
+    }
+  }
+
+  async function saveSettings() {
+    const credentials = {
+      claude: { 
+        email: document.getElementById('claude_email').value, 
+        password: document.getElementById('claude_password').value || undefined
+      },
+      gmail: { 
+        email: document.getElementById('gmail_email').value, 
+        password: document.getElementById('gmail_password').value || undefined
+      },
+      linkedin: { 
+        email: document.getElementById('linkedin_email').value, 
+        password: document.getElementById('linkedin_password').value || undefined
+      },
+      infojobs: { 
+        email: document.getElementById('infojobs_email').value, 
+        password: document.getElementById('infojobs_password').value || undefined
+      },
+      indeed: { 
+        email: document.getElementById('indeed_email').value, 
+        password: document.getElementById('indeed_password').value || undefined
+      }
+    };
+    
+    // Solo enviar contraseñas si se rellenaron
+    for (const platform of Object.values(credentials)) {
+      if (!platform.password) delete platform.password;
+    }
+    
+    const config = {
+      project: {
+        name: document.getElementById('proj_name').value,
+        description: document.getElementById('proj_description').value
+      },
+      scrum: { maxSprints: parseInt(document.getElementById('proj_sprints').value) },
+      agents: {
+        headless: document.getElementById('headless_mode').checked,
+        shareSession: document.getElementById('share_session').checked
+      }
+    };
+    
+    try {
+      await fetch('/api/credentials', { 
+        method: 'POST', 
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(credentials)
+      });
+      await fetch('/api/config', { 
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(config)
+      });
+      notify('Configuración guardada ✓', 'success');
+    } catch(e) {
+      notify('Error guardando: ' + e.message, 'error');
+    }
+  }
+
+  async function startProject() {
+    try {
+      const res = await fetch('/api/start', { method: 'POST' });
+      const data = await res.json();
+      if (data.error) {
+        notify(data.error, 'error');
+      } else {
+        notify('Proyecto iniciado - Abriendo navegadores...', 'success');
+      }
+    } catch(e) {
+      notify('Error iniciando proyecto: ' + e.message, 'error');
+    }
+  }
+
+  // === UI HELPERS ===
+  function showTab(tab) {
+    document.querySelectorAll('.main-content').forEach(el => el.classList.remove('active'));
+    document.querySelectorAll('.nav-tab').forEach(el => el.classList.remove('active'));
+    
+    document.getElementById(`tab-${tab}`)?.classList.add('active');
+    event.target.classList.add('active');
+  }
+
+  function notify(msg, type = 'info') {
+    const el = document.getElementById('notification');
+    el.textContent = msg;
+    el.className = `notification show ${type}`;
+    setTimeout(() => el.classList.remove('show'), 4000);
+  }
+
+  function filterLogs() {
+    const filter = document.getElementById('logFilter').value.toLowerCase();
+    const el = document.getElementById('fullLogBody');
+    el.querySelectorAll('.log-entry').forEach(line => {
+      const agent = line.querySelector('.log-agent')?.textContent.toLowerCase() || '';
+      line.style.display = !filter || agent.includes(filter) ? '' : 'none';
+    });
+  }
+
+  function clearLogs() {
+    document.getElementById('fullLogBody').innerHTML = '';
+  }
+
+  function escHtml(str) {
+    return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  // Close modal on overlay click
+  document.getElementById('artifactModal').addEventListener('click', function(e) {
+    if (e.target === this) closeModal();
+  });
+
+  // === INIT ===
+  connectWS();
+  loadSettings();
+  
+  // Ping keepalive
+  setInterval(() => {
+    if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'ping' }));
+  }, 30000);
+</script>
+</body>
+</html>

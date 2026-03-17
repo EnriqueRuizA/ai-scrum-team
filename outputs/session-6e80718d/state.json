@@ -1,0 +1,36 @@
+{
+  "sessionId": "6e80718d-742c-4967-93cf-624facc73560",
+  "status": "initializing",
+  "currentSprint": 0,
+  "maxSprints": 5,
+  "sprints": [],
+  "artifacts": {
+    "prd": null,
+    "architecture": null,
+    "testPlan": null,
+    "implementations": [],
+    "qaReports": [],
+    "finalCode": null
+  },
+  "logs": [
+    {
+      "timestamp": "2026-03-13T13:34:48.450Z",
+      "agent": "ScrumMaster",
+      "level": "info",
+      "message": "Inicializando equipo de agentes..."
+    },
+    {
+      "timestamp": "2026-03-13T13:34:48.451Z",
+      "agent": "ScrumMaster",
+      "level": "info",
+      "message": "Modo sesión compartida: todos los agentes usan el mismo navegador"
+    },
+    {
+      "timestamp": "2026-03-13T13:40:08.164Z",
+      "agent": "ScrumMaster",
+      "level": "info",
+      "message": "Cerrando agentes..."
+    }
+  ],
+  "errors": []
+}
