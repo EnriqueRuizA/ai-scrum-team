@@ -20,7 +20,7 @@
     "userDataDir": "",
     "local": {
       "baseUrl": "http://localhost:11434",
-      "model": "llama3.2",
+      "model": "qwen2.5-coder:32b",
       "embedModel": "nomic-embed-text",
       "rag": {
         "enabled": true,

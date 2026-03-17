@@ -1,0 +1,116 @@
+{
+  "sessionId": "6f8cf996-7b49-4028-94a8-975790a801f2",
+  "status": "error",
+  "currentSprint": 0,
+  "maxSprints": 5,
+  "sprints": [],
+  "artifacts": {
+    "prd": null,
+    "architecture": null,
+    "testPlan": null,
+    "implementations": [],
+    "qaReports": [],
+    "finalCode": null
+  },
+  "logs": [
+    {
+      "timestamp": "2026-03-17T14:16:17.545Z",
+      "agent": "ScrumMaster",
+      "level": "info",
+      "message": "Inicializando equipo de agentes..."
+    },
+    {
+      "timestamp": "2026-03-17T14:16:17.546Z",
+      "agent": "ScrumMaster",
+      "level": "info",
+      "message": "Modo IA local (Ollama + RAG)"
+    },
+    {
+      "timestamp": "2026-03-17T14:16:17.546Z",
+      "agent": "ScrumMaster",
+      "level": "info",
+      "message": "Inicializando productOwner..."
+    },
+    {
+      "timestamp": "2026-03-17T14:16:17.546Z",
+      "agent": "ScrumMaster",
+      "level": "info",
+      "message": "Inicializando developer..."
+    },
+    {
+      "timestamp": "2026-03-17T14:16:17.547Z",
+      "agent": "ScrumMaster",
+      "level": "info",
+      "message": "Inicializando qaTester..."
+    },
+    {
+      "timestamp": "2026-03-17T14:16:17.547Z",
+      "agent": "ScrumMaster",
+      "level": "info",
+      "message": "Inicializando scrumMaster..."
+    },
+    {
+      "timestamp": "2026-03-17T14:16:17.577Z",
+      "agent": "ScrumMaster",
+      "level": "info",
+      "message": "Equipo listo. Comenzando proyecto..."
+    },
+    {
+      "timestamp": "2026-03-17T14:16:17.577Z",
+      "agent": "ScrumMaster",
+      "level": "info",
+      "message": "=== INICIANDO PROYECTO COMPLETO ==="
+    },
+    {
+      "timestamp": "2026-03-17T14:16:17.578Z",
+      "agent": "ScrumMaster",
+      "level": "info",
+      "message": "--- FASE 1: DISCOVERY & PLANNING ---"
+    },
+    {
+      "timestamp": "2026-03-17T14:16:17.578Z",
+      "agent": "ProductOwner",
+      "level": "info",
+      "message": "[PO] Creando PRD..."
+    },
+    {
+      "timestamp": "2026-03-17T14:16:17.578Z",
+      "agent": "Sarah (Product Owner)",
+      "role": "product-owner",
+      "level": "info",
+      "message": "Creando Product Requirements Document..."
+    },
+    {
+      "timestamp": "2026-03-17T14:16:17.578Z",
+      "agent": "Sarah (Product Owner)",
+      "role": "product-owner",
+      "level": "info",
+      "message": "Nueva conversación (local)"
+    },
+    {
+      "timestamp": "2026-03-17T14:16:17.578Z",
+      "agent": "Sarah (Product Owner)",
+      "role": "product-owner",
+      "level": "info",
+      "message": "Enviando mensaje (2389 chars)..."
+    },
+    {
+      "timestamp": "2026-03-17T14:16:17.580Z",
+      "agent": "ScrumMaster",
+      "level": "error",
+      "message": "Error crítico: Ollama generate failed (404): {\"error\":\"model 'llama3.2' not found\"}"
+    }
+  ],
+  "errors": [
+    {
+      "error": "Ollama generate failed (404): {\"error\":\"model 'llama3.2' not found\"}",
+      "stack": "Error: Ollama generate failed (404): {\"error\":\"model 'llama3.2' not found\"}\n    at generate (P:\\REPOSITORIO GIT\\ai-scrum-team\\lib\\local-llm.js:40:13)\n    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at async LocalProductOwnerAgent.sendMessage (P:\\REPOSITORIO GIT\\ai-scrum-team\\agents\\local-rag-agent.js:115:22)\n    at async LocalProductOwnerAgent.createPRD (P:\\REPOSITORIO GIT\\ai-scrum-team\\agents\\local-agents.js:33:22)\n    at async ScrumMasterOrchestrator.runDiscoveryPhase (P:\\REPOSITORIO GIT\\ai-scrum-team\\orchestrator.js:224:17)\n    at async ScrumMasterOrchestrator.runFullProject (P:\\REPOSITORIO GIT\\ai-scrum-team\\orchestrator.js:184:7)\n    at async runProject (P:\\REPOSITORIO GIT\\ai-scrum-team\\server.js:244:5)",
+      "timestamp": "2026-03-17T14:16:17.580Z"
+    }
+  ]
+}
+or.js:184:7)\n    at async runProject (P:\\REPOSITORIO GIT\\ai-scrum-team\\server.js:244:5)",
+      "timestamp": "2026-03-17T14:16:17.580Z"
+    }
+  ]
+}

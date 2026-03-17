@@ -1,0 +1,80 @@
+{
+  "sessionId": "a91418bc-8a0d-47bb-bc6e-51962a2cdd09",
+  "status": "ready",
+  "currentSprint": 0,
+  "maxSprints": 5,
+  "sprints": [],
+  "artifacts": {
+    "prd": null,
+    "architecture": null,
+    "testPlan": null,
+    "implementations": [],
+    "qaReports": [],
+    "finalCode": null
+  },
+  "logs": [
+    {
+      "timestamp": "2026-03-17T14:22:44.421Z",
+      "agent": "ScrumMaster",
+      "level": "info",
+      "message": "Inicializando equipo de agentes..."
+    },
+    {
+      "timestamp": "2026-03-17T14:22:44.421Z",
+      "agent": "ScrumMaster",
+      "level": "info",
+      "message": "Modo IA local (Ollama + RAG)"
+    },
+    {
+      "timestamp": "2026-03-17T14:22:44.421Z",
+      "agent": "ScrumMaster",
+      "level": "info",
+      "message": "Inicializando productOwner..."
+    },
+    {
+      "timestamp": "2026-03-17T14:22:44.421Z",
+      "agent": "ScrumMaster",
+      "level": "info",
+      "message": "Inicializando developer..."
+    },
+    {
+      "timestamp": "2026-03-17T14:22:44.421Z",
+      "agent": "ScrumMaster",
+      "level": "info",
+      "message": "Inicializando qaTester..."
+    },
+    {
+      "timestamp": "2026-03-17T14:22:44.421Z",
+      "agent": "ScrumMaster",
+      "level": "info",
+      "message": "Inicializando scrumMaster..."
+    },
+    {
+      "timestamp": "2026-03-17T14:22:44.452Z",
+      "agent": "ScrumMaster",
+      "level": "info",
+      "message": "Equipo listo. Comenzando proyecto..."
+    },
+    {
+      "timestamp": "2026-03-17T14:22:44.452Z",
+      "agent": "ScrumMaster",
+      "level": "info",
+      "message": "=== INICIANDO PROYECTO COMPLETO ==="
+    }
+  ],
+  "errors": []
+}
+amp": "2026-03-17T14:22:44.452Z",
+      "agent": "ScrumMaster",
+      "level": "info",
+      "message": "--- FASE 1: DISCOVERY & PLANNING ---"
+    },
+    {
+      "timestamp": "2026-03-17T14:22:44.452Z",
+      "agent": "ProductOwner",
+      "level": "info",
+      "message": "[PO] Creando PRD..."
+    }
+  ],
+  "errors": []
+}

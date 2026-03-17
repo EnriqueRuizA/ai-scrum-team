@@ -1,0 +1,117 @@
+{
+  "sessionId": "69de1012-1219-4bbf-b83a-746944a1440b",
+  "status": "error",
+  "currentSprint": 0,
+  "maxSprints": 5,
+  "sprints": [],
+  "artifacts": {
+    "prd": null,
+    "architecture": null,
+    "testPlan": null,
+    "implementations": [],
+    "qaReports": [],
+    "finalCode": null
+  },
+  "logs": [
+    {
+      "timestamp": "2026-03-17T14:17:26.503Z",
+      "agent": "ScrumMaster",
+      "level": "info",
+      "message": "Inicializando equipo de agentes..."
+    },
+    {
+      "timestamp": "2026-03-17T14:17:26.504Z",
+      "agent": "ScrumMaster",
+      "level": "info",
+      "message": "Modo IA local (Ollama + RAG)"
+    },
+    {
+      "timestamp": "2026-03-17T14:17:26.504Z",
+      "agent": "ScrumMaster",
+      "level": "info",
+      "message": "Inicializando productOwner..."
+    },
+    {
+      "timestamp": "2026-03-17T14:17:26.504Z",
+      "agent": "ScrumMaster",
+      "level": "info",
+      "message": "Inicializando developer..."
+    },
+    {
+      "timestamp": "2026-03-17T14:17:26.504Z",
+      "agent": "ScrumMaster",
+      "level": "info",
+      "message": "Inicializando qaTester..."
+    },
+    {
+      "timestamp": "2026-03-17T14:17:26.504Z",
+      "agent": "ScrumMaster",
+      "level": "info",
+      "message": "Inicializando scrumMaster..."
+    },
+    {
+      "timestamp": "2026-03-17T14:17:26.533Z",
+      "agent": "ScrumMaster",
+      "level": "info",
+      "message": "Equipo listo. Comenzando proyecto..."
+    },
+    {
+      "timestamp": "2026-03-17T14:17:26.533Z",
+      "agent": "ScrumMaster",
+      "level": "info",
+      "message": "=== INICIANDO PROYECTO COMPLETO ==="
+    },
+    {
+      "timestamp": "2026-03-17T14:17:26.533Z",
+      "agent": "ScrumMaster",
+      "level": "info",
+      "message": "--- FASE 1: DISCOVERY & PLANNING ---"
+    },
+    {
+      "timestamp": "2026-03-17T14:17:26.533Z",
+      "agent": "ProductOwner",
+      "level": "info",
+      "message": "[PO] Creando PRD..."
+    },
+    {
+      "timestamp": "2026-03-17T14:17:26.533Z",
+      "agent": "Sarah (Product Owner)",
+      "role": "product-owner",
+      "level": "info",
+      "message": "Creando Product Requirements Document..."
+    },
+    {
+      "timestamp": "2026-03-17T14:17:26.533Z",
+      "agent": "Sarah (Product Owner)",
+      "role": "product-owner",
+      "level": "info",
+      "message": "Nueva conversación (local)"
+    },
+    {
+      "timestamp": "2026-03-17T14:17:26.533Z",
+      "agent": "Sarah (Product Owner)",
+      "role": "product-owner",
+      "level": "info",
+      "message": "Enviando mensaje (2389 chars)..."
+    },
+    {
+      "timestamp": "2026-03-17T14:20:13.930Z",
+      "agent": "ScrumMaster",
+      "level": "error",
+      "message": "Error crítico: fetch failed"
+    },
+    {
+      "timestamp": "2026-03-17T14:20:13.930Z",
+      "agent": "ScrumMaster",
+      "level": "info",
+      "message": "Cerrando agentes..."
+    }
+  ],
+  "errors": [
+    {
+      "error": "fetch failed",
+      "stack": "TypeError: fetch failed",
+      "timestamp": "2026-03-17T14:20:13.929Z"
+    }
+  ]
+}

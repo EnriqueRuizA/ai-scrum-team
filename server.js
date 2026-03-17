@@ -7,6 +7,7 @@ const path = require('path');
 const fs = require('fs-extra');
 
 const ScrumMasterOrchestrator = require('./orchestrator');
+const { checkHealth } = require('./lib/local-llm');
 
 const app = express();
 const server = http.createServer(app);
@@ -121,11 +122,45 @@ app.post('/api/start', async (req, res) => {
   try {
     const config = await fs.readJson('./config/project-config.json');
     const useLocal = config.agents?.backend === 'local';
+
+    // #region agent log
+    __dbg('H2-ollama-model-missing', 'server.js:/api/start', 'Start requested', {
+      backend: config.agents?.backend ?? null,
+      localBaseUrl: useLocal ? (config.agents?.local?.baseUrl || 'http://localhost:11434') : null,
+      localModel: useLocal ? (config.agents?.local?.model || 'llama3.2') : null
+    });
+    // #endregion
+
     let credentials = {};
     if (!useLocal) {
       credentials = await fs.readJson('./config/credentials.json');
       if (!credentials.claude?.email || !credentials.claude?.password) {
         return res.status(400).json({ error: 'Credenciales de Claude.ai no configuradas' });
+      }
+    } else {
+      const baseUrl = config.agents?.local?.baseUrl || 'http://localhost:11434';
+      const model = config.agents?.local?.model || 'llama3.2';
+      const health = await checkHealth(baseUrl, model);
+
+      // #region agent log
+      __dbg('H2-ollama-model-missing', 'server.js:/api/start', 'Ollama health result', {
+        baseUrl,
+        model,
+        ok: !!health?.ok,
+        modelLoaded: health?.modelLoaded ?? null,
+        error: health?.error || null
+      });
+      // #endregion
+
+      if (!health.ok) {
+        return res.status(400).json({
+          error: `No se puede conectar con Ollama en ${baseUrl}. Inicia Ollama ("ollama serve") y revisa agents.local.baseUrl. Detalle: ${health.error || 'desconocido'}`
+        });
+      }
+      if (health.modelLoaded === false) {
+        return res.status(400).json({
+          error: `Ollama está activo pero el modelo "${model}" no está disponible. Ejecuta: ollama pull ${model}`
+        });
       }
     }
 
@@ -247,7 +282,39 @@ async function runProject(config, credentials) {
 }
 
 // === INICIAR SERVIDOR ===
-const PORT = process.env.PORT || 3000;
+let runtimeConfig = {};
+try {
+  runtimeConfig = require('./config/project-config.json');
+} catch (e) {}
+const PORT = process.env.PORT || runtimeConfig.outputs?.port || 3000;
+
+// #region agent log
+__dbg('H1-port-in-use', 'server.js:startup', 'Computed listen port', {
+  envPortPresent: !!process.env.PORT,
+  envPort: process.env.PORT ? String(process.env.PORT) : null,
+  configPort: runtimeConfig.outputs?.port ?? null,
+  finalPort: PORT
+});
+// #endregion
+
+server.on('error', (err) => {
+  // #region agent log
+  __dbg('H1-port-in-use', 'server.js:server.on(error)', 'Server listen error', {
+    code: err?.code || null,
+    errno: err?.errno || null,
+    syscall: err?.syscall || null,
+    address: err?.address || null,
+    port: err?.port || null,
+    message: err?.message || null
+  });
+  // #endregion
+
+  if (err && err.code === 'EADDRINUSE') {
+    console.error(`\n[ERROR] El puerto ${PORT} ya está en uso.`);
+    console.error(`[SOLUCIÓN] Cierra el otro proceso (otro 'node server.js') o cambia \"outputs.port\" en config/project-config.json.\n`);
+    process.exit(1);
+  }
+});
 server.listen(PORT, () => {
   console.log(`
 ╔═══════════════════════════════════════════════╗

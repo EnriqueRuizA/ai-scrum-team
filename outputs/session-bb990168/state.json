@@ -1,0 +1,117 @@
+{
+  "sessionId": "bb990168-b2de-4b5f-a73e-e612e844619f",
+  "status": "error",
+  "currentSprint": 0,
+  "maxSprints": 5,
+  "sprints": [],
+  "artifacts": {
+    "prd": null,
+    "architecture": null,
+    "testPlan": null,
+    "implementations": [],
+    "qaReports": [],
+    "finalCode": null
+  },
+  "logs": [
+    {
+      "timestamp": "2026-03-17T14:28:34.798Z",
+      "agent": "ScrumMaster",
+      "level": "info",
+      "message": "Inicializando equipo de agentes..."
+    },
+    {
+      "timestamp": "2026-03-17T14:28:34.799Z",
+      "agent": "ScrumMaster",
+      "level": "info",
+      "message": "Modo IA local (Ollama + RAG)"
+    },
+    {
+      "timestamp": "2026-03-17T14:28:34.800Z",
+      "agent": "ScrumMaster",
+      "level": "info",
+      "message": "Inicializando productOwner..."
+    },
+    {
+      "timestamp": "2026-03-17T14:28:34.800Z",
+      "agent": "ScrumMaster",
+      "level": "info",
+      "message": "Inicializando developer..."
+    },
+    {
+      "timestamp": "2026-03-17T14:28:34.800Z",
+      "agent": "ScrumMaster",
+      "level": "info",
+      "message": "Inicializando qaTester..."
+    },
+    {
+      "timestamp": "2026-03-17T14:28:34.801Z",
+      "agent": "ScrumMaster",
+      "level": "info",
+      "message": "Inicializando scrumMaster..."
+    },
+    {
+      "timestamp": "2026-03-17T14:28:34.843Z",
+      "agent": "ScrumMaster",
+      "level": "info",
+      "message": "Equipo listo. Comenzando proyecto..."
+    },
+    {
+      "timestamp": "2026-03-17T14:28:34.843Z",
+      "agent": "ScrumMaster",
+      "level": "info",
+      "message": "=== INICIANDO PROYECTO COMPLETO ==="
+    },
+    {
+      "timestamp": "2026-03-17T14:28:34.843Z",
+      "agent": "ScrumMaster",
+      "level": "info",
+      "message": "--- FASE 1: DISCOVERY & PLANNING ---"
+    },
+    {
+      "timestamp": "2026-03-17T14:28:34.844Z",
+      "agent": "ProductOwner",
+      "level": "info",
+      "message": "[PO] Creando PRD..."
+    },
+    {
+      "timestamp": "2026-03-17T14:28:34.844Z",
+      "agent": "Sarah (Product Owner)",
+      "role": "product-owner",
+      "level": "info",
+      "message": "Creando Product Requirements Document..."
+    },
+    {
+      "timestamp": "2026-03-17T14:28:34.844Z",
+      "agent": "Sarah (Product Owner)",
+      "role": "product-owner",
+      "level": "info",
+      "message": "Nueva conversación (local)"
+    },
+    {
+      "timestamp": "2026-03-17T14:28:34.844Z",
+      "agent": "Sarah (Product Owner)",
+      "role": "product-owner",
+      "level": "info",
+      "message": "Enviando mensaje (2389 chars)..."
+    },
+    {
+      "timestamp": "2026-03-17T14:31:34.860Z",
+      "agent": "ScrumMaster",
+      "level": "error",
+      "message": "Error crítico: Timeout esperando respuesta del modelo local"
+    },
+    {
+      "timestamp": "2026-03-17T14:31:34.861Z",
+      "agent": "ScrumMaster",
+      "level": "info",
+      "message": "Cerrando agentes..."
+    }
+  ],
+  "errors": [
+    {
+      "error": "Timeout esperando respuesta del modelo local",
+      "stack": "Error: Timeout esperando respuesta del modelo local\n    at generate (P:\\REPOSITORIO GIT\\ai-scrum-team\\lib\\local-llm.js:70:40)\n    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at async LocalProductOwnerAgent.sendMessage (P:\\REPOSITORIO GIT\\ai-scrum-team\\agents\\local-rag-agent.js:115:22)\n    at async LocalProductOwnerAgent.createPRD (P:\\REPOSITORIO GIT\\ai-scrum-team\\agents\\local-agents.js:33:22)\n    at async ScrumMasterOrchestrator.runDiscoveryPhase (P:\\REPOSITORIO GIT\\ai-scrum-team\\orchestrator.js:224:17)\n    at async ScrumMasterOrchestrator.runFullProject (P:\\REPOSITORIO GIT\\ai-scrum-team\\orchestrator.js:184:7)\n    at async runProject (P:\\REPOSITORIO GIT\\ai-scrum-team\\server.js:292:5)",
+      "timestamp": "2026-03-17T14:31:34.859Z"
+    }
+  ]
+}
