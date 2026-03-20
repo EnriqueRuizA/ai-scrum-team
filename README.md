@@ -67,6 +67,8 @@ ai-scrum-team/
 
 ## 🚀 Instalación
 
+📘 **Guía detallada de uso** (definir proyecto, flujo de agentes, Ollama vs Claude, API, salidas): [`docs/GUIA-USO.md`](docs/GUIA-USO.md)
+
 ### Requisitos
 - Node.js >= 18.0.0
 - npm >= 8.0.0
@@ -131,11 +133,13 @@ Con `backend: "local"` no hace falta configurar credenciales de Claude; el arran
 
 Edita `config/credentials.json` o usa el panel de Settings en el dashboard:
 
+**Claude.ai:** muchas cuentas solo usan **enlace mágico por email** (sin contraseña). En ese caso pon solo `email` y **no incluyas** `password`, o déjala vacía al guardar desde Settings.
+
 ```json
 {
   "claude": {
     "email": "tu@email.com",
-    "password": "tu_password_claude_ai"
+    "password": "opcional_solo_si_tu_cuenta_lo_pide"
   },
   "gmail": {
     "email": "tu@gmail.com",

@@ -98,6 +98,20 @@
       border-color: rgba(75, 85, 99, 0.8);
       color: #e5e7eb;
     }
+    .simple-view-note {
+      margin: 12px 0 4px;
+      padding: 10px 12px;
+      border-radius: 10px;
+      font-size: 13px;
+      line-height: 1.45;
+      background: rgba(45, 212, 191, 0.08);
+      border: 1px solid rgba(45, 212, 191, 0.45);
+      color: #ccfbf1;
+    }
+    .simple-view-note a {
+      color: #5eead4;
+      font-weight: 600;
+    }
     .status-pill.error {
       background: rgba(185, 28, 28, 0.16);
       border-color: rgba(239, 68, 68, 0.85);
@@ -197,6 +211,13 @@
         generar artefactos y construir aplicaciones de extremo a extremo.
       </p>
 
+      <div id="full-dashboard-note" class="simple-view-note" hidden>
+        Esta es la <strong>vista compacta</strong>. El panel completo (pestañas Dashboard, Agentes, Sprints,
+        Artefactos, Logs y <strong>Settings</strong>) está en la URL raíz del servidor (no uses
+        <code>/index.html</code> ni abras el archivo a mano).
+        <span id="full-dashboard-link-wrap"></span>
+      </div>
+
       <div class="grid">
         <section class="panel">
           <div class="panel-header">
@@ -219,7 +240,7 @@
             Iniciar proyecto
           </button>
           <div class="hint">
-            Asegúrate de haber configurado las credenciales de Claude.ai en Settings antes de iniciar.
+            Con backend Claude: solo necesitas el email en Settings (enlace mágico = sin contraseña). Con backend local (Ollama) no hace falta Claude.
           </div>
         </section>
 
@@ -244,6 +265,25 @@
     const $meta = document.getElementById('project-meta');
     const $log = document.getElementById('log');
     const $start = document.getElementById('start-btn');
+
+    (function fullDashboardHint() {
+      const note = document.getElementById('full-dashboard-note');
+      const wrap = document.getElementById('full-dashboard-link-wrap');
+      if (!note || !wrap) return;
+      if (location.protocol === 'http:' || location.protocol === 'https:') {
+        note.hidden = false;
+        const a = document.createElement('a');
+        a.href = '/';
+        a.textContent = 'Abrir panel completo';
+        wrap.appendChild(document.createTextNode(' '));
+        wrap.appendChild(a);
+        wrap.appendChild(document.createTextNode(' (' + location.origin + '/).'));
+      } else if (location.protocol === 'file:') {
+        note.hidden = false;
+        wrap.textContent =
+          ' Cierra esta pestaña y abre la URL http://localhost:<puerto>/ que muestra la consola al ejecutar el servidor (npm start o START.bat).';
+      }
+    })();
 
     function appendLog(entry) {
       const line = document.createElement('div');

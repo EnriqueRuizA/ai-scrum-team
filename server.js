@@ -9,44 +9,117 @@ const fs = require('fs-extra');
 const ScrumMasterOrchestrator = require('./orchestrator');
 const { checkHealth } = require('./lib/local-llm');
 
-const app = express();
-const server = http.createServer(app);
-const wss = new WebSocket.Server({ server });
+/** Evita borrar backend Ollama/Claude al guardar solo project/scrum/agents parciales desde el dashboard */
+function mergeProjectConfigPatch(current, patch) {
+  if (!patch || typeof patch !== 'object') return current;
+  const next = { ...current };
+  if (patch.project) next.project = { ...(current.project || {}), ...patch.project };
+  if (patch.scrum) next.scrum = { ...(current.scrum || {}), ...patch.scrum };
+  if (patch.agents) {
+    const a = { ...(current.agents || {}), ...patch.agents };
+    if (patch.agents.local) {
+      a.local = {
+        ...(current.agents?.local || {}),
+        ...patch.agents.local,
+        rag:
+          patch.agents.local.rag != null
+            ? { ...(current.agents?.local?.rag || {}), ...patch.agents.local.rag }
+            : current.agents?.local?.rag
+      };
+    }
+    next.agents = a;
+  }
+  if (patch.target) {
+    next.target = { ...(current.target || {}), ...patch.target };
+    if (patch.target.techStack) {
+      next.target.techStack = {
+        ...(current.target?.techStack || {}),
+        ...patch.target.techStack
+      };
+    }
+  }
+  if (patch.outputs) next.outputs = { ...(current.outputs || {}), ...patch.outputs };
+  return next;
+}
 
-app.use(express.json());
-app.use(express.static('public'));
-
-// Ruta raíz: servir dashboard principal (index.html)
-app.get('/', (req, res) => {
-  const indexPath = path.join(__dirname, 'public', 'index.html');
-  fs.pathExists(indexPath)
-    .then(exists => {
-      if (exists) {
-        return res.sendFile(indexPath);
+/** Fusiona credenciales por plataforma sin sustituir todo el bloque (conserva password si no se envía) */
+function mergeCredentialsPatch(current, body) {
+  const out = { ...current };
+  for (const [key, val] of Object.entries(body || {})) {
+    if (val != null && typeof val === 'object' && !Array.isArray(val)) {
+      const prev = current[key] && typeof current[key] === 'object' ? current[key] : {};
+      const merged = { ...prev, ...val };
+      if (Object.prototype.hasOwnProperty.call(val, 'password') && (val.password === '' || val.password === null)) {
+        delete merged.password;
       }
-      return res.status(404).send('Dashboard no encontrado (falta public/index.html)');
-    })
-    .catch(() => {
-      res.status(500).send('Error cargando el dashboard');
-    });
-});
+      out[key] = merged;
+    } else {
+      out[key] = val;
+    }
+  }
+  return out;
+}
 
-// Estado global
-let orchestrator = null;
-let isRunning = false;
-const connectedClients = new Set();
+function createServer() {
+  const app = express();
+  const server = http.createServer(app);
+  const wss = new WebSocket.Server({ server });
+
+  app.use(express.json());
+
+  // IMPORTANTE: esta ruta debe ir ANTES de express.static('public').
+  // Si no, GET / sirve public/index.html (vista compacta) y nunca ves el dashboard de raíz con Settings/pestañas.
+  const sendDashboardRoot = (req, res) => {
+    const rootDash = path.join(__dirname, 'index.html');
+    const publicDash = path.join(__dirname, 'public', 'index.html');
+    fs.pathExists(rootDash)
+      .then((existsRoot) => {
+        if (existsRoot) return res.sendFile(rootDash);
+        return fs.pathExists(publicDash).then((existsPub) => {
+          if (existsPub) return res.sendFile(publicDash);
+          return res.status(404).send('Dashboard no encontrado');
+        });
+      })
+      .catch(() => {
+        res.status(500).send('Error cargando el dashboard');
+      });
+  };
+
+  app.get('/', sendDashboardRoot);
+
+  // Sin esto, /index.html serviría public/index.html desde static (vista distinta al panel completo).
+  app.get('/index.html', (req, res) => res.redirect(301, '/'));
+
+  // Vista compacta antigua: explícita (evita confundirla con el panel completo)
+  app.get('/simple', (req, res) => {
+    const publicDash = path.join(__dirname, 'public', 'index.html');
+    res.sendFile(publicDash, (err) => {
+      if (err) res.status(404).send('Vista simple no encontrada');
+    });
+  });
+
+  app.use(
+    express.static('public', {
+      index: false
+    })
+  );
+
+  // Estado global
+  let orchestrator = null;
+  let isRunning = false;
+  const connectedClients = new Set();
 
 // WebSocket - broadcast a todos los clientes
-function broadcast(type, data) {
+  function broadcast(type, data) {
   const message = JSON.stringify({ type, data, timestamp: new Date().toISOString() });
   connectedClients.forEach(ws => {
     if (ws.readyState === WebSocket.OPEN) {
       ws.send(message);
     }
   });
-}
+  }
 
-wss.on('connection', (ws) => {
+  wss.on('connection', (ws) => {
   connectedClients.add(ws);
   console.log('Dashboard conectado. Clientes:', connectedClients.size);
   
@@ -69,52 +142,61 @@ wss.on('connection', (ws) => {
   ws.on('close', () => {
     connectedClients.delete(ws);
   });
-});
+  });
 
-// === ENDPOINTS API ===
+  // === ENDPOINTS API ===
 
 // Obtener configuración actual
-app.get('/api/config', async (req, res) => {
+  app.get('/api/config', async (req, res) => {
   try {
     const config = await fs.readJson('./config/project-config.json');
     const credentials = await fs.readJson('./config/credentials.json');
     // No enviar contraseñas al frontend
     const safeCredentials = {};
     for (const [key, val] of Object.entries(credentials)) {
-      safeCredentials[key] = { email: val.email, configured: !!val.password };
+      if (key === 'claude') {
+        // Claude.ai admite solo email + enlace mágico (sin contraseña).
+        safeCredentials[key] = {
+          email: val.email,
+          hasPassword: !!(val.password && String(val.password).trim()),
+          configured: !!(val.email && String(val.email).trim())
+        };
+      } else {
+        safeCredentials[key] = { email: val.email, configured: !!val.password };
+      }
     }
     res.json({ config, credentials: safeCredentials });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
-});
+  });
 
 // Actualizar credenciales
-app.post('/api/credentials', async (req, res) => {
+  app.post('/api/credentials', async (req, res) => {
   try {
     const current = await fs.readJson('./config/credentials.json');
-    const updated = { ...current, ...req.body };
+    const updated = mergeCredentialsPatch(current, req.body);
     await fs.writeJson('./config/credentials.json', updated, { spaces: 2 });
     res.json({ success: true });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
-});
+  });
 
 // Actualizar configuración del proyecto
-app.post('/api/config', async (req, res) => {
+  app.post('/api/config', async (req, res) => {
   try {
     const current = await fs.readJson('./config/project-config.json');
-    const updated = { ...current, ...req.body };
+    const updated = mergeProjectConfigPatch(current, req.body);
     await fs.writeJson('./config/project-config.json', updated, { spaces: 2 });
     res.json({ success: true });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
-});
+  });
 
 // Iniciar el proyecto
-app.post('/api/start', async (req, res) => {
+  app.post('/api/start', async (req, res) => {
   if (isRunning) {
     return res.status(400).json({ error: 'Ya hay un proyecto en ejecución' });
   }
@@ -122,36 +204,18 @@ app.post('/api/start', async (req, res) => {
   try {
     const config = await fs.readJson('./config/project-config.json');
     const useLocal = config.agents?.backend === 'local';
-
-    // #region agent log
-    __dbg('H2-ollama-model-missing', 'server.js:/api/start', 'Start requested', {
-      backend: config.agents?.backend ?? null,
-      localBaseUrl: useLocal ? (config.agents?.local?.baseUrl || 'http://localhost:11434') : null,
-      localModel: useLocal ? (config.agents?.local?.model || 'llama3.2') : null
-    });
-    // #endregion
-
     let credentials = {};
     if (!useLocal) {
       credentials = await fs.readJson('./config/credentials.json');
-      if (!credentials.claude?.email || !credentials.claude?.password) {
-        return res.status(400).json({ error: 'Credenciales de Claude.ai no configuradas' });
+      if (!credentials.claude?.email || !String(credentials.claude.email).trim()) {
+        return res.status(400).json({
+          error: 'Credenciales de Claude.ai: indica al menos el email. La contraseña es opcional si usas enlace mágico por correo.'
+        });
       }
     } else {
       const baseUrl = config.agents?.local?.baseUrl || 'http://localhost:11434';
       const model = config.agents?.local?.model || 'llama3.2';
       const health = await checkHealth(baseUrl, model);
-
-      // #region agent log
-      __dbg('H2-ollama-model-missing', 'server.js:/api/start', 'Ollama health result', {
-        baseUrl,
-        model,
-        ok: !!health?.ok,
-        modelLoaded: health?.modelLoaded ?? null,
-        error: health?.error || null
-      });
-      // #endregion
-
       if (!health.ok) {
         return res.status(400).json({
           error: `No se puede conectar con Ollama en ${baseUrl}. Inicia Ollama ("ollama serve") y revisa agents.local.baseUrl. Detalle: ${health.error || 'desconocido'}`
@@ -179,25 +243,25 @@ app.post('/api/start', async (req, res) => {
     isRunning = false;
     res.status(500).json({ error: e.message });
   }
-});
+  });
 
 // Pausar/reanudar
-app.post('/api/pause', (req, res) => {
+  app.post('/api/pause', (req, res) => {
   if (!orchestrator) return res.status(400).json({ error: 'No hay proyecto activo' });
   broadcast('paused', {});
   res.json({ success: true });
-});
+  });
 
 // Obtener estado actual
-app.get('/api/state', (req, res) => {
+  app.get('/api/state', (req, res) => {
   if (!orchestrator) {
     return res.json({ status: 'idle', sprints: [], logs: [] });
   }
   res.json(orchestrator.getState());
-});
+  });
 
 // Listar sesiones guardadas
-app.get('/api/sessions', async (req, res) => {
+  app.get('/api/sessions', async (req, res) => {
   try {
     const outputsDir = './outputs';
     await fs.ensureDir(outputsDir);
@@ -217,10 +281,10 @@ app.get('/api/sessions', async (req, res) => {
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
-});
+  });
 
 // Cargar sesión anterior
-app.get('/api/sessions/:id', async (req, res) => {
+  app.get('/api/sessions/:id', async (req, res) => {
   try {
     const statePath = path.join('./outputs', req.params.id, 'state.json');
     const state = await fs.readJson(statePath);
@@ -228,10 +292,10 @@ app.get('/api/sessions/:id', async (req, res) => {
   } catch (e) {
     res.status(404).json({ error: 'Sesión no encontrada' });
   }
-});
+  });
 
 // Obtener artefacto específico
-app.get('/api/artifact/:session/:name', async (req, res) => {
+  app.get('/api/artifact/:session/:name', async (req, res) => {
   try {
     const artifactPath = path.join('./outputs', req.params.session, 'artifacts', `${req.params.name}.json`);
     const artifact = await fs.readJson(artifactPath);
@@ -239,19 +303,19 @@ app.get('/api/artifact/:session/:name', async (req, res) => {
   } catch (e) {
     res.status(404).json({ error: 'Artefacto no encontrado' });
   }
-});
+  });
 
 // Descargar app final generada
-app.get('/api/download/:session', async (req, res) => {
+  app.get('/api/download/:session', async (req, res) => {
   const appDir = path.join('./outputs', req.params.session, 'final-app');
   const exists = await fs.pathExists(appDir);
   if (!exists) return res.status(404).json({ error: 'App final no encontrada' });
   res.json({ path: appDir, message: `App disponible en: ${path.resolve(appDir)}` });
-});
+  });
 
 // === LÓGICA DE EJECUCIÓN ===
 
-async function runProject(config, credentials) {
+  async function runProject(config, credentials) {
   orchestrator = new ScrumMasterOrchestrator(config, credentials);
   
   // Conectar todos los eventos al WebSocket
@@ -279,44 +343,29 @@ async function runProject(config, credentials) {
     isRunning = false;
     await orchestrator.cleanup();
   }
+  }
+
+  function start(port = 3000) {
+    return new Promise((resolve, reject) => {
+      server.once('error', reject);
+      server.listen(port, () => resolve(server));
+    });
+  }
+
+  return { app, server, wss, start };
 }
 
-// === INICIAR SERVIDOR ===
-let runtimeConfig = {};
-try {
-  runtimeConfig = require('./config/project-config.json');
-} catch (e) {}
-const PORT = process.env.PORT || runtimeConfig.outputs?.port || 3000;
+if (require.main === module) {
+  let runtimeConfig = {};
+  try {
+    runtimeConfig = require('./config/project-config.json');
+  } catch (e) {}
+  const PORT = process.env.PORT || runtimeConfig.outputs?.port || 3000;
 
-// #region agent log
-__dbg('H1-port-in-use', 'server.js:startup', 'Computed listen port', {
-  envPortPresent: !!process.env.PORT,
-  envPort: process.env.PORT ? String(process.env.PORT) : null,
-  configPort: runtimeConfig.outputs?.port ?? null,
-  finalPort: PORT
-});
-// #endregion
-
-server.on('error', (err) => {
-  // #region agent log
-  __dbg('H1-port-in-use', 'server.js:server.on(error)', 'Server listen error', {
-    code: err?.code || null,
-    errno: err?.errno || null,
-    syscall: err?.syscall || null,
-    address: err?.address || null,
-    port: err?.port || null,
-    message: err?.message || null
-  });
-  // #endregion
-
-  if (err && err.code === 'EADDRINUSE') {
-    console.error(`\n[ERROR] El puerto ${PORT} ya está en uso.`);
-    console.error(`[SOLUCIÓN] Cierra el otro proceso (otro 'node server.js') o cambia \"outputs.port\" en config/project-config.json.\n`);
-    process.exit(1);
-  }
-});
-server.listen(PORT, () => {
-  console.log(`
+  const { start } = createServer();
+  start(PORT)
+    .then(() => {
+      console.log(`
 ╔═══════════════════════════════════════════════╗
 ║         AI SCRUM TEAM ORCHESTRATOR            ║
 ║                                               ║
@@ -327,16 +376,25 @@ server.listen(PORT, () => {
 ║  3. Click "Start Project"                     ║
 ╚═══════════════════════════════════════════════╝
   `);
-  
-  // Abrir browser automáticamente si está configurado
-  const config = require('./config/project-config.json');
-  if (config.outputs?.autoOpenDashboard) {
-    const open = (url) => {
-      const cmd = process.platform === 'darwin' ? 'open' : process.platform === 'win32' ? 'start' : 'xdg-open';
-      require('child_process').exec(`${cmd} ${url}`);
-    };
-    setTimeout(() => open(`http://localhost:${PORT}`), 1000);
-  }
-});
 
-module.exports = { app, server };
+      const config = require('./config/project-config.json');
+      if (config.outputs?.autoOpenDashboard) {
+        const open = (url) => {
+          const cmd = process.platform === 'darwin' ? 'open' : process.platform === 'win32' ? 'start' : 'xdg-open';
+          require('child_process').exec(`${cmd} ${url}`);
+        };
+        setTimeout(() => open(`http://localhost:${PORT}`), 1000);
+      }
+    })
+    .catch((err) => {
+      if (err && err.code === 'EADDRINUSE') {
+        console.error(`\n[ERROR] El puerto ${PORT} ya está en uso.`);
+        console.error(`[SOLUCIÓN] Cierra el otro proceso (otro 'node server.js') o cambia "outputs.port" en config/project-config.json.\n`);
+        process.exit(1);
+      }
+      console.error(err);
+      process.exit(1);
+    });
+}
+
+module.exports = { createServer };

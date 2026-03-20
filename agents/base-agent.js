@@ -137,20 +137,35 @@ class ClaudeWebAgent {
       ]);
       
       await this.page.waitForTimeout(2000);
-      
-      // Password (puede requerir selección de método)
+
+      const pwd = (this.credentials?.password && String(this.credentials.password).trim()) || '';
+
+      // Sin contraseña: flujo típico de Claude = enlace mágico al correo (no automatizable al 100%).
+      if (!pwd) {
+        this.log(
+          'Sin contraseña en configuración: se asume login por enlace mágico. Revisa tu email y/o completa el acceso en el navegador.',
+          'info'
+        );
+        this.emit('action_required', {
+          agent: this.name,
+          message:
+            'Claude puede enviarte un enlace al email. Ábrelo y confirma; si hace falta, termina el login en esta ventana del navegador (hasta 5 min).'
+        });
+        await this.waitForLoggedIn(300000);
+        this.log('Login exitoso');
+        return;
+      }
+
+      // Password (cuentas que usan contraseña tras el email)
       try {
-        const passwordInput = await this.waitForElement([
-          'input[type="password"]',
-          'input[name="password"]'
-        ], 5000);
-        
+        const passwordInput = await this.waitForElement(
+          ['input[type="password"]', 'input[name="password"]'],
+          5000
+        );
+
         if (passwordInput) {
-          await passwordInput.fill(this.credentials.password);
-          await this.clickElement([
-            'button:has-text("Continue")',
-            'button[type="submit"]'
-          ]);
+          await passwordInput.fill(pwd);
+          await this.clickElement(['button:has-text("Continue")', 'button[type="submit"]']);
         }
       } catch (e) {
         this.log('Puede que se haya enviado un email de verificación. Revisa tu correo.', 'warn');
@@ -158,10 +173,9 @@ class ClaudeWebAgent {
           agent: this.name,
           message: 'Se requiere verificación por email. Completa el login manualmente en el navegador.'
         });
-        // Esperar hasta 5 minutos para login manual
         await this.waitForLoggedIn(300000);
       }
-      
+
       await this.waitForLoggedIn();
       this.log('Login exitoso');
       

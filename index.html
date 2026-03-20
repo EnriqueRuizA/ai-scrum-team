@@ -710,9 +710,38 @@
   .scrollbar-custom::-webkit-scrollbar { width: 4px; }
   .scrollbar-custom::-webkit-scrollbar-track { background: transparent; }
   .scrollbar-custom::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  /* Servidor requerido (no file://) */
+  #offlineBanner {
+    display: none;
+    margin: 0 16px 0;
+    padding: 12px 16px;
+    background: rgba(255, 61, 90, 0.12);
+    border: 1px solid var(--error);
+    border-radius: 10px;
+    color: var(--text-bright);
+    font-size: 12px;
+    line-height: 1.5;
+  }
+  #offlineBanner code { background: rgba(0,0,0,0.35); padding: 2px 6px; border-radius: 4px; font-size: 11px; }
+  .origin-hint {
+    margin-top: 6px;
+    font-size: 10px;
+    color: var(--text-dim);
+    max-width: 420px;
+    line-height: 1.35;
+    word-break: break-all;
+  }
+  .origin-hint a { color: var(--accent); }
+  .origin-hint.bad { color: var(--error); }
 </style>
 </head>
 <body>
+
+<div id="offlineBanner">
+  <strong>No estás usando el servidor web.</strong> Si la barra de direcciones empieza por <code>file://</code> (abriste el <code>.html</code> con doble clic), <strong>no existe API</strong>: no podrás guardar ni conectar el WebSocket, aunque tengas otra ventana con <code>npm start</code> abierta.
+  <strong>Qué hacer:</strong> cierra esta pestaña, mira el puerto en la consola (p. ej. <code>localhost:3000</code>) y abre exactamente <code>http://localhost:PUERTO</code> en el navegador — o pulsa el enlace del pie del encabezado.
+</div>
 
 <header>
   <div class="logo">
@@ -720,6 +749,7 @@
     <div>
       <div class="logo-text">AI SCRUM TEAM</div>
       <div class="logo-sub">Orchestrator v1.0</div>
+      <div id="originHint" class="origin-hint"></div>
     </div>
   </div>
   <div class="header-status">
@@ -735,12 +765,12 @@
 </header>
 
 <div class="nav-tabs">
-  <button class="nav-tab active" onclick="showTab('dashboard')">⬡ Dashboard</button>
-  <button class="nav-tab" onclick="showTab('agents')">👥 Agentes</button>
-  <button class="nav-tab" onclick="showTab('sprints')">🗂 Sprints</button>
-  <button class="nav-tab" onclick="showTab('artifacts')">📦 Artefactos</button>
-  <button class="nav-tab" onclick="showTab('logs')">📋 Logs</button>
-  <button class="nav-tab" onclick="showTab('settings')">⚙ Settings</button>
+  <button type="button" class="nav-tab active" data-tab="dashboard" onclick="showTab('dashboard', this)">⬡ Dashboard</button>
+  <button type="button" class="nav-tab" data-tab="agents" onclick="showTab('agents', this)">👥 Agentes</button>
+  <button type="button" class="nav-tab" data-tab="sprints" onclick="showTab('sprints', this)">🗂 Sprints</button>
+  <button type="button" class="nav-tab" data-tab="artifacts" onclick="showTab('artifacts', this)">📦 Artefactos</button>
+  <button type="button" class="nav-tab" data-tab="logs" onclick="showTab('logs', this)">📋 Logs</button>
+  <button type="button" class="nav-tab" data-tab="settings" onclick="showTab('settings', this)">⚙ Settings</button>
 </div>
 
 <!-- TAB: DASHBOARD -->
@@ -831,7 +861,7 @@
       <div class="card">
         <div class="card-header">
           <div class="card-title">Últimos Artefactos</div>
-          <button class="btn btn-secondary" onclick="showTab('artifacts')" style="padding:4px 10px; font-size:10px">Ver todos</button>
+          <button type="button" class="btn btn-secondary" onclick="showTab('artifacts')" style="padding:4px 10px; font-size:10px">Ver todos</button>
         </div>
         <div id="recentArtifacts" class="artifact-list">
           <div style="color:var(--text-dim); font-size:11px; padding:8px">
@@ -936,15 +966,20 @@
     <div style="color:var(--text-dim); font-size:11px; margin-bottom:24px">Credenciales y configuración del proyecto — todo se guarda en local</div>
 
     <div class="form-section">
-      <div class="form-section-title">🤖 Claude.ai (Requerido)</div>
+      <div class="form-section-title">🤖 Claude.ai</div>
+      <div style="font-size:10px; color:var(--text-dim); margin-bottom:10px; line-height:1.45">
+        <strong>Email obligatorio.</strong> Muchas cuentas solo usan <strong>enlace mágico por correo</strong> (sin contraseña): deja la contraseña vacía.
+        Tras pulsar “Iniciar proyecto”, el navegador puede pedirte abrir el mail y confirmar; el agente espera hasta 5 minutos.
+        Si tu cuenta sí usa contraseña tras el email, rellénala aquí.
+      </div>
       <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px">
         <div class="form-group">
-          <label class="form-label">Email</label>
-          <input class="form-input" type="email" id="claude_email" placeholder="tu@email.com">
+          <label class="form-label">Email <span style="color:var(--accent)">*</span></label>
+          <input class="form-input" type="email" id="claude_email" placeholder="tu@email.com" autocomplete="username">
         </div>
         <div class="form-group">
-          <label class="form-label">Contraseña</label>
-          <input class="form-input" type="password" id="claude_password" placeholder="••••••••">
+          <label class="form-label">Contraseña <span style="color:var(--text-dim)">(opcional)</span></label>
+          <input class="form-input" type="password" id="claude_password" placeholder="Vacío si usas enlace por email" autocomplete="current-password">
         </div>
       </div>
     </div>
@@ -1024,9 +1059,13 @@
       </div>
     </div>
 
-    <div style="display:flex; gap:12px">
-      <button class="btn btn-primary" onclick="saveSettings()">💾 Guardar Configuración</button>
-      <button class="btn btn-secondary" onclick="loadSettings()">↺ Recargar</button>
+    <div style="display:flex; flex-wrap:wrap; gap:12px; align-items:center">
+      <button type="button" class="btn btn-primary" onclick="saveSettings()">💾 Guardar configuración</button>
+      <button type="button" class="btn btn-secondary" onclick="loadSettings()">↺ Recargar desde servidor</button>
+      <button type="button" class="btn btn-secondary" onclick="testServerConnection()">🔌 Probar conexión API</button>
+    </div>
+    <div style="font-size:10px; color:var(--text-dim); margin-top:10px">
+      Las contraseñas no se muestran al recargar (solo email). Si cambias solo el email, las contraseñas guardadas se conservan.
     </div>
   </div>
 </div>
@@ -1055,33 +1094,89 @@
   const allArtifacts = [];
   let projectState = { status: 'idle', currentSprint: 0, maxSprints: 5, sprints: [] };
 
+  /** Solo http(s) desde el servidor Node; file:// no tiene API ni WS */
+  function isAppServerOrigin() {
+    return location.protocol === 'http:' || location.protocol === 'https:';
+  }
+
+  /** Un solo mensaje: evita confusión cuando npm start corre pero la pestaña es file:// */
+  const MSG_DEBES_ABRIR_LOCALHOST =
+    'Esta pestaña está en modo archivo (file://), no en el servidor. Ciérrala y abre la URL http://localhost:… que muestra la consola al ejecutar npm start (no abras index.html con doble clic).';
+
+  function refreshOriginHint() {
+    const el = document.getElementById('originHint');
+    if (!el) return;
+    if (isAppServerOrigin()) {
+      el.classList.remove('bad');
+      el.innerHTML =
+        'Origen: <strong>' +
+        escHtml(location.origin) +
+        '</strong> · Si guardar falla, comprueba que el servidor siga en ejecución.';
+    } else {
+      el.classList.add('bad');
+      el.innerHTML =
+        'Origen incorrecto: <code>file://…</code> — <a href="http://localhost:3000" target="_blank" rel="noopener">Abrir http://localhost:3000</a> (ajusta el puerto si cambió en config).';
+    }
+  }
+
+  function showOfflineBannerIfNeeded() {
+    const b = document.getElementById('offlineBanner');
+    if (!b) return !isAppServerOrigin();
+    const offline = !isAppServerOrigin();
+    b.style.display = offline ? 'block' : 'none';
+    return offline;
+  }
+
   function connectWS() {
+    if (!isAppServerOrigin()) return;
     const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
-    ws = new WebSocket(`${proto}//${location.host}`);
-    
+    const host = location.host;
+    if (!host) {
+      updateConnectionStatus(false);
+      return;
+    }
+    try {
+      ws = new WebSocket(`${proto}//${host}`);
+    } catch (e) {
+      updateConnectionStatus(false);
+      return;
+    }
+
     ws.onopen = () => {
       updateConnectionStatus(true);
-      clearInterval(reconnectTimer);
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+      reconnectTimer = null;
+      appendInitLog('WebSocket conectado al orquestador.', 'info');
     };
-    
+
+    ws.onerror = () => {
+      updateConnectionStatus(false);
+    };
+
     ws.onclose = () => {
       updateConnectionStatus(false);
+      if (!isAppServerOrigin()) return;
+      if (reconnectTimer) clearTimeout(reconnectTimer);
       reconnectTimer = setTimeout(connectWS, 3000);
     };
-    
+
     ws.onmessage = (e) => {
       try {
         const msg = JSON.parse(e.data);
         handleMessage(msg);
-      } catch(err) {}
+      } catch (err) {}
     };
+  }
+
+  function appendInitLog(msg, level) {
+    handleLog({ timestamp: new Date().toISOString(), agent: 'SYSTEM', level: level || 'info', message: msg });
   }
 
   function updateConnectionStatus(connected) {
     const dot = document.getElementById('wsBadgeDot');
     const text = document.getElementById('wsBadgeText');
-    dot.className = 'status-dot ' + (connected ? 'active' : '');
-    text.textContent = connected ? 'CONNECTED' : 'DISCONNECTED';
+    if (dot) dot.className = 'status-dot ' + (connected ? 'active' : '');
+    if (text) text.textContent = connected ? 'CONNECTED' : 'DISCONNECTED';
   }
 
   function handleMessage(msg) {
@@ -1100,6 +1195,7 @@
       case 'action_required': handleActionRequired(data); break;
       case 'completed': handleCompleted(data); break;
       case 'error': handleError(data); break;
+      case 'pong': break;
       case 'state': { projectState = data; updateFromState(data); break; }
     }
   }
@@ -1134,7 +1230,13 @@
   }
 
   function handleStatus(data) {
-    projectState.status = data.status || data;
+    if (data && typeof data === 'object' && data.status !== undefined) {
+      Object.assign(projectState, data);
+    } else if (typeof data === 'string') {
+      projectState.status = data;
+    } else {
+      projectState.status = data?.status || projectState.status;
+    }
     const status = projectState.status;
     
     const dot = document.getElementById('projectStatusDot');
@@ -1142,23 +1244,29 @@
     
     const map = {
       'idle': ['', 'IDLE'],
+      'starting': ['running', 'STARTING'],
       'initializing': ['running', 'INIT...'],
+      'ready': ['running', 'READY'],
       'running': ['running', 'RUNNING'],
       'completed': ['completed', 'COMPLETED'],
       'error': ['error', 'ERROR']
     };
-    
-    const [cls, label] = map[status] || ['', status.toUpperCase()];
+
+    const st = typeof status === 'string' ? status : String(status || 'idle');
+    const [cls, label] = map[st] || ['', st.toUpperCase()];
     dot.className = 'status-dot ' + cls;
     text.textContent = label;
     
     const startBtn = document.getElementById('startBtn');
-    if (status === 'running' || status === 'initializing') {
+    if (status === 'running' || status === 'initializing' || status === 'starting' || status === 'ready') {
       startBtn.disabled = true;
-      startBtn.innerHTML = '<span class="spinner"></span> Running';
+      startBtn.innerHTML = '<span class="spinner"></span> En curso';
     } else if (status === 'completed') {
-      startBtn.disabled = true;
-      startBtn.innerHTML = '✓ Completado';
+      startBtn.disabled = false;
+      startBtn.innerHTML = '▶ Iniciar de nuevo';
+    } else if (status === 'error') {
+      startBtn.disabled = false;
+      startBtn.innerHTML = '▶ Reintentar';
     } else {
       startBtn.disabled = false;
       startBtn.innerHTML = '▶ Iniciar';
@@ -1303,12 +1411,16 @@
   }
 
   function handleCompleted(data) {
+    projectState.status = 'completed';
+    handleStatus({ status: 'completed' });
     notify('🎉 Proyecto completado! App generada en ' + data.outputDir, 'success');
     document.getElementById('currentPhase').textContent = '✓ Proyecto completado - App disponible en ' + (data.outputDir || './outputs');
   }
 
   function handleError(data) {
-    notify('Error: ' + data.message, 'error');
+    projectState.status = 'error';
+    handleStatus({ status: 'error' });
+    notify('Error: ' + (data.message || data), 'error');
   }
 
   function updateFromState(state) {
@@ -1427,8 +1539,16 @@
 
   // === SETTINGS ===
   async function loadSettings() {
+    if (!isAppServerOrigin()) {
+      notify(MSG_DEBES_ABRIR_LOCALHOST, 'error');
+      return;
+    }
     try {
       const res = await fetch('/api/config');
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || 'HTTP ' + res.status);
+      }
       const { config, credentials } = await res.json();
       
       document.getElementById('claude_email').value = credentials.claude?.email || '';
@@ -1441,12 +1561,32 @@
       document.getElementById('proj_sprints').value = config.scrum?.maxSprints || 5;
       document.getElementById('headless_mode').checked = config.agents?.headless || false;
       document.getElementById('share_session').checked = config.agents?.shareSession ?? true;
-    } catch(e) {
-      notify('Error cargando configuración', 'error');
+    } catch (e) {
+      notify('Error cargando configuración: ' + e.message, 'error');
+    }
+  }
+
+  async function testServerConnection() {
+    if (!isAppServerOrigin()) {
+      notify(MSG_DEBES_ABRIR_LOCALHOST, 'error');
+      return;
+    }
+    try {
+      const res = await fetch('/api/config');
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.error || 'HTTP ' + res.status);
+      const backend = body.config?.agents?.backend || '?';
+      notify('API OK · backend: ' + backend + ' · WebSocket: ' + (ws && ws.readyState === 1 ? 'sí' : 'no'), 'success');
+    } catch (e) {
+      notify('API no responde: ' + e.message, 'error');
     }
   }
 
   async function saveSettings() {
+    if (!isAppServerOrigin()) {
+      notify(MSG_DEBES_ABRIR_LOCALHOST, 'error');
+      return;
+    }
     const credentials = {
       claude: { 
         email: document.getElementById('claude_email').value, 
@@ -1488,43 +1628,54 @@
     };
     
     try {
-      await fetch('/api/credentials', { 
-        method: 'POST', 
+      const resC = await fetch('/api/credentials', {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(credentials)
       });
-      await fetch('/api/config', { 
+      const errC = await resC.json().catch(() => ({}));
+      if (!resC.ok) throw new Error(errC.error || 'Credenciales HTTP ' + resC.status);
+
+      const resP = await fetch('/api/config', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(config)
       });
-      notify('Configuración guardada ✓', 'success');
-    } catch(e) {
+      const errP = await resP.json().catch(() => ({}));
+      if (!resP.ok) throw new Error(errP.error || 'Proyecto HTTP ' + resP.status);
+
+      notify('Configuración guardada en disco ✓', 'success');
+    } catch (e) {
       notify('Error guardando: ' + e.message, 'error');
     }
   }
 
   async function startProject() {
+    if (!isAppServerOrigin()) {
+      notify(MSG_DEBES_ABRIR_LOCALHOST, 'error');
+      return;
+    }
     try {
-      const res = await fetch('/api/start', { method: 'POST' });
-      const data = await res.json();
-      if (data.error) {
-        notify(data.error, 'error');
-      } else {
-        notify('Proyecto iniciado - Abriendo navegadores...', 'success');
+      const res = await fetch('/api/start', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        notify(data.error || 'Error HTTP ' + res.status, 'error');
+        return;
       }
-    } catch(e) {
+      notify('Proyecto iniciado. Revisa logs y el navegador si usas Claude.', 'success');
+    } catch (e) {
       notify('Error iniciando proyecto: ' + e.message, 'error');
     }
   }
 
   // === UI HELPERS ===
-  function showTab(tab) {
-    document.querySelectorAll('.main-content').forEach(el => el.classList.remove('active'));
-    document.querySelectorAll('.nav-tab').forEach(el => el.classList.remove('active'));
-    
-    document.getElementById(`tab-${tab}`)?.classList.add('active');
-    event.target.classList.add('active');
+  function showTab(tab, el) {
+    document.querySelectorAll('.main-content').forEach((e) => e.classList.remove('active'));
+    document.querySelectorAll('.nav-tab').forEach((e) => e.classList.remove('active'));
+
+    document.getElementById('tab-' + tab)?.classList.add('active');
+    const btn = el || document.querySelector('.nav-tab[data-tab="' + tab + '"]');
+    if (btn) btn.classList.add('active');
   }
 
   function notify(msg, type = 'info') {
@@ -1557,12 +1708,20 @@
   });
 
   // === INIT ===
-  connectWS();
-  loadSettings();
-  
-  // Ping keepalive
+  refreshOriginHint();
+  showOfflineBannerIfNeeded();
+  if (isAppServerOrigin()) {
+    connectWS();
+    loadSettings();
+  } else {
+    updateConnectionStatus(false);
+    appendInitLog(MSG_DEBES_ABRIR_LOCALHOST, 'error');
+  }
+
   setInterval(() => {
-    if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'ping' }));
+    if (isAppServerOrigin() && ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type: 'ping' }));
+    }
   }, 30000);
 </script>
 </body>
