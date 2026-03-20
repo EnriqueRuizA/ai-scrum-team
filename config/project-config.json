@@ -1,7 +1,7 @@
 {
   "project": {
     "name": "JobTracker Pro",
-    "description": "Aplicación web para seguimiento de procesos de selección activos mediante integración con email y plataformas de empleo",
+    "description": "Aplicación web para comprobar a que ofertas de linkedin me he inscrito y cuales me han respondido por email, con filtros y palabras clave",
     "version": "0.1.0"
   },
   "scrum": {
@@ -11,7 +11,33 @@
     "reviewBeforeAdvance": true
   },
   "agents": {
-    "backend": "local",
+    "team": [
+      {
+        "id": "productOwner",
+        "role": "productOwner",
+        "enabled": true,
+        "label": "Sarah (Product Owner)"
+      },
+      {
+        "id": "developer",
+        "role": "developer",
+        "enabled": true,
+        "label": "Alex (Developer)"
+      },
+      {
+        "id": "qaTester",
+        "role": "qaTester",
+        "enabled": true,
+        "label": "María (QA)"
+      },
+      {
+        "id": "scrumMaster",
+        "role": "scrumMaster",
+        "enabled": true,
+        "label": "Carlos (Scrum Master)"
+      }
+    ],
+    "backend": "claude",
     "headless": false,
     "slowMo": 100,
     "timeout": 180000,
@@ -20,20 +46,44 @@
     "userDataDir": "",
     "local": {
       "baseUrl": "http://localhost:11434",
-      "model": "qwen2.5-coder:32b",
+      "llmConnectionPreset": "ollama_local",
+      "llmConnectionLabel": "",
+      "apiKeyEnv": "",
+      "apiKeyMode": "x-api-key",
+      "generateTimeoutMs": 1200000,
+      "model": "gemma3:1b",
       "embedModel": "nomic-embed-text",
       "rag": {
         "enabled": true,
-        "indexPaths": ["./outputs", "./prompts"],
+        "indexPaths": [
+          ".",
+          "./lib",
+          "./prompts",
+          "./outputs"
+        ],
         "topK": 5
-      }
+      },
+      "apiKeyHeader": "",
+      "apiKeyPrefix": "",
+      "apiKey": ""
     },
-    "note": "backend: 'claude' | 'local'. Con 'local' se usa Ollama + RAG; con 'claude' se usa la web de Claude.ai."
+    "note": "backend: 'claude' | 'local'. llmConnectionPreset: ollama_local | remote_api | custom + llmConnectionLabel (texto en logs). API estilo Ollama. apiKey/apiKeyEnv opcional. RAG: ollama pull <embedModel>."
   },
   "outputs": {
     "saveArtifacts": true,
     "autoOpenDashboard": true,
-    "port": 3000
+    "port": 3000,
+    "writeWorkingCopyEachSprint": true,
+    "requireFilesEachSprint": true,
+    "implementationRetryMax": 2,
+    "runRealChecksEachSprint": true,
+    "npmInstallEachSprint": true,
+    "failSprintIfChecksFail": true,
+    "nodeSyntaxCheckOnDelivery": true,
+    "runNpmTestOnDelivery": true
+  },
+  "pipeline": {
+    "ragArtifactMaxChars": 100000
   },
   "target": {
     "features": [
@@ -52,7 +102,11 @@
       "frontend": "HTML5, CSS3, Vanilla JavaScript",
       "backend": "Node.js + Express",
       "database": "SQLite (local)",
-      "integrations": ["Gmail API/IMAP", "LinkedIn Scraping", "Job Board APIs"]
+      "integrations": [
+        "Gmail API/IMAP",
+        "LinkedIn Scraping",
+        "Job Board APIs"
+      ]
     }
   }
 }

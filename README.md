@@ -97,10 +97,12 @@ npm start
 
 Puedes usar **IA en local** con **RAG** (Retrieval Augmented Generation) para que los agentes editen código y creen proyectos sin depender de Claude.ai ni del navegador.
 
+**No hay “importar el RAG” en Ollama:** el índice vive en la app (ficheros de `indexPaths`); Ollama solo aporta el modelo de **embeddings** vía API. Sin ese modelo verás `404 model not found`.
+
 ### Requisitos
 - [Ollama](https://ollama.com) instalado y en ejecución (`ollama serve`).
 - Modelo de lenguaje, por ejemplo: `ollama pull llama3.2`
-- Modelo de embeddings para RAG: `ollama pull nomic-embed-text`
+- Modelo de embeddings para RAG (obligatorio si `rag.enabled`): `ollama pull nomic-embed-text` (o el que pongas en `embedModel`)
 
 ### Configuración
 

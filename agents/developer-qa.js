@@ -117,6 +117,32 @@ Devuelve JSON con TODOS los ficheros.`;
     const parsed = this.parseJSONResponse(response);
     return { raw: response, parsed, sprint: sprintPlan.sprint?.number, timestamp: new Date().toISOString() };
   }
+
+  async repairImplementationForFiles(sprintPlan, failedAttempt, diagnosticsLine) {
+    this.log('Reintentando implementación: sin ficheros válidos en el JSON anterior');
+    const rawPreview = String(failedAttempt?.raw || '').slice(0, 2800);
+    const prompt = `La respuesta anterior no contenía un JSON con "implementation.files" (array de {path, code}) utilizable.
+
+Diagnóstico: ${diagnosticsLine}
+
+Inicio del raw anterior:
+${rawPreview}
+
+Devuelve SOLO JSON válido:
+{ "implementation": { "files": [ { "path": "...", "code": "..." } ], "architecture": "", "setupInstructions": [], "dependencies": {} } }
+
+Plan de sprint:
+${JSON.stringify(sprintPlan, null, 2)}`;
+    const response = await this.sendMessage(prompt, true);
+    const parsed = this.parseJSONResponse(response);
+    return {
+      raw: response,
+      parsed,
+      sprint: sprintPlan.sprint?.number,
+      timestamp: new Date().toISOString(),
+      repairAttempt: true
+    };
+  }
 }
 
 // agents/qa-tester.js (en el mismo fichero para brevedad)
@@ -161,9 +187,18 @@ Devuelve en formato JSON estructurado.`;
     return { raw: response, parsed, timestamp: new Date().toISOString() };
   }
 
-  async testImplementation(implementation, testPlan, sprintNumber) {
+  async testImplementation(implementation, testPlan, sprintNumber, executionReportSummary = '') {
     this.log(`Ejecutando pruebas del Sprint ${sprintNumber}...`);
-    
+
+    const execBlock =
+      executionReportSummary && String(executionReportSummary).trim()
+        ? `
+
+EJECUCIÓN REAL EN DISCO (working-app):
+${String(executionReportSummary).trim()}
+`
+        : '';
+
     const prompt = `Como QA, analiza esta implementación y ejecuta los casos de prueba relevantes:
 
 IMPLEMENTACIÓN (código):
@@ -173,7 +208,7 @@ PLAN DE PRUEBAS:
 ${JSON.stringify(testPlan.parsed || testPlan, null, 2)}
 
 SPRINT: ${sprintNumber}
-
+${execBlock}
 Analiza el código y reporta:
 1. Casos de prueba ejecutados con resultado PASS/FAIL
 2. Bugs encontrados con severidad y pasos para reproducir

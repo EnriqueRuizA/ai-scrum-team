@@ -424,22 +424,17 @@ class ClaudeWebAgent {
     this.log('Agente cerrado');
   }
 
-  // Método auxiliar para extraer JSON de la respuesta
+  // Método auxiliar para extraer JSON de la respuesta (incl. ```json ... ``` y objetos anidados)
   parseJSONResponse(text) {
+    const { parseLlmJsonResponse } = require('../lib/parse-llm-json');
     try {
-      // Buscar JSON entre bloques de código
-      const codeBlockMatch = text.match(/```(?:json)?\s*(\{[\s\S]*?\})\s*```/);
-      if (codeBlockMatch) {
-        return JSON.parse(codeBlockMatch[1]);
-      }
-      
-      // Buscar JSON directo
-      const jsonMatch = text.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        return JSON.parse(jsonMatch[0]);
-      }
+      const parsed = parseLlmJsonResponse(text);
+      if (parsed != null) return parsed;
     } catch (e) {
       this.log(`Error parseando JSON: ${e.message}`, 'warn');
+    }
+    if (text && String(text).trim()) {
+      this.log('No se pudo extraer JSON válido del texto del modelo (revisa fences ``` o JSON mal formado)', 'warn');
     }
     return null;
   }

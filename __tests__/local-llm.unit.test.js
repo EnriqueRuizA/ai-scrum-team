@@ -1,26 +1,85 @@
-const { checkHealth } = require('../lib/local-llm');
+const EventEmitter = require('events');
+const http = require('http');
+const { checkHealth, authHeadersFromLocalConfig } = require('../lib/local-llm');
+
+function mockHttpRequest(impl) {
+  return jest.spyOn(http, 'request').mockImplementation(impl);
+}
 
 describe('lib/local-llm', () => {
-  test('checkHealth returns ok:false when /api/tags fails', async () => {
-    const originalFetch = global.fetch;
-    global.fetch = jest.fn().mockRejectedValue(new Error('connect ECONNREFUSED'));
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  test('checkHealth returns ok:false when request errors', async () => {
+    mockHttpRequest(() => {
+      const req = new EventEmitter();
+      req.write = jest.fn();
+      req.end = jest.fn(() => {
+        process.nextTick(() => {
+          const err = new Error('connect ECONNREFUSED');
+          err.code = 'ECONNREFUSED';
+          req.emit('error', err);
+        });
+      });
+      return req;
+    });
+
     await expect(checkHealth('http://localhost:11434', 'llama3.2')).resolves.toEqual(
       expect.objectContaining({ ok: false, error: expect.stringContaining('ECONNREFUSED') })
     );
-    global.fetch = originalFetch;
   });
 
   test('checkHealth returns modelLoaded:false when model missing', async () => {
-    const originalFetch = global.fetch;
-    global.fetch = jest.fn().mockResolvedValue({
-      ok: true,
-      status: 200,
-      json: async () => ({ models: [{ name: 'mistral:latest' }] })
+    mockHttpRequest((options, cb) => {
+      const res = new EventEmitter();
+      res.statusCode = 200;
+      const req = new EventEmitter();
+      req.write = jest.fn();
+      req.end = jest.fn(() => {
+        process.nextTick(() => {
+          cb(res);
+          process.nextTick(() => {
+            res.emit('data', Buffer.from(JSON.stringify({ models: [{ name: 'mistral:latest' }] })));
+            res.emit('end');
+          });
+        });
+      });
+      return req;
     });
+
     await expect(checkHealth('http://localhost:11434', 'llama3.2')).resolves.toEqual(
       expect.objectContaining({ ok: true, modelLoaded: false })
     );
-    global.fetch = originalFetch;
+  });
+
+  test('authHeadersFromLocalConfig: bearer por defecto con apiKey en config', () => {
+    expect(authHeadersFromLocalConfig({ apiKey: ' sk-1 ' })).toEqual({ Authorization: 'Bearer sk-1' });
+  });
+
+  test('authHeadersFromLocalConfig: x-api-key', () => {
+    expect(authHeadersFromLocalConfig({ apiKey: 'k', apiKeyMode: 'x-api-key' })).toEqual({ 'X-API-Key': 'k' });
+  });
+
+  test('authHeadersFromLocalConfig: prioridad apiKeyEnv sobre apiKey', () => {
+    process.env.TEST_SCRUM_KEY = 'from-env';
+    try {
+      expect(
+        authHeadersFromLocalConfig({ apiKey: 'from-file', apiKeyEnv: 'TEST_SCRUM_KEY' })
+      ).toEqual({ Authorization: 'Bearer from-env' });
+    } finally {
+      delete process.env.TEST_SCRUM_KEY;
+    }
+  });
+
+  test('authHeadersFromLocalConfig: custom header', () => {
+    expect(
+      authHeadersFromLocalConfig({
+        apiKey: 'tok',
+        apiKeyMode: 'custom',
+        apiKeyHeader: 'X-Custom',
+        apiKeyPrefix: 'Token '
+      })
+    ).toEqual({ 'X-Custom': 'Token tok' });
   });
 });
-

@@ -141,16 +141,54 @@ Devuelve los ficheros corregidos en formato JSON.`;
     const contextMsg = previousCode
       ? `\n\nCÓDIGO EXISTENTE (continúa desde aquí):\n${JSON.stringify(previousCode, null, 2)}`
       : '';
-    const prompt = `Implementa TODAS las historias de usuario de este sprint con código COMPLETO:
+    const prompt = `Implementa TODAS las historias de usuario de este sprint con un PROYECTO EJECUTABLE DE VERDAD:
 
 PLAN DE SPRINT:
 ${JSON.stringify(sprintPlan, null, 2)}
 ${contextMsg}
 
-GENERA: código completo (HTML, CSS, JS, Node.js), schema SQLite, instrucciones. Devuelve JSON con TODOS los ficheros.`;
+Requisitos obligatorios:
+1) Código completo y funcional (no pseudocódigo): Node.js/Express o stack acordado, HTML/CSS/JS si aplica, SQLite si hay datos.
+2) Incluye package.json con scripts "start" y, si es posible, "test" (Jest o node:test) con al menos una prueba que se pueda ejecutar con npm test.
+3) Estructura de carpetas real (p. ej. src/, public/) y rutas de ficheros coherentes.
+4) Responde SOLO con JSON válido en el formato:
+{ "implementation": { "architecture": "breve", "files": [ { "path": "ruta/archivo.ext", "description": "...", "code": "contenido completo" } ], "setupInstructions": [], "dependencies": {} } }
+
+Cada "code" debe ser el archivo entero. Si generas tests, inclúyelos como ficheros (p. ej. tests/app.test.js).`;
     const response = await this.sendMessage(prompt, true);
     const parsed = this.parseJSONResponse(response);
     return { raw: response, parsed, sprint: sprintPlan.sprint?.number, timestamp: new Date().toISOString() };
+  }
+
+  /**
+   * Misma conversación: pide solo JSON con implementation.files tras un intento vacío o inválido.
+   */
+  async repairImplementationForFiles(sprintPlan, failedAttempt, diagnosticsLine) {
+    this.log('Reintentando: la respuesta anterior no tenía files[] materializables');
+    const rawPreview = String(failedAttempt?.raw || '').slice(0, 2800);
+    const prompt = `Tu respuesta anterior NO se pudo volcar a disco: falta un array válido "implementation.files" con objetos { "path", "code" }.
+
+DIAGNÓSTICO: ${diagnosticsLine}
+
+INICIO DEL RAW ANTERIOR (referencia, no copies texto corrupto):
+${rawPreview}
+
+Devuelve ÚNICAMENTE JSON válido con esta forma exacta:
+{ "implementation": { "architecture": "breve", "files": [ { "path": "package.json", "code": "..." } ], "setupInstructions": [], "dependencies": {} } }
+
+Incluye package.json con scripts "start" y "test" si aplica, y todos los ficheros necesarios para cumplir el plan:
+
+PLAN DE SPRINT:
+${JSON.stringify(sprintPlan, null, 2)}`;
+    const response = await this.sendMessage(prompt, true);
+    const parsed = this.parseJSONResponse(response);
+    return {
+      raw: response,
+      parsed,
+      sprint: sprintPlan.sprint?.number,
+      timestamp: new Date().toISOString(),
+      repairAttempt: true
+    };
   }
 }
 
@@ -180,19 +218,36 @@ Incluye casos funcionales, seguridad, integración, rendimiento, edge. Devuelve 
     return { raw: response, parsed, timestamp: new Date().toISOString() };
   }
 
-  async testImplementation(implementation, testPlan, sprintNumber) {
+  async testImplementation(implementation, testPlan, sprintNumber, executionReportSummary = '') {
     this.log(`Ejecutando pruebas del Sprint ${sprintNumber}...`);
-    const prompt = `Como QA, analiza esta implementación y ejecuta los casos de prueba relevantes:
+    const execBlock =
+      executionReportSummary && String(executionReportSummary).trim()
+        ? `
 
-IMPLEMENTACIÓN:
+RESULTADO DE EJECUCIÓN REAL (working-app: npm install, node --check, npm test si aplica):
+${String(executionReportSummary).trim()}
+
+Prioriza este bloque frente a suposiciones: si aquí hay fallos, la recommendation no puede ser APPROVE salvo que sean claramente ajenos al código entregado.
+`
+        : '';
+
+    const prompt = `Como QA, evalúa esta implementación como si fuera a desplegarse en producción:
+
+IMPLEMENTACIÓN (JSON con ficheros de código):
 ${JSON.stringify(implementation.parsed || implementation, null, 2)}
 
 PLAN DE PRUEBAS:
 ${JSON.stringify(testPlan.parsed || testPlan, null, 2)}
 
 SPRINT: ${sprintNumber}
+${execBlock}
+Debes:
+- Revisar si hay package.json, scripts test/start, y si los ficheros parecen ejecutables.
+- Listar testCases con resultado PASS/FAIL (razonado a partir del código, como revisión estática).
+- bugs[] con severidad CRITICAL/HIGH/MEDIUM/LOW, pasos para reproducir, fichero afectado si aplica.
+- recommendation: APPROVE | CONDITIONAL | REJECT
 
-Reporta: testCases (PASS/FAIL), bugs con severidad, recomendación APPROVE/CONDITIONAL/REJECT, cobertura. Devuelve JSON.`;
+Devuelve JSON con clave qa_report anidada según el formato acordado en tu persona.`;
     const response = await this.sendMessage(prompt);
     const parsed = this.parseJSONResponse(response);
     return { raw: response, parsed, sprint: sprintNumber, timestamp: new Date().toISOString() };

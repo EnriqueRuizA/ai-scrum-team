@@ -1,6 +1,7 @@
 // agents/local-rag-agent.js - Agente que usa IA local (Ollama) + RAG para edición y generación
 
-const { generate, embed } = require('../lib/local-llm');
+const { generate, authHeadersFromLocalConfig } = require('../lib/local-llm');
+const { buildLlmConnectionInfo, formatLlmRequestOneLiner } = require('../lib/llm-connection-info');
 const { buildIndex, addChunksToIndex, retrieve, formatRetrieved } = require('../lib/rag');
 const path = require('path');
 const fs = require('fs-extra');
@@ -16,15 +17,46 @@ class LocalRAGAgent {
     this.initialized = false;
     this.eventHandlers = {};
     this.ragChunks = [];
-    this.timeout = (config?.agents?.timeout || 180000);
 
     const local = config?.agents?.local || {};
+    // Timeout exclusivo para Ollama /api/generate (no uses agents.timeout del navegador: suele ser 3 min y es corto para PRD + modelos grandes).
+    const explicit = local.generateTimeoutMs;
+    this.llmTimeout =
+      typeof explicit === 'number' && explicit > 0
+        ? explicit
+        : 900000; // 15 min por defecto
+
     this.llmBaseUrl = local.baseUrl || 'http://localhost:11434';
     this.llmModel = local.model || 'llama3.2';
     this.ragEnabled = local.rag?.enabled === true;
     this.ragTopK = local.rag?.topK ?? 5;
     this.ragIndexPaths = local.rag?.indexPaths || [];
     this.embedModel = local.embedModel || local.rag?.embedModel || 'nomic-embed-text';
+    this.embedTimeoutMs =
+      typeof local.embedTimeoutMs === 'number' && local.embedTimeoutMs > 0
+        ? local.embedTimeoutMs
+        : undefined;
+
+    /** Cabeceras Authorization / X-API-Key según agents.local (clave en config o env). */
+    this.llmAuthHeaders = authHeadersFromLocalConfig(local);
+
+    /** Para logs: tipo de origen (local vs remoto) y etiqueta opcional. */
+    this.llmConnectionInfo = buildLlmConnectionInfo(local);
+  }
+
+  /** Línea corta de verificación en cada llamada al modelo. */
+  getLlmRequestLogLine() {
+    return formatLlmRequestOneLiner(this.llmConnectionInfo, this.llmModel);
+  }
+
+  /** Opciones comunes para RAG → embed() en Ollama */
+  getRagEmbedOpts() {
+    return {
+      baseUrl: this.llmBaseUrl,
+      embedModel: this.embedModel,
+      embedTimeoutMs: this.embedTimeoutMs,
+      authHeaders: this.llmAuthHeaders
+    };
   }
 
   on(event, handler) {
@@ -43,17 +75,14 @@ class LocalRAGAgent {
   }
 
   async initialize() {
-    this.log('Inicializando agente local (Ollama + RAG)...');
+    this.log(`Inicializando agente local… ${this.getLlmRequestLogLine()}`);
     await fs.ensureDir(this.sessionDir);
 
     if (this.ragEnabled && (this.ragIndexPaths.length > 0 || this.outputDir)) {
       const paths = [...this.ragIndexPaths];
       if (this.outputDir) paths.push(this.outputDir);
       try {
-        const { chunks } = await buildIndex(paths, {
-          baseUrl: this.llmBaseUrl,
-          embedModel: this.embedModel
-        });
+        const { chunks } = await buildIndex(paths, this.getRagEmbedOpts());
         this.ragChunks = chunks;
         this.log(`Índice RAG listo: ${this.ragChunks.length} fragmentos`);
       } catch (e) {
@@ -78,14 +107,15 @@ class LocalRAGAgent {
   async addRAGContext(items) {
     if (!this.ragEnabled || !items?.length) return;
     try {
-      const newChunks = await addChunksToIndex(items, {
-        baseUrl: this.llmBaseUrl,
-        embedModel: this.embedModel
-      });
+      const newChunks = await addChunksToIndex(items, this.getRagEmbedOpts());
       this.ragChunks.push(...newChunks);
       this.log(`RAG: +${newChunks.length} fragmentos de contexto`);
     } catch (e) {
-      this.log(`addRAGContext failed: ${e.message}`, 'warn');
+      const hint =
+        /404|not found|pull/i.test(String(e.message))
+          ? ` Instala el modelo de embeddings en Ollama (no se “importa” el RAG): ollama pull ${this.embedModel}`
+          : '';
+      this.log(`addRAGContext failed: ${e.message}.${hint}`, 'warn');
     }
   }
 
@@ -94,16 +124,24 @@ class LocalRAGAgent {
       ? `${this.persona}\n\n---\n\n${message}`
       : message;
 
-    this.log(`Enviando mensaje (${fullMessage.length} chars)...`);
-    this.emit('sending', { agent: this.name, preview: message.substring(0, 100) });
+    this.log(`Enviando mensaje (${fullMessage.length} chars)… ${this.getLlmRequestLogLine()}`);
+    this.emit('sending', {
+      agent: this.name,
+      preview: message.substring(0, 100),
+      llmTarget: {
+        preset: this.llmConnectionInfo.preset,
+        userLabel: this.llmConnectionInfo.userLabel || null,
+        host: this.llmConnectionInfo.host,
+        model: this.llmModel
+      }
+    });
 
     let prompt = fullMessage;
     if (this.ragEnabled && this.ragChunks.length > 0) {
       const query = message.slice(0, 500);
       const retrieved = await retrieve(query, this.ragChunks, {
         topK: this.ragTopK,
-        baseUrl: this.llmBaseUrl,
-        embedModel: this.embedModel
+        ...this.getRagEmbedOpts()
       });
       if (retrieved.length > 0) {
         const context = formatRetrieved(retrieved);
@@ -115,7 +153,8 @@ class LocalRAGAgent {
     const response = await generate(prompt, {
       baseUrl: this.llmBaseUrl,
       model: this.llmModel,
-      timeout: this.timeout
+      timeout: this.llmTimeout,
+      authHeaders: this.llmAuthHeaders
     });
 
     this.emit('response', { agent: this.name, preview: (response || '').substring(0, 200) });
@@ -124,13 +163,15 @@ class LocalRAGAgent {
   }
 
   parseJSONResponse(text) {
+    const { parseLlmJsonResponse } = require('../lib/parse-llm-json');
     try {
-      const codeBlockMatch = text.match(/```(?:json)?\s*(\{[\s\S]*?\})\s*```/);
-      if (codeBlockMatch) return JSON.parse(codeBlockMatch[1]);
-      const jsonMatch = text.match(/\{[\s\S]*\}/);
-      if (jsonMatch) return JSON.parse(jsonMatch[0]);
+      const parsed = parseLlmJsonResponse(text);
+      if (parsed != null) return parsed;
     } catch (e) {
       this.log(`Error parseando JSON: ${e.message}`, 'warn');
+    }
+    if (text && String(text).trim()) {
+      this.log('No se pudo extraer JSON válido del modelo (¿```json sin cerrar o JSON truncado?)', 'warn');
     }
     return null;
   }

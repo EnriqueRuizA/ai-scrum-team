@@ -445,6 +445,63 @@
     letter-spacing: 1px;
   }
 
+  /* Informes QA (vista Lectura) */
+  .qa-report-wrap { line-height: 1.55; }
+  .qa-banner {
+    padding: 12px 14px;
+    border-radius: 10px;
+    margin-bottom: 16px;
+    font-weight: 600;
+    font-size: 13px;
+    border: 1px solid var(--border);
+  }
+  .qa-banner-label { display: block; font-size: 9px; letter-spacing: 2px; opacity: 0.75; margin-bottom: 4px; }
+  .qa-rec-approve { background: rgba(0, 255, 136, 0.12); border-color: rgba(0, 255, 136, 0.35); color: var(--success); }
+  .qa-rec-reject { background: rgba(255, 61, 90, 0.12); border-color: rgba(255, 61, 90, 0.4); color: var(--error); }
+  .qa-rec-conditional { background: rgba(255, 184, 0, 0.12); border-color: rgba(255, 184, 0, 0.35); color: var(--warning); }
+  .qa-muted { font-size: 11px; color: var(--text-dim); margin: 8px 0; }
+  .qa-hr { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
+  .qa-pill {
+    display: inline-block;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    padding: 3px 8px;
+    border-radius: 4px;
+    margin-right: 6px;
+    vertical-align: middle;
+  }
+  .qa-st-pass { background: rgba(0, 255, 136, 0.2); color: var(--success); }
+  .qa-st-fail { background: rgba(255, 61, 90, 0.2); color: var(--error); }
+  .qa-st-skip { background: rgba(150, 150, 160, 0.25); color: var(--text-dim); }
+  .qa-st-neutral { background: rgba(0, 212, 255, 0.15); color: var(--accent); }
+  .qa-sev-critical { border-left: 3px solid #ff3d5a; }
+  .qa-sev-high { border-left: 3px solid #ff8c42; }
+  .qa-sev-medium { border-left: 3px solid #ffb800; }
+  .qa-sev-low { border-left: 3px solid #6b7a8f; }
+  .qa-sev-unknown { border-left: 3px solid var(--border); }
+  .qa-pill.qa-sev-critical { background: rgba(255, 61, 90, 0.25); color: #ff6b7a; }
+  .qa-pill.qa-sev-high { background: rgba(255, 140, 66, 0.2); color: #ffb088; }
+  .qa-pill.qa-sev-medium { background: rgba(255, 184, 0, 0.2); color: var(--warning); }
+  .qa-pill.qa-sev-low { background: rgba(107, 122, 143, 0.25); color: var(--text-dim); }
+  .qa-test-list, .qa-bug-list { display: flex; flex-direction: column; gap: 10px; }
+  .qa-test-card, .qa-bug-card {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px;
+  }
+  .qa-test-head, .qa-bug-head { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
+  .qa-test-title, .qa-bug-title { font-weight: 600; font-size: 12px; color: var(--text); }
+  .qa-detail { font-size: 11px; color: var(--text); margin: 6px 0; line-height: 1.45; }
+  .qa-detail em { color: var(--text-dim); font-style: normal; font-size: 10px; }
+  .qa-steps { margin: 8px 0 0 18px; font-size: 11px; color: var(--text-dim); }
+  .qa-steps li { margin: 4px 0; }
+  .qa-file { font-size: 10px; color: var(--accent); margin-top: 8px; }
+  .qa-note { font-size: 11px; padding: 10px; background: rgba(0, 212, 255, 0.06); border-radius: 6px; border: 1px dashed var(--border); }
+
+  .status-dot.stopped { background: var(--warning); box-shadow: 0 0 8px var(--warning); }
+
   /* BUTTONS */
   .btn {
     padding: 10px 20px;
@@ -612,8 +669,8 @@
     border: 1px solid var(--border);
     border-radius: 14px;
     width: 100%;
-    max-width: 800px;
-    max-height: 80vh;
+    max-width: min(920px, 96vw);
+    max-height: 85vh;
     overflow: hidden;
     display: flex;
     flex-direction: column;
@@ -662,6 +719,160 @@
     color: #88ccff;
     white-space: pre-wrap;
     word-break: break-word;
+  }
+
+  /* Vista legible de artefactos (PRD, arquitectura, etc.) */
+  .artifact-view-tabs {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 14px;
+    flex-wrap: wrap;
+  }
+  .artifact-tab {
+    padding: 6px 12px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--surface2);
+    color: var(--text-dim);
+    font-size: 11px;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .artifact-tab:hover {
+    color: var(--text);
+    border-color: var(--accent);
+  }
+  .artifact-tab.active {
+    background: rgba(0, 212, 255, 0.12);
+    color: var(--accent);
+    border-color: var(--accent);
+  }
+  .artifact-view-pane {
+    display: none;
+  }
+  .artifact-view-pane.active {
+    display: block;
+  }
+  .artifact-readable {
+    font-size: 13px;
+    line-height: 1.55;
+    color: var(--text);
+  }
+  .artifact-readable .artifact-lead {
+    font-size: 12px;
+    color: var(--text-dim);
+    margin-bottom: 16px;
+    padding: 10px 12px;
+    background: rgba(0, 212, 255, 0.06);
+    border-radius: 8px;
+    border-left: 3px solid var(--accent);
+  }
+  .artifact-h2 {
+    font-family: 'Syne', sans-serif;
+    font-size: 18px;
+    font-weight: 800;
+    color: var(--text-bright);
+    margin: 20px 0 10px;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 6px;
+  }
+  .artifact-h2:first-child {
+    margin-top: 0;
+  }
+  .artifact-h3 {
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--accent);
+    margin: 14px 0 8px;
+  }
+  .artifact-section {
+    margin-bottom: 8px;
+  }
+  .artifact-kv {
+    display: grid;
+    grid-template-columns: minmax(120px, 200px) 1fr;
+    gap: 8px 16px;
+    padding: 8px 0;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.12);
+    font-size: 12px;
+  }
+  .artifact-k {
+    color: var(--text-dim);
+    font-weight: 600;
+  }
+  .artifact-v {
+    color: var(--text);
+    word-break: break-word;
+  }
+  .artifact-p {
+    margin: 0 0 10px;
+    color: var(--text);
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+  .artifact-muted {
+    color: var(--text-dim);
+    font-size: 11px;
+    font-style: italic;
+  }
+  .artifact-list {
+    margin: 6px 0 12px 18px;
+    padding: 0;
+    color: var(--text);
+  }
+  .artifact-list li {
+    margin-bottom: 6px;
+  }
+  .artifact-cards {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin: 8px 0 14px;
+  }
+  .artifact-card {
+    background: rgba(15, 23, 42, 0.6);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 14px;
+  }
+  .artifact-card .artifact-card-title {
+    font-weight: 700;
+    color: var(--text-bright);
+    margin-bottom: 8px;
+    font-size: 13px;
+  }
+  .artifact-badge {
+    display: inline-block;
+    font-size: 9px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: rgba(123, 47, 255, 0.2);
+    color: #c4b5fd;
+    margin-right: 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .artifact-details {
+    margin: 8px 0;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 10px;
+    background: rgba(0, 0, 0, 0.25);
+  }
+  .artifact-details summary {
+    cursor: pointer;
+    color: var(--accent);
+    font-size: 11px;
+    font-weight: 600;
+  }
+  .artifact-file-path {
+    font-family: ui-monospace, monospace;
+    font-size: 11px;
+    color: var(--accent2);
+    margin-bottom: 6px;
+    word-break: break-all;
   }
 
   /* NOTIFICATION */
@@ -734,6 +945,91 @@
   }
   .origin-hint a { color: var(--accent); }
   .origin-hint.bad { color: var(--error); }
+
+  /* Barra global: petición al modelo (Ollama / Claude) */
+  .global-progress-wrap {
+    display: none;
+    height: 3px;
+    width: 100%;
+    background: rgba(0, 212, 255, 0.12);
+    overflow: hidden;
+    position: relative;
+    z-index: 90;
+  }
+  .global-progress-wrap.active {
+    display: block;
+  }
+  .global-progress-bar {
+    position: absolute;
+    left: 0;
+    top: 0;
+    height: 100%;
+    width: 40%;
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    border-radius: 2px;
+    animation: global-progress-slide 1.1s ease-in-out infinite;
+    box-shadow: 0 0 12px rgba(0, 212, 255, 0.45);
+  }
+  @keyframes global-progress-slide {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(350%); }
+  }
+  .llm-request-label {
+    display: none;
+    text-align: center;
+    font-size: 11px;
+    color: var(--accent);
+    padding: 6px 12px 8px;
+    background: linear-gradient(180deg, rgba(0, 212, 255, 0.08), transparent);
+    border-bottom: 1px solid rgba(0, 212, 255, 0.15);
+  }
+  .llm-request-label.visible {
+    display: block;
+  }
+  .ollama-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: flex-end;
+  }
+  .ollama-row .form-group {
+    flex: 1;
+    min-width: 200px;
+  }
+  .ollama-row .btn-icon {
+    margin-bottom: 2px;
+    white-space: nowrap;
+  }
+  .team-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+    margin-bottom: 10px;
+  }
+  .team-table th,
+  .team-table td {
+    border: 1px solid var(--border);
+    padding: 8px 10px;
+    text-align: left;
+  }
+  .team-table th {
+    color: var(--text-dim);
+    font-weight: 600;
+    font-size: 10px;
+    text-transform: uppercase;
+  }
+  #mermaidFlowHost {
+    min-height: 200px;
+    overflow: auto;
+    background: rgba(0, 0, 0, 0.25);
+    border-radius: 10px;
+    padding: 16px;
+    border: 1px solid var(--border);
+  }
+  #mermaidFlowHost svg {
+    max-width: 100%;
+    height: auto;
+  }
 </style>
 </head>
 <body>
@@ -760,17 +1056,37 @@
     <div class="status-badge" id="projectStatusBadge">
       <div class="status-dot" id="projectStatusDot"></div>
       <span id="projectStatusText">IDLE</span>
+      <span id="runPauseBadge" style="display:none;margin-left:8px;font-size:9px;padding:2px 8px;border-radius:4px;background:rgba(255,184,0,0.2);color:var(--warning);font-weight:700">EN PAUSA</span>
     </div>
   </div>
 </header>
 
+<div id="globalProgressWrap" class="global-progress-wrap" aria-hidden="true">
+  <div class="global-progress-bar"></div>
+</div>
+<div id="llmRequestLabel" class="llm-request-label" role="status" aria-live="polite"></div>
+
 <div class="nav-tabs">
   <button type="button" class="nav-tab active" data-tab="dashboard" onclick="showTab('dashboard', this)">⬡ Dashboard</button>
+  <button type="button" class="nav-tab" data-tab="flow" onclick="showTab('flow', this)">🔀 Flujo</button>
   <button type="button" class="nav-tab" data-tab="agents" onclick="showTab('agents', this)">👥 Agentes</button>
   <button type="button" class="nav-tab" data-tab="sprints" onclick="showTab('sprints', this)">🗂 Sprints</button>
   <button type="button" class="nav-tab" data-tab="artifacts" onclick="showTab('artifacts', this)">📦 Artefactos</button>
   <button type="button" class="nav-tab" data-tab="logs" onclick="showTab('logs', this)">📋 Logs</button>
   <button type="button" class="nav-tab" data-tab="settings" onclick="showTab('settings', this)">⚙ Settings</button>
+</div>
+
+<!-- TAB: FLUJO (diagrama) -->
+<div class="main-content" id="tab-flow">
+  <div style="padding: 24px; max-width: 1100px">
+    <div style="font-family:'Syne',sans-serif; font-size:20px; font-weight:800; color:var(--text-bright); margin-bottom:8px">Flujo del pipeline</div>
+    <p style="font-size:12px; color:var(--text-dim); line-height:1.5; margin-bottom:16px">
+      Diagrama según <strong>agents.team</strong> (activos) y número de sprints. El orquestador sigue este orden: PRD → arquitectura → plan QA → planificación → implementación en disco → informe QA → entrega <code>final-app/</code>.
+    </p>
+    <button type="button" class="btn btn-secondary" onclick="refreshFlowDiagram()" style="margin-bottom:14px">↻ Regenerar diagrama</button>
+    <div id="mermaidFlowHost" class="scrollbar-custom"></div>
+    <p style="font-size:10px; color:var(--text-dim); margin-top:12px">Si el diagrama falla, revisa la consola del navegador. Guarda el equipo en Settings y vuelve a cargar.</p>
+  </div>
 </div>
 
 <!-- TAB: DASHBOARD -->
@@ -802,6 +1118,22 @@
         <div class="stat-box">
           <div class="stat-value" id="statCoverage" style="color: var(--success)">0%</div>
           <div class="stat-label">Cobertura QA</div>
+        </div>
+      </div>
+
+      <div class="card" id="sessionRecoveryCard">
+        <div class="card-header">
+          <div class="card-title">Sesiones en disco</div>
+        </div>
+        <p style="font-size:11px;color:var(--text-dim);line-height:1.5;margin-bottom:10px">
+          Si <strong>paras el servidor</strong> (Ctrl+C), el estado se intenta guardar en <code>outputs/session-…/state.json</code>.
+          Aquí puedes <strong>recuperar la vista</strong> (logs + artefactos) de cualquier sesión anterior.
+          <em>No reanuda</em> llamadas a Ollama/Claude: para eso inicia un proyecto nuevo.
+        </p>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+          <select id="savedSessionsSelect" class="form-input" style="flex:1;min-width:220px;font-size:11px;padding:8px"></select>
+          <button type="button" class="btn btn-secondary" onclick="refreshSessionsList()" style="padding:8px 12px;font-size:10px">↻ Listar</button>
+          <button type="button" class="btn btn-primary" onclick="loadSelectedSessionIntoDashboard()" style="padding:8px 12px;font-size:10px">Cargar en panel</button>
         </div>
       </div>
 
@@ -874,11 +1206,23 @@
 
     <!-- SIDE PANEL: MINI TERMINAL -->
     <div class="panel-side scrollbar-custom">
-      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px">
         <div style="font-family:'Syne',sans-serif; font-weight:600; font-size:12px; color:var(--text-bright)">Activity Feed</div>
         <button class="btn btn-secondary" id="startBtn" onclick="startProject()" style="padding:8px 16px; font-size:10px">
           ▶ Iniciar
         </button>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid var(--border)">
+        <div style="font-size:10px;color:var(--text-dim);letter-spacing:1px">CONTROL DE EJECUCIÓN</div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px">
+          <button type="button" class="btn btn-secondary" id="btnPauseRun" onclick="pauseRun()" style="padding:6px 10px;font-size:9px">⏸ Pausa</button>
+          <button type="button" class="btn btn-secondary" id="btnResumeRun" onclick="resumeRun()" style="padding:6px 10px;font-size:9px">▶ Reanudar</button>
+          <button type="button" class="btn btn-danger" id="btnStopAfterStep" onclick="stopAfterStep()" style="padding:6px 10px;font-size:9px">⏹ Stop tras sprint</button>
+        </div>
+        <p id="runControlHint" style="font-size:9px;color:var(--text-dim);line-height:1.45;margin:0">
+          <strong>Pausa</strong>: el flujo espera entre pasos (no corta una respuesta del modelo ya en curso).
+          <strong>Stop</strong>: termina el sprint actual y guarda; luego puedes cargar la sesión aquí.
+        </p>
       </div>
       
       <div class="terminal">
@@ -1032,6 +1376,211 @@
     </div>
 
     <div class="form-section">
+      <div class="form-section-title">🦙 Ollama — modelo local</div>
+      <div style="font-size:10px; color:var(--text-dim); margin-bottom:12px; line-height:1.45">
+        Solo se usa cuando el backend de agentes es <strong>local</strong>. Pulsa <strong>Cargar modelos</strong> para leer los instalados en Ollama (<code>ollama list</code>).
+        Cambia la URL si Ollama no está en el puerto por defecto.
+        <strong>RAG</strong> no es un archivo que subas a Ollama: usa un <em>segundo modelo</em> (embeddings) vía API; debe estar descargado con <code>ollama pull …</code> como el de chat.
+        Si tu servidor usa <strong>API key</strong> (proxy, Ollama en la nube, OpenAI-compatible, etc.), configúrala abajo o con variable de entorno; la clave <strong>no</strong> se muestra de vuelta en el navegador.
+      </div>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:12px">
+        <div class="form-group">
+          <label class="form-label">Backend de agentes</label>
+          <select class="form-input" id="agent_backend">
+            <option value="local">Ollama (IA local)</option>
+            <option value="claude">Claude.ai (navegador)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">URL base Ollama</label>
+          <input
+            class="form-input"
+            type="text"
+            id="local_ollama_baseurl"
+            placeholder="http://localhost:11434"
+            autocomplete="off"
+            oninput="updateLocalLlmConnectionPreview()"
+          />
+        </div>
+      </div>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:12px">
+        <div class="form-group">
+          <label class="form-label">Origen del modelo (para logs y comprobar)</label>
+          <select class="form-input" id="local_llm_connection_preset" onchange="updateLocalLlmConnectionPreview()">
+            <option value="ollama_local">Ollama en este PC o red local</option>
+            <option value="remote_api">API remota (cloud, proxy, con API key…)</option>
+            <option value="custom">Otro / personalizado</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Nombre en logs (opcional)</label>
+          <input
+            class="form-input"
+            type="text"
+            id="local_llm_connection_label"
+            placeholder="ej. Cursor, OpenRouter, Ollama portátil"
+            autocomplete="off"
+            oninput="updateLocalLlmConnectionPreview()"
+          />
+        </div>
+      </div>
+      <p
+        id="local_llm_connection_preview"
+        style="font-size: 10px; color: var(--text-dim); margin: -4px 0 12px; line-height: 1.45"
+      ></p>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:12px">
+        <div class="form-group">
+          <label class="form-label">API key (opcional)</label>
+          <input
+            class="form-input"
+            type="password"
+            id="local_ollama_api_key"
+            placeholder=""
+            autocomplete="new-password"
+          />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Cómo enviar la clave</label>
+          <select class="form-input" id="local_ollama_api_key_mode" onchange="updateOllamaApiKeyModeUI()">
+            <option value="bearer">Authorization: Bearer …</option>
+            <option value="x-api-key">Cabecera X-API-Key</option>
+            <option value="custom">Cabecera personalizada</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group" style="margin-bottom:12px">
+        <label class="form-label">Variable de entorno (opcional, prioritaria sobre el campo)</label>
+        <input
+          class="form-input"
+          type="text"
+          id="local_ollama_api_key_env"
+          placeholder="ej. OPENAI_API_KEY, CURSOR_API_KEY, AI_SCRUM_LOCAL_API_KEY"
+          autocomplete="off"
+        />
+      </div>
+      <div class="form-group" id="local_ollama_api_key_custom_row" style="display:none; margin-bottom:12px">
+        <label class="form-label">Cabecera y prefijo (solo modo personalizada)</label>
+        <div style="display:flex; gap:8px; flex-wrap:wrap">
+          <input
+            class="form-input"
+            type="text"
+            id="local_ollama_api_key_header"
+            placeholder="Nombre cabecera (ej. Authorization)"
+            style="flex:1; min-width:160px"
+            autocomplete="off"
+          />
+          <input
+            class="form-input"
+            type="text"
+            id="local_ollama_api_key_prefix"
+            placeholder='Prefijo (ej. "Bearer ")'
+            style="flex:1; min-width:120px"
+            autocomplete="off"
+          />
+        </div>
+      </div>
+      <div class="ollama-row">
+        <div class="form-group" style="flex:2; min-width:240px">
+          <label class="form-label">Modelo local</label>
+          <select class="form-input" id="local_ollama_model"></select>
+        </div>
+        <button type="button" class="btn btn-secondary btn-icon" id="btn_refresh_ollama_models" onclick="refreshOllamaModels()">↻ Cargar modelos</button>
+      </div>
+      <div
+        style="margin-top:14px;padding:12px;background:rgba(0,212,255,0.06);border:1px solid var(--border);border-radius:8px"
+      >
+        <div style="font-size:11px;font-weight:700;color:var(--accent);margin-bottom:8px">RAG (retrieval sobre ficheros del repo)</div>
+        <p style="font-size:10px;color:var(--text-dim);line-height:1.5;margin-bottom:10px">
+          Los agentes trocean texto de <code>agents.local.rag.indexPaths</code> y piden vectores a Ollama (<code>/api/embeddings</code>).
+          Eso exige un <strong>modelo de embeddings</strong> (p. ej. <code>nomic-embed-text</code>), distinto del modelo de chat. Si falta, verás error 404:
+          abre una terminal y ejecuta <code style="color:var(--accent)">ollama pull nomic-embed-text</code> (o el nombre que indiques abajo).
+        </p>
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:11px;margin-bottom:10px">
+          <input type="checkbox" id="local_rag_enabled" style="accent-color:var(--accent)" />
+          Activar RAG
+        </label>
+        <div class="form-group">
+          <label class="form-label">Modelo de embeddings en Ollama</label>
+          <input
+            class="form-input"
+            type="text"
+            id="local_ollama_embed_model"
+            placeholder="nomic-embed-text"
+            autocomplete="off"
+          />
+        </div>
+        <div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:8px">
+          <button type="button" class="btn btn-secondary" onclick="verifyOllamaForRag()" style="font-size:10px;padding:8px 12px">
+            ✓ Comprobar chat + embeddings
+          </button>
+          <span id="ollama_verify_result" style="font-size:10px;color:var(--text-dim)"></span>
+        </div>
+      </div>
+    </div>
+
+    <div class="form-section">
+      <div class="form-section-title">👥 Equipo de agentes (flujo)</div>
+      <p style="font-size:10px; color:var(--text-dim); line-height:1.45; margin-bottom:10px">
+        Activa o desactiva roles en el pipeline. <strong>Scrum Master</strong> debe estar activo. <strong>Product Owner</strong> hace falta para el PRD; <strong>Developer</strong> para código; <strong>QA</strong> para plan/informes (si está off, se usan stubs).
+        Puedes <strong>quitar</strong> filas con ✕ y <strong>añadir</strong> roles que falten. El diagrama en la pestaña <em>Flujo</em> se actualiza al guardar.
+      </p>
+      <table class="team-table">
+        <thead>
+          <tr>
+            <th>Rol</th>
+            <th style="width:72px">Activo</th>
+            <th>Nombre visible</th>
+            <th style="width:56px"></th>
+          </tr>
+        </thead>
+        <tbody id="teamTableBody"></tbody>
+      </table>
+      <div style="display:flex; flex-wrap:wrap; gap:8px">
+        <button type="button" class="btn btn-secondary" onclick="addTeamRoleRow()">+ Añadir rol</button>
+        <button type="button" class="btn btn-secondary" onclick="resetTeamDefault()">↺ Equipo por defecto</button>
+      </div>
+    </div>
+
+    <div class="form-section">
+      <div class="form-section-title">📦 Entrega real (código en disco)</div>
+      <p style="font-size:10px; color:var(--text-dim); margin-bottom:10px; line-height:1.45">
+        Tras cada sprint se vuelcan ficheros a <code>outputs/session-…/working-app</code> y, si está activo, se ejecutan <strong>npm install</strong>, <strong>node --check</strong> y <strong>npm test</strong> sobre esa carpeta (no solo “opinión” del LLM). Al final, <code>final-app/</code> + README.
+      </p>
+      <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-size:11px; margin-bottom:6px">
+        <input type="checkbox" id="out_working_copy" checked style="accent-color:var(--accent)">
+        Copia <code>working-app</code> tras cada sprint
+      </label>
+      <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-size:11px; margin-bottom:6px">
+        <input type="checkbox" id="out_require_files" checked style="accent-color:var(--accent)">
+        Exigir ficheros en JSON (rechazar sprint si no hay <code>files[]</code>)
+      </label>
+      <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px; flex-wrap:wrap">
+        <label style="font-size:11px; color:var(--text-dim)">Reintentos si 0 ficheros</label>
+        <input type="number" class="form-input" id="out_retry_max" value="2" min="0" max="8" style="width:56px; padding:4px 8px">
+      </div>
+      <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-size:11px; margin-bottom:6px">
+        <input type="checkbox" id="out_real_checks_sprint" checked style="accent-color:var(--accent)">
+        Comprobaciones reales cada sprint (<code>npm install</code> + sintaxis + test)
+      </label>
+      <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-size:11px; margin-bottom:6px">
+        <input type="checkbox" id="out_npm_install_sprint" checked style="accent-color:var(--accent)">
+        Incluir <code>npm install</code> en esas comprobaciones
+      </label>
+      <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-size:11px; margin-bottom:6px">
+        <input type="checkbox" id="out_fail_checks" style="accent-color:var(--accent)">
+        Marcar sprint como no aprobado si fallan comprobaciones reales
+      </label>
+      <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-size:11px; margin-bottom:6px">
+        <input type="checkbox" id="out_syntax_check" checked style="accent-color:var(--accent)">
+        <code>node --check</code> en .js al entregar (final-app y sprint si aplica)
+      </label>
+      <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-size:11px">
+        <input type="checkbox" id="out_npm_test" style="accent-color:var(--accent)">
+        Ejecutar <code>npm test</code> al entregar / en sprint (si existe script)
+      </label>
+    </div>
+
+    <div class="form-section">
       <div class="form-section-title">⚙ Configuración del Proyecto</div>
       <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px">
         <div class="form-group">
@@ -1077,8 +1626,15 @@
       <div class="modal-title" id="modalTitle">Artefacto</div>
       <button class="modal-close" onclick="closeModal()">✕</button>
     </div>
-    <div class="modal-body">
-      <pre class="code-block" id="modalContent"></pre>
+    <div class="modal-body scrollbar-custom">
+      <div class="artifact-view-tabs" role="tablist">
+        <button type="button" class="artifact-tab active" data-artifact-tab="readable" onclick="switchArtifactTab('readable', this)">📖 Lectura</button>
+        <button type="button" class="artifact-tab" data-artifact-tab="json" onclick="switchArtifactTab('json', this)">{ } JSON</button>
+        <button type="button" class="artifact-tab" data-artifact-tab="raw" onclick="switchArtifactTab('raw', this)">📄 Texto bruto</button>
+      </div>
+      <div id="modalViewReadable" class="artifact-view-pane active"></div>
+      <pre id="modalViewJson" class="code-block artifact-view-pane" style="margin:0; max-height:55vh"></pre>
+      <pre id="modalViewRaw" class="code-block artifact-view-pane" style="margin:0; max-height:55vh"></pre>
     </div>
   </div>
 </div>
@@ -1086,13 +1642,179 @@
 <!-- NOTIFICATION -->
 <div class="notification" id="notification"></div>
 
+<script src="/parse-llm-json-browser.js"></script>
 <script>
   // === WEBSOCKET ===
   let ws = null;
   let reconnectTimer = null;
   const allLogs = [];
   const allArtifacts = [];
-  let projectState = { status: 'idle', currentSprint: 0, maxSprints: 5, sprints: [] };
+  let projectState = { status: 'idle', currentSprint: 0, maxSprints: 5, sprints: [], runPaused: false };
+
+  const TEAM_ROLES = ['productOwner', 'developer', 'qaTester', 'scrumMaster'];
+  const TEAM_ROLE_TITLES = {
+    productOwner: 'Product Owner (PRD)',
+    developer: 'Developer (código / arquitectura)',
+    qaTester: 'QA (plan e informes)',
+    scrumMaster: 'Scrum Master (sprints)'
+  };
+  const DEFAULT_TEAM_LABELS = {
+    productOwner: 'Sarah (Product Owner)',
+    developer: 'Alex (Developer)',
+    qaTester: 'María (QA)',
+    scrumMaster: 'Carlos (Scrum Master)'
+  };
+
+  function defaultTeamRows() {
+    return TEAM_ROLES.map((role) => ({
+      id: role,
+      role,
+      enabled: true,
+      label: DEFAULT_TEAM_LABELS[role]
+    }));
+  }
+
+  function renderTeamTable(team) {
+    const tb = document.getElementById('teamTableBody');
+    if (!tb) return;
+    const rows = team && team.length ? team : defaultTeamRows();
+    tb.innerHTML = '';
+    rows.forEach((r) => {
+      const tr = document.createElement('tr');
+      tr.dataset.role = r.role;
+      const title = TEAM_ROLE_TITLES[r.role] || r.role;
+      const td0 = document.createElement('td');
+      td0.innerHTML =
+        '<code style="font-size:10px">' +
+        escHtml(r.role) +
+        '</code><div style="font-size:9px;color:var(--text-dim)">' +
+        escHtml(title) +
+        '</div>';
+      const td1 = document.createElement('td');
+      const cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.className = 'team-enabled';
+      if (r.enabled !== false) cb.checked = true;
+      td1.appendChild(cb);
+      const td2 = document.createElement('td');
+      const inp = document.createElement('input');
+      inp.type = 'text';
+      inp.className = 'form-input team-label';
+      inp.style.cssText = 'padding:6px 8px;font-size:11px';
+      inp.value = r.label || '';
+      td2.appendChild(inp);
+      const td3 = document.createElement('td');
+      const rm = document.createElement('button');
+      rm.type = 'button';
+      rm.className = 'btn btn-secondary';
+      rm.style.cssText = 'padding:4px 8px;font-size:10px';
+      rm.textContent = '✕';
+      rm.onclick = () => removeTeamRow(rm);
+      td3.appendChild(rm);
+      tr.appendChild(td0);
+      tr.appendChild(td1);
+      tr.appendChild(td2);
+      tr.appendChild(td3);
+      tb.appendChild(tr);
+    });
+  }
+
+  function readTeamFromTable() {
+    const tb = document.getElementById('teamTableBody');
+    if (!tb) return defaultTeamRows();
+    return Array.from(tb.querySelectorAll('tr')).map((tr) => ({
+      id: tr.dataset.role,
+      role: tr.dataset.role,
+      enabled: tr.querySelector('.team-enabled')?.checked ?? true,
+      label: (tr.querySelector('.team-label')?.value || '').trim() || DEFAULT_TEAM_LABELS[tr.dataset.role]
+    }));
+  }
+
+  function addTeamRoleRow() {
+    const cur = readTeamFromTable();
+    const have = new Set(cur.map((r) => r.role));
+    const next = TEAM_ROLES.find((r) => !have.has(r));
+    if (!next) {
+      notify('Ya están los cuatro roles en la tabla.', 'info');
+      return;
+    }
+    cur.push({ id: next, role: next, enabled: true, label: DEFAULT_TEAM_LABELS[next] });
+    renderTeamTable(cur);
+  }
+
+  function removeTeamRow(btn) {
+    const tr = btn.closest('tr');
+    if (!tr) return;
+    if (tr.dataset.role === 'scrumMaster') {
+      notify('No quites el Scrum Master de la tabla: desactívalo con la casilla si no debe ejecutarse (pero el servidor exige un SM activo al iniciar).', 'error');
+      return;
+    }
+    tr.remove();
+    if (!document.querySelector('#teamTableBody tr')) renderTeamTable(defaultTeamRows());
+  }
+
+  function resetTeamDefault() {
+    renderTeamTable(defaultTeamRows());
+    notify('Equipo por defecto cargado (pulsa Guardar para persistir).', 'info');
+  }
+
+  let mermaidLoadPromise = null;
+  function ensureMermaid() {
+    if (window.mermaid) return Promise.resolve();
+    if (mermaidLoadPromise) return mermaidLoadPromise;
+    mermaidLoadPromise = new Promise((resolve, reject) => {
+      const s = document.createElement('script');
+      s.src = 'https://cdn.jsdelivr.net/npm/mermaid@10.6.1/dist/mermaid.min.js';
+      s.onload = () => {
+        mermaid.initialize({ startOnLoad: false, theme: 'dark', securityLevel: 'loose' });
+        resolve();
+      };
+      s.onerror = () => reject(new Error('No se pudo cargar Mermaid'));
+      document.head.appendChild(s);
+    });
+    return mermaidLoadPromise;
+  }
+
+  async function refreshFlowDiagram() {
+    const host = document.getElementById('mermaidFlowHost');
+    if (!host) return;
+    if (!isAppServerOrigin()) {
+      host.innerHTML = '<p class="artifact-muted">Abre el dashboard desde http://localhost:…</p>';
+      return;
+    }
+    host.innerHTML = '<span style="color:var(--text-dim)">Generando diagrama…</span>';
+    try {
+      await ensureMermaid();
+      const res = await fetch('/api/flow/diagram');
+      const data = await res.json().catch(() => ({}));
+      const def = data.mermaid || 'flowchart TD\n  E[sin datos]';
+      const id = 'mmd-flow-' + Date.now();
+      const { svg } = await mermaid.render(id, def);
+      host.innerHTML = svg;
+    } catch (e) {
+      host.innerHTML =
+        '<pre class="code-block" style="color:var(--error)">' + escHtml(String(e.message || e)) + '</pre>';
+    }
+  }
+
+  /** Barra superior: espera activa al modelo (WS agent_sending / agent_response + heurística por logs). */
+  function setLlmRequestProgress(active, labelText) {
+    const wrap = document.getElementById('globalProgressWrap');
+    const label = document.getElementById('llmRequestLabel');
+    if (!wrap) return;
+    if (active) {
+      wrap.classList.add('active');
+      wrap.setAttribute('aria-hidden', 'false');
+      if (label) {
+        if (labelText) label.textContent = labelText;
+        label.classList.add('visible');
+      }
+    } else {
+      wrap.classList.remove('active');
+      wrap.setAttribute('aria-hidden', 'true');
+      if (label) label.classList.remove('visible');
+    }
+  }
 
   /** Solo http(s) desde el servidor Node; file:// no tiene API ni WS */
   function isAppServerOrigin() {
@@ -1191,12 +1913,37 @@
       case 'agent_working': handleAgentWorking(data); break;
       case 'agent_ready': handleAgentReady(data); break;
       case 'agent_initializing': handleAgentInit(data); break;
+      case 'agent_sending': {
+        const t = data && data.llmTarget;
+        const sub = t
+          ? `→ ${t.host} · modelo «${t.model}»${t.userLabel ? ' · ' + t.userLabel : ''} [${t.preset}]`
+          : 'Ollama / Claude…';
+        setLlmRequestProgress(true, 'Llamando al modelo… ' + sub);
+        break;
+      }
+      case 'agent_response':
+        setLlmRequestProgress(false);
+        break;
       case 'artifact_created': handleArtifact(data); break;
       case 'action_required': handleActionRequired(data); break;
       case 'completed': handleCompleted(data); break;
       case 'error': handleError(data); break;
       case 'pong': break;
-      case 'state': { projectState = data; updateFromState(data); break; }
+      case 'state':
+        updateFromState(data);
+        break;
+      case 'run_control':
+        if (data && typeof data.paused === 'boolean') {
+          projectState.runPaused = data.paused;
+          updateRunPauseBadge();
+        }
+        if (data && data.stopPending) {
+          notify('Parada al terminar el sprint actual solicitada.', 'warning');
+        }
+        break;
+      case 'run_pause_waiting':
+        setLlmRequestProgress(false);
+        break;
     }
   }
 
@@ -1205,6 +1952,24 @@
     addTerminalLine(data, 'terminalBody');
     addTerminalLine(data, 'fullLogBody');
     updateStats();
+
+    const msg = data.message || '';
+    if (msg.includes('Enviando mensaje')) {
+      setLlmRequestProgress(true, 'Ollama está generando una respuesta (puede tardar varios minutos)…');
+    } else if (msg.includes('Mensaje enviado, esperando respuesta')) {
+      setLlmRequestProgress(true, 'Esperando respuesta de Claude…');
+    }
+    if (
+      msg.includes('Respuesta recibida') ||
+      msg.includes('Timeout esperando respuesta') ||
+      msg.includes('Error crítico') ||
+      msg.includes('Agente local cerrado')
+    ) {
+      setLlmRequestProgress(false);
+    }
+    if (data.level === 'error' && (msg.includes('Timeout') || msg.includes('falló') || msg.includes('Error'))) {
+      setLlmRequestProgress(false);
+    }
   }
 
   function addTerminalLine(data, targetId) {
@@ -1243,20 +2008,22 @@
     const text = document.getElementById('projectStatusText');
     
     const map = {
-      'idle': ['', 'IDLE'],
-      'starting': ['running', 'STARTING'],
-      'initializing': ['running', 'INIT...'],
-      'ready': ['running', 'READY'],
-      'running': ['running', 'RUNNING'],
-      'completed': ['completed', 'COMPLETED'],
-      'error': ['error', 'ERROR']
+      idle: ['', 'IDLE'],
+      starting: ['running', 'STARTING'],
+      initializing: ['running', 'INIT...'],
+      ready: ['running', 'READY'],
+      running: ['running', 'RUNNING'],
+      completed: ['completed', 'COMPLETED'],
+      error: ['error', 'ERROR'],
+      stopped: ['stopped', 'DETENIDO']
     };
 
     const st = typeof status === 'string' ? status : String(status || 'idle');
     const [cls, label] = map[st] || ['', st.toUpperCase()];
     dot.className = 'status-dot ' + cls;
     text.textContent = label;
-    
+    updateRunPauseBadge();
+
     const startBtn = document.getElementById('startBtn');
     if (status === 'running' || status === 'initializing' || status === 'starting' || status === 'ready') {
       startBtn.disabled = true;
@@ -1267,9 +2034,119 @@
     } else if (status === 'error') {
       startBtn.disabled = false;
       startBtn.innerHTML = '▶ Reintentar';
+    } else if (status === 'stopped') {
+      startBtn.disabled = false;
+      startBtn.innerHTML = '▶ Nuevo proyecto';
     } else {
       startBtn.disabled = false;
       startBtn.innerHTML = '▶ Iniciar';
+    }
+  }
+
+  function updateRunPauseBadge() {
+    const b = document.getElementById('runPauseBadge');
+    if (!b) return;
+    const s = projectState.status;
+    const show = !!projectState.runPaused && (s === 'running' || s === 'ready' || s === 'initializing' || s === 'starting');
+    b.style.display = show ? 'inline' : 'none';
+  }
+
+  async function pauseRun() {
+    if (!isAppServerOrigin()) return;
+    try {
+      const res = await fetch('/api/run/pause', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(j.error || res.status);
+      notify('Pausa activada: el flujo se detendrá al siguiente punto de espera.', 'info');
+      projectState.runPaused = true;
+      updateRunPauseBadge();
+    } catch (e) {
+      notify(e.message || String(e), 'error');
+    }
+  }
+
+  async function resumeRun() {
+    if (!isAppServerOrigin()) return;
+    try {
+      const res = await fetch('/api/run/resume', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(j.error || res.status);
+      notify('Ejecución reanudada.', 'success');
+      projectState.runPaused = false;
+      updateRunPauseBadge();
+    } catch (e) {
+      notify(e.message || String(e), 'error');
+    }
+  }
+
+  async function stopAfterStep() {
+    if (!isAppServerOrigin()) return;
+    try {
+      const res = await fetch('/api/run/stop-after-step', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: '{}'
+      });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(j.error || res.status);
+      notify('Al terminar el sprint en curso se detendrá el flujo y se guardará el estado.', 'warning');
+    } catch (e) {
+      notify(e.message || String(e), 'error');
+    }
+  }
+
+  async function refreshSessionsList() {
+    if (!isAppServerOrigin()) return;
+    const sel = document.getElementById('savedSessionsSelect');
+    if (!sel) return;
+    sel.innerHTML = '<option value="">Cargando…</option>';
+    try {
+      const res = await fetch('/api/sessions');
+      const list = await res.json().catch(() => []);
+      sel.innerHTML = '<option value="">— Elegir sesión —</option>';
+      if (!Array.isArray(list) || list.length === 0) {
+        sel.innerHTML += '<option disabled>(No hay carpetas session- en outputs/)</option>';
+        return;
+      }
+      list.forEach((row) => {
+        if (row.error) return;
+        const id = row.id || '';
+        if (!id.startsWith('session-')) return;
+        const st = row.status || '?';
+        const sp = row.currentSprint != null ? row.currentSprint : '—';
+        const t = row.mtimeMs ? new Date(row.mtimeMs).toLocaleString() : '';
+        const opt = document.createElement('option');
+        opt.value = id;
+        opt.textContent = `${id} · ${st} · sprint ${sp} · ${t}`;
+        sel.appendChild(opt);
+      });
+    } catch (e) {
+      sel.innerHTML = '<option value="">Error al listar</option>';
+      notify('No se pudieron listar sesiones: ' + e.message, 'error');
+    }
+  }
+
+  async function loadSelectedSessionIntoDashboard() {
+    if (!isAppServerOrigin()) return;
+    const sel = document.getElementById('savedSessionsSelect');
+    const id = sel && sel.value;
+    if (!id) {
+      notify('Elige una sesión en el desplegable.', 'info');
+      return;
+    }
+    try {
+      const res = await fetch('/api/sessions/' + encodeURIComponent(id));
+      const state = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(state.error || 'HTTP ' + res.status);
+      await fetch('/api/session/focus', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id })
+      }).catch(() => {});
+      updateFromState({ ...state, _restoredFromDisk: true, _activeRun: false });
+      notify('Sesión cargada en el panel: ' + id, 'success');
+    } catch (e) {
+      notify(e.message || String(e), 'error');
     }
   }
 
@@ -1411,6 +2288,7 @@
   }
 
   function handleCompleted(data) {
+    setLlmRequestProgress(false);
     projectState.status = 'completed';
     handleStatus({ status: 'completed' });
     notify('🎉 Proyecto completado! App generada en ' + data.outputDir, 'success');
@@ -1418,18 +2296,111 @@
   }
 
   function handleError(data) {
+    setLlmRequestProgress(false);
     projectState.status = 'error';
     handleStatus({ status: 'error' });
     notify('Error: ' + (data.message || data), 'error');
   }
 
+  /** Reconstruye la lista de artefactos como en los eventos WS `artifact_created`. */
+  function buildArtifactListFromState(state) {
+    const list = [];
+    function pushArt(type, payload, sprintNum) {
+      if (payload == null) return;
+      list.push({
+        type,
+        sprint: sprintNum,
+        data: payload,
+        timestamp: payload.timestamp || new Date().toISOString()
+      });
+    }
+    const art = state.artifacts || {};
+    pushArt('prd', art.prd);
+    pushArt('architecture', art.architecture);
+    pushArt('testPlan', art.testPlan);
+    pushArt('sprintPlan', art.sprintPlan);
+    const sprints = [...(state.sprints || [])].sort((a, b) => (a.number || 0) - (b.number || 0));
+    for (const sp of sprints) {
+      pushArt('implementation', sp.implementation, sp.number);
+      pushArt('qaReport', sp.qaReport, sp.number);
+      pushArt('retrospective', sp.retrospective, sp.number);
+    }
+    return list;
+  }
+
+  function renderAllLogsToDom() {
+    ['terminalBody', 'fullLogBody'].forEach((id) => {
+      const el = document.getElementById(id);
+      if (el) el.innerHTML = '';
+    });
+    allLogs.forEach((entry) => {
+      addTerminalLine(entry, 'terminalBody');
+      addTerminalLine(entry, 'fullLogBody');
+    });
+  }
+
+  function rebuildRecentArtifactsPanel() {
+    const recentEl = document.getElementById('recentArtifacts');
+    if (!recentEl) return;
+    recentEl.innerHTML = '';
+    const icons = {
+      prd: '📋',
+      architecture: '🏗',
+      testPlan: '🧪',
+      implementation: '💻',
+      qaReport: '🔍',
+      retrospective: '🔄',
+      sprintPlan: '🗂',
+      default: '📄'
+    };
+    const last = allArtifacts.slice(-5).reverse();
+    if (last.length === 0) {
+      recentEl.innerHTML =
+        '<div class="no-artifacts" style="color:var(--text-dim);font-size:11px">Sin artefactos aún</div>';
+      return;
+    }
+    last.forEach((art) => {
+      const icon = icons[art.type] || icons.default;
+      const name = formatArtifactName(art.type, art.sprint);
+      recentEl.appendChild(createArtifactItem(icon, name, art));
+    });
+  }
+
+  function hydrateArtifactsAndLogsFromState(fullState) {
+    allLogs.length = 0;
+    if (Array.isArray(fullState.logs)) {
+      allLogs.push(...fullState.logs);
+    }
+    renderAllLogsToDom();
+
+    allArtifacts.length = 0;
+    allArtifacts.push(...buildArtifactListFromState(fullState));
+    rebuildRecentArtifactsPanel();
+    updateArtifactsGrid();
+    const stat = document.getElementById('statArtifacts');
+    if (stat) stat.textContent = String(allArtifacts.length);
+  }
+
   function updateFromState(state) {
-    projectState = state;
-    handleStatus({ status: state.status });
-    document.getElementById('statSprint').textContent = state.currentSprint || 0;
+    if (!state || typeof state !== 'object') return;
+    const { _restoredFromDisk, _activeRun, _sessionOutputFolder, ...core } = state;
+    void _activeRun;
+    void _sessionOutputFolder;
+    projectState = core;
+    handleStatus({ status: projectState.status });
+    document.getElementById('statSprint').textContent = projectState.currentSprint || 0;
+    hydrateArtifactsAndLogsFromState(state);
     updateProgressBar();
     updateSprintBoard();
     updateSprintMiniList();
+
+    if (_restoredFromDisk && state.sessionId) {
+      const k = 'aiScrumRestoreNotify_' + state.sessionId;
+      if (!sessionStorage.getItem(k)) {
+        sessionStorage.setItem(k, '1');
+        notify('Vista restaurada: logs y artefactos cargados desde la última sesión (también tras F5 o reinicio del servidor).', 'success');
+      }
+    }
   }
 
   function updateProgressBar() {
@@ -1453,12 +2424,14 @@
     if (!sprints || sprints.length === 0) return;
     
     const statusCols = {
-      'planning': { label: 'Planificando', color: 'var(--text-dim)' },
-      'development': { label: 'En Desarrollo', color: 'var(--accent)' },
-      'testing': { label: 'En Testing', color: 'var(--warning)' },
+      planning: { label: 'Planificando', color: 'var(--text-dim)' },
+      'in-progress': { label: 'En curso', color: 'var(--accent)' },
+      development: { label: 'En Desarrollo', color: 'var(--accent)' },
+      testing: { label: 'En Testing', color: 'var(--warning)' },
       'bug-fixing': { label: 'Corrigiendo', color: 'var(--error)' },
-      'review': { label: 'En Review', color: 'var(--accent2)' },
-      'completed': { label: 'Completado', color: 'var(--success)' }
+      review: { label: 'En Review', color: 'var(--accent2)' },
+      completed: { label: 'Completado', color: 'var(--success)' },
+      'needs-rework': { label: 'Rework', color: 'var(--error)' }
     };
 
     container.innerHTML = `<div class="sprint-board">
@@ -1507,8 +2480,15 @@
 
   function updateArtifactsGrid() {
     const grid = document.getElementById('artifactsGrid');
-    const icons = { prd: '📋', architecture: '🏗', testPlan: '🧪', 
-                    implementation: '💻', qaReport: '🔍', retrospective: '🔄' };
+    const icons = {
+      prd: '📋',
+      architecture: '🏗',
+      testPlan: '🧪',
+      sprintPlan: '🗂',
+      implementation: '💻',
+      qaReport: '🔍',
+      retrospective: '🔄'
+    };
     
     grid.innerHTML = allArtifacts.map((a, i) => `
       <div class="artifact-item" onclick="showArtifact(${i})" style="flex-direction:column; align-items:flex-start; padding:14px">
@@ -1520,16 +2500,348 @@
           </div>
         </div>
         <div style="width:100%; background:rgba(0,212,255,0.05); border-radius:6px; padding:8px; font-size:10px; color:var(--text-dim); overflow:hidden; max-height:60px">
-          ${escHtml(JSON.stringify(a.data?.parsed || {}).substring(0, 200))}...
+          ${escHtml(getArtifactPreviewSnippet(a))}...
         </div>
       </div>
     `).join('');
   }
 
+  /** Igual que lib/parse-llm-json.js (vía /parse-llm-json-browser.js): fences ```json y llaves balanceadas. */
+  function tryParseJsonFromText(text) {
+    if (typeof parseLlmJsonResponse === 'function') {
+      return parseLlmJsonResponse(text);
+    }
+    if (!text || typeof text !== 'string') return null;
+    try {
+      return JSON.parse(text.trim());
+    } catch {
+      return null;
+    }
+  }
+
+  function isNonEmptyObject(o) {
+    return o && typeof o === 'object' && !Array.isArray(o) && Object.keys(o).length > 0;
+  }
+
+  /** Desenrolla { prd }, { qa_report }, { implementation } para mostrar el núcleo. */
+  function unwrapArtifactRoot(obj) {
+    if (!isNonEmptyObject(obj)) return obj;
+    if (isNonEmptyObject(obj.prd)) return obj.prd;
+    if (isNonEmptyObject(obj.qa_report)) return obj.qa_report;
+    if (isNonEmptyObject(obj.implementation)) return obj.implementation;
+    return obj;
+  }
+
+  function getArtifactPayload(artifactWrapper) {
+    const data = artifactWrapper.data != null ? artifactWrapper.data : artifactWrapper;
+    const raw = typeof data.raw === 'string' ? data.raw : '';
+    let parsed = data.parsed;
+
+    if (isNonEmptyObject(parsed)) {
+      return { parsed: unwrapArtifactRoot(parsed), raw, source: 'parsed' };
+    }
+    const fromRaw = tryParseJsonFromText(raw);
+    if (fromRaw && typeof fromRaw === 'object') {
+      return { parsed: unwrapArtifactRoot(fromRaw), raw, source: 'raw' };
+    }
+    return { parsed: null, raw, source: 'none' };
+  }
+
+  function getArtifactPreviewSnippet(a) {
+    const { parsed } = getArtifactPayload(a);
+    if (parsed) {
+      const t = parsed.title || parsed.vision || parsed.name || parsed.goal;
+      if (t) return String(t).slice(0, 220);
+      return JSON.stringify(parsed).slice(0, 200);
+    }
+    const raw = a.data?.raw;
+    if (typeof raw === 'string') return raw.replace(/\s+/g, ' ').trim().slice(0, 200);
+    return JSON.stringify(a.data || {}).slice(0, 200);
+  }
+
+  function humanKey(k) {
+    return String(k)
+      .replace(/_/g, ' ')
+      .replace(/([a-z])([A-Z])/g, '$1 $2')
+      .replace(/^\w/, (c) => c.toUpperCase());
+  }
+
+  function renderSpecialSection(key, val) {
+    const kk = String(key)
+      .toLowerCase()
+      .replace(/_/g, '');
+    if ((kk === 'userstories' || kk === 'stories' || kk === 'userstory') && Array.isArray(val)) {
+      let h = '<h3 class="artifact-h3">Historias de usuario</h3><div class="artifact-cards">';
+      val.forEach((story, i) => {
+        if (!story || typeof story !== 'object') {
+          h += `<div class="artifact-card"><p class="artifact-p">${typeof story === 'string' ? escHtml(story) : escHtml(JSON.stringify(story))}</p></div>`;
+          return;
+        }
+        const id = story.id || story.storyId || story.us_id || `HU ${i + 1}`;
+        const title = story.title || story.story || story.description || story.asA || '';
+        const prio = story.priority || story.moscow || story.moScoW || '';
+        h += '<div class="artifact-card">';
+        h += `<div class="artifact-card-title">${escHtml(String(id))}`;
+        if (prio) h += ` <span class="artifact-badge">${escHtml(String(prio))}</span>`;
+        h += '</div>';
+        if (title) h += `<p class="artifact-p">${escHtml(String(title))}</p>`;
+        const ac = story.acceptanceCriteria || story.acceptance_criteria || story.criteria || story.acceptance;
+        if (Array.isArray(ac) && ac.length) {
+          h += '<div class="artifact-h3" style="margin-top:10px;font-size:10px;opacity:0.9">Criterios de aceptación</div><ul class="artifact-list">';
+          ac.forEach((c) => {
+            h += `<li>${typeof c === 'object' ? escHtml(JSON.stringify(c, null, 2)) : escHtml(String(c))}</li>`;
+          });
+          h += '</ul>';
+        }
+        h += '</div>';
+      });
+      h += '</div>';
+      return h;
+    }
+    if (kk === 'personas' && Array.isArray(val)) {
+      let h = '<h3 class="artifact-h3">Personas</h3><div class="artifact-cards">';
+      val.forEach((p, i) => {
+        if (!p || typeof p !== 'object') {
+          h += `<div class="artifact-card"><p class="artifact-p">${escHtml(String(p))}</p></div>`;
+          return;
+        }
+        const name = p.name || p.role || p.title || `Persona ${i + 1}`;
+        h += '<div class="artifact-card">';
+        h += `<div class="artifact-card-title">${escHtml(String(name))}</div>`;
+        h += renderObjectSections(p, 1, new Set(['name', 'role', 'title']));
+        h += '</div>';
+      });
+      h += '</div>';
+      return h;
+    }
+    if (kk === 'files' && Array.isArray(val) && val.some((f) => f && f.path)) {
+      let h = '<h3 class="artifact-h3">Archivos</h3><div class="artifact-cards">';
+      val.forEach((f) => {
+        if (!f || typeof f !== 'object') return;
+        h += '<div class="artifact-card">';
+        h += `<div class="artifact-file-path">${escHtml(String(f.path || ''))}</div>`;
+        if (f.description) h += `<p class="artifact-muted">${escHtml(String(f.description))}</p>`;
+        const code = f.code || f.content;
+        if (code && String(code).length > 0) {
+          const len = String(code).length;
+          h += `<details class="artifact-details"><summary>Código fuente (${len} caracteres)</summary><pre class="code-block" style="max-height:240px;overflow:auto;margin-top:8px">${escHtml(String(code))}</pre></details>`;
+        }
+        h += '</div>';
+      });
+      h += '</div>';
+      return h;
+    }
+    return null;
+  }
+
+  function renderObjectSections(obj, depth, skipKeys) {
+    const skip = skipKeys || new Set();
+    if (obj === null || obj === undefined) return '<p class="artifact-muted">—</p>';
+    if (typeof obj !== 'object') {
+      return `<p class="artifact-p">${escHtml(String(obj))}</p>`;
+    }
+    if (Array.isArray(obj)) {
+      if (obj.length === 0) return '<p class="artifact-muted">(vacío)</p>';
+      const allObj = obj.every((x) => x && typeof x === 'object' && !Array.isArray(x));
+      if (allObj) {
+        return (
+          '<div class="artifact-cards">' +
+          obj.map((item) => `<div class="artifact-card">${renderObjectSections(item, depth + 1)}</div>`).join('') +
+          '</div>'
+        );
+      }
+      return (
+        '<ul class="artifact-list">' +
+        obj
+          .map((x) => {
+            if (x && typeof x === 'object') {
+              return `<li>${renderObjectSections(x, depth + 1)}</li>`;
+            }
+            return `<li>${escHtml(String(x))}</li>`;
+          })
+          .join('') +
+        '</ul>'
+      );
+    }
+
+    const keys = Object.keys(obj).filter((k) => !skip.has(k));
+    let html = '';
+    for (const k of keys) {
+      const v = obj[k];
+      const spec = renderSpecialSection(k, v);
+      if (spec) {
+        html += spec;
+        continue;
+      }
+      const label = humanKey(k);
+      if (v === null || v === undefined) {
+        html += `<div class="artifact-kv"><span class="artifact-k">${escHtml(label)}</span><span class="artifact-v artifact-muted">—</span></div>`;
+        continue;
+      }
+      if (typeof v === 'object') {
+        html += `<section class="artifact-section"><h3 class="artifact-h3">${escHtml(label)}</h3>${renderObjectSections(v, depth + 1)}</section>`;
+        continue;
+      }
+      const str = String(v);
+      if (str.length > 400 && (k.toLowerCase().includes('description') || k.toLowerCase().includes('vision'))) {
+        html += `<section class="artifact-section"><h3 class="artifact-h3">${escHtml(label)}</h3><p class="artifact-p">${escHtml(str)}</p></section>`;
+        continue;
+      }
+      if (str.length > 800) {
+        html += `<details class="artifact-section artifact-details"><summary class="artifact-h3" style="display:list-item">${escHtml(label)} (texto largo)</summary><pre class="code-block" style="margin-top:8px">${escHtml(str)}</pre></details>`;
+        continue;
+      }
+      html += `<div class="artifact-kv"><span class="artifact-k">${escHtml(label)}</span><span class="artifact-v">${escHtml(str)}</span></div>`;
+    }
+    return html;
+  }
+
+  function qaSeverityClass(sev) {
+    const s = String(sev || '').toUpperCase();
+    if (s.includes('CRITICAL')) return 'qa-sev-critical';
+    if (s.includes('HIGH')) return 'qa-sev-high';
+    if (s.includes('MEDIUM')) return 'qa-sev-medium';
+    if (s.includes('LOW')) return 'qa-sev-low';
+    return 'qa-sev-unknown';
+  }
+
+  function qaStatusClass(st) {
+    const s = String(st || '').toUpperCase();
+    if (s === 'PASS' || s === 'PASSED' || s === 'OK') return 'qa-st-pass';
+    if (s === 'FAIL' || s === 'FAILED' || s === 'ERROR') return 'qa-st-fail';
+    if (s.includes('SKIP') || s.includes('N/A')) return 'qa-st-skip';
+    return 'qa-st-neutral';
+  }
+
+  function renderQaStructuredReport(obj) {
+    const q = obj && obj.qa_report && typeof obj.qa_report === 'object' ? obj.qa_report : obj;
+    if (!q || typeof q !== 'object') return null;
+    let h = '';
+    const rec = q.recommendation || q.decision;
+    if (rec) {
+      const u = String(rec).toUpperCase();
+      let rc = 'qa-rec-conditional';
+      if (u.includes('REJECT')) rc = 'qa-rec-reject';
+      else if (u.includes('APPROVE') && !u.includes('CONDITIONAL')) rc = 'qa-rec-approve';
+      h +=
+        `<div class="qa-banner ${rc}"><span class="qa-banner-label">RECOMENDACIÓN QA</span>` +
+        escHtml(String(rec)) +
+        `</div>`;
+    }
+    if (q.sprint != null) {
+      h += `<p class="qa-muted">Sprint: <strong>${escHtml(String(q.sprint))}</strong></p>`;
+    }
+    if (Array.isArray(q.testCases) && q.testCases.length) {
+      h += '<h3 class="artifact-h3">Casos de prueba</h3><div class="qa-test-list">';
+      q.testCases.forEach((tc, i) => {
+        const st = tc.status || tc.result || tc.outcome || '';
+        h += '<div class="qa-test-card">';
+        h += '<div class="qa-test-head">';
+        h += `<span class="qa-pill ${qaStatusClass(st)}">${escHtml(String(st || '—'))}</span>`;
+        h += `<span class="qa-test-title">${escHtml(String(tc.title || tc.id || 'Caso ' + (i + 1)))}</span>`;
+        h += '</div>';
+        if (tc.severity) {
+          h += `<span class="qa-pill ${qaSeverityClass(tc.severity)}">${escHtml(String(tc.severity))}</span>`;
+        }
+        if (tc.expectedResult) {
+          h += `<p class="qa-detail"><em>Esperado</em> ${escHtml(String(tc.expectedResult))}</p>`;
+        }
+        if (tc.actualResult) {
+          h += `<p class="qa-detail"><em>Obtenido</em> ${escHtml(String(tc.actualResult))}</p>`;
+        }
+        if (Array.isArray(tc.steps) && tc.steps.length) {
+          h +=
+            '<ol class="qa-steps">' +
+            tc.steps
+              .map((s) => `<li>${escHtml(typeof s === 'string' ? s : JSON.stringify(s))}</li>`)
+              .join('') +
+            '</ol>';
+        }
+        h += '</div>';
+      });
+      h += '</div>';
+    }
+    if (Array.isArray(q.bugs) && q.bugs.length) {
+      h += '<h3 class="artifact-h3">Bugs y hallazgos</h3><div class="qa-bug-list">';
+      q.bugs.forEach((b, i) => {
+        const sev = b.severity || b.level || 'MEDIUM';
+        h += `<div class="qa-bug-card ${qaSeverityClass(sev)}">`;
+        h += '<div class="qa-bug-head">';
+        h += `<span class="qa-pill ${qaSeverityClass(sev)}">${escHtml(String(sev))}</span>`;
+        h += `<span class="qa-bug-title">${escHtml(String(b.title || b.summary || b.id || 'Hallazgo ' + (i + 1)))}</span>`;
+        h += '</div>';
+        if (b.description) {
+          h += `<p class="qa-detail">${escHtml(String(b.description))}</p>`;
+        }
+        const file = b.file || b.path || b.affectedFile;
+        if (file) {
+          h += `<p class="qa-file">📎 ${escHtml(String(file))}</p>`;
+        }
+        h += '</div>';
+      });
+      h += '</div>';
+    }
+    if (q.note) {
+      h += `<p class="qa-note">${escHtml(String(q.note))}</p>`;
+    }
+    return h || null;
+  }
+
+  function renderReadableArtifactHtml(artifactType, parsed, rawFallback, source) {
+    if (artifactType === 'qaReport' && parsed && typeof parsed === 'object') {
+      const qaHtml = renderQaStructuredReport(parsed);
+      if (qaHtml) {
+        return `<div class="artifact-readable qa-report-wrap">${qaHtml}</div>`;
+      }
+    }
+    let body = '';
+    if (parsed && typeof parsed === 'object') {
+      const title = parsed.title || parsed.name || formatArtifactName(artifactType, undefined);
+      const rootSkip = new Set();
+      if (parsed.title) rootSkip.add('title');
+      else if (parsed.name) rootSkip.add('name');
+      body += `<h2 class="artifact-h2">${escHtml(String(title))}</h2>`;
+      body += renderObjectSections(parsed, 0, rootSkip);
+    } else if (rawFallback && typeof rawFallback === 'string' && rawFallback.trim()) {
+      body += `<p class="artifact-lead">No se obtuvo JSON estructurado (${escHtml(source)}). Se muestra el texto devuelto por el modelo.</p>`;
+      body += `<pre class="code-block" style="color:var(--text);font-size:12px">${escHtml(rawFallback.trim())}</pre>`;
+    } else {
+      body += '<p class="artifact-muted">Sin datos para mostrar.</p>';
+    }
+    return `<div class="artifact-readable">${body}</div>`;
+  }
+
+  function switchArtifactTab(view, btnEl) {
+    document.querySelectorAll('.artifact-tab').forEach((b) => b.classList.remove('active'));
+    document.querySelectorAll('.artifact-view-pane').forEach((p) => p.classList.remove('active'));
+    const tabBtn = btnEl || document.querySelector('.artifact-tab[data-artifact-tab="' + view + '"]');
+    if (tabBtn) tabBtn.classList.add('active');
+    const pane = document.getElementById(
+      view === 'readable' ? 'modalViewReadable' : view === 'json' ? 'modalViewJson' : 'modalViewRaw'
+    );
+    if (pane) pane.classList.add('active');
+  }
+
   function showArtifact(dataOrIndex) {
-    const data = typeof dataOrIndex === 'number' ? allArtifacts[dataOrIndex] : dataOrIndex;
-    document.getElementById('modalTitle').textContent = formatArtifactName(data.type, data.sprint);
-    document.getElementById('modalContent').textContent = JSON.stringify(data.data || data, null, 2);
+    const art = typeof dataOrIndex === 'number' ? allArtifacts[dataOrIndex] : dataOrIndex;
+    const inner = art.data != null ? art.data : art;
+
+    document.getElementById('modalTitle').textContent = formatArtifactName(art.type, art.sprint);
+
+    const { parsed, raw, source } = getArtifactPayload(art);
+    const readableEl = document.getElementById('modalViewReadable');
+    const jsonEl = document.getElementById('modalViewJson');
+    const rawEl = document.getElementById('modalViewRaw');
+
+    const forJson = parsed || tryParseJsonFromText(raw) || inner;
+    readableEl.innerHTML = renderReadableArtifactHtml(art.type, parsed, raw, source);
+    jsonEl.textContent = JSON.stringify(forJson, null, 2);
+    rawEl.textContent =
+      typeof raw === 'string' && raw.trim()
+        ? raw
+        : JSON.stringify(inner, null, 2);
+
+    switchArtifactTab('readable', document.querySelector('.artifact-tab[data-artifact-tab="readable"]'));
     document.getElementById('artifactModal').classList.add('open');
   }
 
@@ -1538,6 +2850,94 @@
   }
 
   // === SETTINGS ===
+  function updateOllamaApiKeyModeUI() {
+    const mode = document.getElementById('local_ollama_api_key_mode')?.value;
+    const row = document.getElementById('local_ollama_api_key_custom_row');
+    if (row) row.style.display = mode === 'custom' ? 'block' : 'none';
+  }
+
+  function updateLocalLlmConnectionPreview() {
+    const pre = document.getElementById('local_llm_connection_preview');
+    if (!pre) return;
+    const base = (document.getElementById('local_ollama_baseurl')?.value || '').trim() || 'http://localhost:11434';
+    const preset = document.getElementById('local_llm_connection_preset')?.value || 'ollama_local';
+    const names = {
+      ollama_local: 'Tipo: modelo local típico (Ollama en localhost o LAN)',
+      remote_api: 'Tipo: servidor remoto (suele ir con API key)',
+      custom: 'Tipo: personalizado (revisa URL y nombre)'
+    };
+    let host = '?';
+    try {
+      const u = new URL(base);
+      host = u.hostname + (u.port ? ':' + u.port : '');
+    } catch {
+      host = '(URL no válida)';
+    }
+    const user = (document.getElementById('local_llm_connection_label')?.value || '').trim();
+    pre.innerHTML =
+      '<strong>Vista previa</strong> · ' +
+      (names[preset] || names.remote_api) +
+      ' · <code style="color:var(--accent)">host ' +
+      host +
+      '</code>' +
+      (user ? ' · etiqueta: «' + escapeHtml(user) + '»' : '') +
+      '. Al <strong>Iniciar proyecto</strong> el orquestador escribe un resumen en el log; cada agente indica la misma info en cada llamada al modelo.';
+  }
+
+  function escapeHtml(s) {
+    return String(s)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  async function refreshOllamaModels() {
+    if (!isAppServerOrigin()) return;
+    const baseInput = document.getElementById('local_ollama_baseurl');
+    const sel = document.getElementById('local_ollama_model');
+    const btn = document.getElementById('btn_refresh_ollama_models');
+    const baseUrl = (baseInput && baseInput.value.trim()) || 'http://localhost:11434';
+    const previous = sel ? sel.value : '';
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = '…';
+    }
+    if (sel) {
+      sel.innerHTML = '<option value="">Cargando modelos…</option>';
+    }
+    try {
+      const res = await fetch('/api/ollama/models?baseUrl=' + encodeURIComponent(baseUrl));
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'HTTP ' + res.status);
+      if (!sel) return;
+      sel.innerHTML = '';
+      const models = data.models || [];
+      if (models.length === 0) {
+        const o = document.createElement('option');
+        o.value = '';
+        o.textContent = '(No hay modelos — ejecuta: ollama pull nombre)';
+        sel.appendChild(o);
+      } else {
+        models.forEach((name) => {
+          const o = document.createElement('option');
+          o.value = name;
+          o.textContent = name;
+          sel.appendChild(o);
+        });
+      }
+      if (previous && models.includes(previous)) sel.value = previous;
+    } catch (e) {
+      notify('No se pudieron listar modelos Ollama: ' + e.message, 'error');
+      if (sel) sel.innerHTML = '<option value="">(error al cargar)</option>';
+    } finally {
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = '↻ Cargar modelos';
+      }
+    }
+  }
+
   async function loadSettings() {
     if (!isAppServerOrigin()) {
       notify(MSG_DEBES_ABRIR_LOCALHOST, 'error');
@@ -1561,8 +2961,118 @@
       document.getElementById('proj_sprints').value = config.scrum?.maxSprints || 5;
       document.getElementById('headless_mode').checked = config.agents?.headless || false;
       document.getElementById('share_session').checked = config.agents?.shareSession ?? true;
+
+      renderTeamTable(config.agents?.team);
+      const ow = document.getElementById('out_working_copy');
+      const os = document.getElementById('out_syntax_check');
+      const on = document.getElementById('out_npm_test');
+      const orf = document.getElementById('out_require_files');
+      const orc = document.getElementById('out_real_checks_sprint');
+      const ofc = document.getElementById('out_fail_checks');
+      const oni = document.getElementById('out_npm_install_sprint');
+      const orm = document.getElementById('out_retry_max');
+      if (ow) ow.checked = config.outputs?.writeWorkingCopyEachSprint !== false;
+      if (orf) orf.checked = config.outputs?.requireFilesEachSprint !== false;
+      if (orm) orm.value = String(config.outputs?.implementationRetryMax ?? 2);
+      if (orc) orc.checked = config.outputs?.runRealChecksEachSprint !== false;
+      if (oni) oni.checked = config.outputs?.npmInstallEachSprint !== false;
+      if (ofc) ofc.checked = config.outputs?.failSprintIfChecksFail === true;
+      if (os) os.checked = config.outputs?.nodeSyntaxCheckOnDelivery !== false;
+      if (on) on.checked = config.outputs?.runNpmTestOnDelivery === true;
+
+      const backend = config.agents?.backend === 'claude' ? 'claude' : 'local';
+      const ab = document.getElementById('agent_backend');
+      if (ab) ab.value = backend;
+      const bu = document.getElementById('local_ollama_baseurl');
+      if (bu) bu.value = config.agents?.local?.baseUrl || 'http://localhost:11434';
+
+      const presetEl = document.getElementById('local_llm_connection_preset');
+      if (presetEl) {
+        const p = config.agents?.local?.llmConnectionPreset;
+        presetEl.value = ['ollama_local', 'remote_api', 'custom'].includes(p) ? p : 'ollama_local';
+      }
+      const connLabelEl = document.getElementById('local_llm_connection_label');
+      if (connLabelEl) connLabelEl.value = config.agents?.local?.llmConnectionLabel || '';
+      updateLocalLlmConnectionPreview();
+
+      const modeEl = document.getElementById('local_ollama_api_key_mode');
+      if (modeEl) modeEl.value = config.agents?.local?.apiKeyMode || 'bearer';
+      const envEl = document.getElementById('local_ollama_api_key_env');
+      if (envEl) envEl.value = config.agents?.local?.apiKeyEnv || '';
+      const hdrEl = document.getElementById('local_ollama_api_key_header');
+      if (hdrEl) hdrEl.value = config.agents?.local?.apiKeyHeader || '';
+      const pfxEl = document.getElementById('local_ollama_api_key_prefix');
+      if (pfxEl) pfxEl.value = config.agents?.local?.apiKeyPrefix != null ? String(config.agents.local.apiKeyPrefix) : '';
+      const apk = document.getElementById('local_ollama_api_key');
+      if (apk) {
+        apk.value = '';
+        apk.placeholder = config.agents?.local?.hasApiKey
+          ? '•••• configurada — vacío = no cambiar'
+          : 'Solo si tu API / proxy la exige';
+      }
+      updateOllamaApiKeyModeUI();
+
+      const savedModel = config.agents?.local?.model || '';
+      await refreshOllamaModels();
+      const sel = document.getElementById('local_ollama_model');
+      if (sel && savedModel) {
+        const has = Array.from(sel.options).some((o) => o.value === savedModel);
+        if (has) sel.value = savedModel;
+        else {
+          const o = document.createElement('option');
+          o.value = savedModel;
+          o.textContent = savedModel + ' (no listado; guardado en config)';
+          sel.insertBefore(o, sel.firstChild);
+          sel.value = savedModel;
+        }
+      }
+
+      const ragCb = document.getElementById('local_rag_enabled');
+      if (ragCb) ragCb.checked = config.agents?.local?.rag?.enabled === true;
+      const embIn = document.getElementById('local_ollama_embed_model');
+      if (embIn) {
+        embIn.value =
+          config.agents?.local?.embedModel ||
+          config.agents?.local?.rag?.embedModel ||
+          'nomic-embed-text';
+      }
+      const vr = document.getElementById('ollama_verify_result');
+      if (vr) vr.textContent = '';
     } catch (e) {
       notify('Error cargando configuración: ' + e.message, 'error');
+    }
+  }
+
+  async function verifyOllamaForRag() {
+    if (!isAppServerOrigin()) return;
+    const el = document.getElementById('ollama_verify_result');
+    const baseUrl = (document.getElementById('local_ollama_baseurl')?.value || '').trim() || 'http://localhost:11434';
+    const model = (document.getElementById('local_ollama_model')?.value || '').trim() || 'llama3.2';
+    const embedModel = (document.getElementById('local_ollama_embed_model')?.value || '').trim() || 'nomic-embed-text';
+    const rag = document.getElementById('local_rag_enabled')?.checked ? '1' : '0';
+    if (el) el.textContent = 'Comprobando…';
+    try {
+      const q = new URLSearchParams({ baseUrl, model, embedModel, rag });
+      const res = await fetch('/api/ollama/verify?' + q.toString());
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'HTTP ' + res.status);
+      let msg = data.hasChat ? 'Modelo chat ✓' : 'Modelo chat ✗';
+      if (data.ragEnabled) {
+        msg += data.hasEmbed ? ' · Embeddings ✓' : ' · Embeddings ✗';
+      } else {
+        msg += ' · RAG off';
+      }
+      if (el) el.textContent = msg;
+      if (!data.hasChat) {
+        notify(data.hintChat || 'Falta el modelo de chat en Ollama.', 'warning');
+      } else if (data.ragEnabled && !data.hasEmbed) {
+        notify(data.hintEmbed || 'Falta modelo de embeddings. Ejecuta ollama pull ' + embedModel, 'warning');
+      } else {
+        notify('Ollama: comprobación OK.', 'success');
+      }
+    } catch (e) {
+      if (el) el.textContent = 'Error';
+      notify(e.message || String(e), 'error');
     }
   }
 
@@ -1615,6 +3125,12 @@
       if (!platform.password) delete platform.password;
     }
     
+    const team = readTeamFromTable();
+    if (!team.some((t) => t.enabled !== false && t.role === 'scrumMaster')) {
+      notify('Debe existir un Scrum Master marcado como activo.', 'error');
+      return;
+    }
+
     const config = {
       project: {
         name: document.getElementById('proj_name').value,
@@ -1623,7 +3139,48 @@
       scrum: { maxSprints: parseInt(document.getElementById('proj_sprints').value) },
       agents: {
         headless: document.getElementById('headless_mode').checked,
-        shareSession: document.getElementById('share_session').checked
+        shareSession: document.getElementById('share_session').checked,
+        backend: document.getElementById('agent_backend')?.value || 'local',
+        team,
+        local: (() => {
+          const loc = {
+            baseUrl: (document.getElementById('local_ollama_baseurl')?.value || '').trim() || 'http://localhost:11434',
+            llmConnectionPreset: document.getElementById('local_llm_connection_preset')?.value || 'ollama_local',
+            llmConnectionLabel: (document.getElementById('local_llm_connection_label')?.value || '').trim(),
+            model: (document.getElementById('local_ollama_model')?.value || '').trim() || 'llama3.2',
+            embedModel:
+              (document.getElementById('local_ollama_embed_model')?.value || '').trim() || 'nomic-embed-text',
+            apiKeyMode: document.getElementById('local_ollama_api_key_mode')?.value || 'bearer',
+            apiKeyEnv: (document.getElementById('local_ollama_api_key_env')?.value || '').trim(),
+            rag: {
+              enabled: document.getElementById('local_rag_enabled')?.checked === true
+            }
+          };
+          const mode = loc.apiKeyMode;
+          if (mode === 'custom') {
+            loc.apiKeyHeader = (document.getElementById('local_ollama_api_key_header')?.value || '').trim();
+            loc.apiKeyPrefix = document.getElementById('local_ollama_api_key_prefix')?.value ?? '';
+          } else {
+            loc.apiKeyHeader = '';
+            loc.apiKeyPrefix = '';
+          }
+          const newKey = (document.getElementById('local_ollama_api_key')?.value || '').trim();
+          if (newKey) loc.apiKey = newKey;
+          return loc;
+        })()
+      },
+      outputs: {
+        writeWorkingCopyEachSprint: document.getElementById('out_working_copy')?.checked !== false,
+        requireFilesEachSprint: document.getElementById('out_require_files')?.checked !== false,
+        implementationRetryMax: Math.min(
+          8,
+          Math.max(0, parseInt(document.getElementById('out_retry_max')?.value, 10) || 0)
+        ),
+        runRealChecksEachSprint: document.getElementById('out_real_checks_sprint')?.checked !== false,
+        npmInstallEachSprint: document.getElementById('out_npm_install_sprint')?.checked !== false,
+        failSprintIfChecksFail: document.getElementById('out_fail_checks')?.checked === true,
+        nodeSyntaxCheckOnDelivery: document.getElementById('out_syntax_check')?.checked !== false,
+        runNpmTestOnDelivery: document.getElementById('out_npm_test')?.checked === true
       }
     };
     
@@ -1676,6 +3233,10 @@
     document.getElementById('tab-' + tab)?.classList.add('active');
     const btn = el || document.querySelector('.nav-tab[data-tab="' + tab + '"]');
     if (btn) btn.classList.add('active');
+
+    if (tab === 'flow' && isAppServerOrigin()) {
+      refreshFlowDiagram();
+    }
   }
 
   function notify(msg, type = 'info') {
@@ -1713,6 +3274,23 @@
   if (isAppServerOrigin()) {
     connectWS();
     loadSettings();
+    refreshSessionsList();
+    fetch('/api/state')
+      .then((r) => r.json())
+      .then((data) => {
+        if (
+          data &&
+          (data._restoredFromDisk ||
+            data._activeRun ||
+            (data.status && data.status !== 'idle') ||
+            (Array.isArray(data.logs) && data.logs.length > 0) ||
+            (data.artifacts && data.artifacts.prd) ||
+            (Array.isArray(data.sprints) && data.sprints.length > 0))
+        ) {
+          updateFromState(data);
+        }
+      })
+      .catch(() => {});
   } else {
     updateConnectionStatus(false);
     appendInitLog(MSG_DEBES_ABRIR_LOCALHOST, 'error');

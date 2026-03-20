@@ -7,7 +7,8 @@ const path = require('path');
 const fs = require('fs-extra');
 
 const ScrumMasterOrchestrator = require('./orchestrator');
-const { checkHealth } = require('./lib/local-llm');
+const { checkHealth, listModels, verifyOllamaModels, authHeadersFromLocalConfig } = require('./lib/local-llm');
+const { buildMermaidFromConfig } = require('./lib/flow-mermaid');
 
 /** Evita borrar backend Ollama/Claude al guardar solo project/scrum/agents parciales desde el dashboard */
 function mergeProjectConfigPatch(current, patch) {
@@ -27,7 +28,13 @@ function mergeProjectConfigPatch(current, patch) {
             : current.agents?.local?.rag
       };
     }
+    if (Array.isArray(patch.agents.team)) {
+      a.team = patch.agents.team;
+    }
     next.agents = a;
+  }
+  if (patch.pipeline) {
+    next.pipeline = { ...(current.pipeline || {}), ...patch.pipeline };
   }
   if (patch.target) {
     next.target = { ...(current.target || {}), ...patch.target };
@@ -40,6 +47,34 @@ function mergeProjectConfigPatch(current, patch) {
   }
   if (patch.outputs) next.outputs = { ...(current.outputs || {}), ...patch.outputs };
   return next;
+}
+
+/** Última sesión con state.json guardado (F5 o reinicio del servidor sin orquestador en RAM). */
+async function loadDashboardStateFromDisk() {
+  const pointerPath = path.join('./outputs', '.last-dashboard-session.json');
+  if (!(await fs.pathExists(pointerPath))) return null;
+  const ptr = await fs.readJson(pointerPath).catch(() => null);
+  if (!ptr || typeof ptr !== 'object') return null;
+  const folder = ptr.outputFolder || ptr.folder;
+  if (
+    !folder ||
+    typeof folder !== 'string' ||
+    folder.includes('..') ||
+    path.normalize(folder).includes('..') ||
+    !folder.startsWith('session-')
+  ) {
+    return null;
+  }
+  const statePath = path.join('./outputs', folder, 'state.json');
+  if (!(await fs.pathExists(statePath))) return null;
+  const state = await fs.readJson(statePath).catch(() => null);
+  if (!state || typeof state !== 'object') return null;
+  return {
+    ...state,
+    _restoredFromDisk: true,
+    _activeRun: false,
+    _sessionOutputFolder: folder
+  };
 }
 
 /** Fusiona credenciales por plataforma sin sustituir todo el bloque (conserva password si no se envía) */
@@ -58,6 +93,18 @@ function mergeCredentialsPatch(current, body) {
     }
   }
   return out;
+}
+
+/** No exponer apiKey al navegador; indica si habrá cabecera de autenticación (archivo o env). */
+function sanitizeProjectConfigForClient(config) {
+  const c = JSON.parse(JSON.stringify(config));
+  if (c.agents?.local) {
+    const loc = c.agents.local;
+    const headers = authHeadersFromLocalConfig(loc);
+    delete loc.apiKey;
+    loc.hasApiKey = Object.keys(headers).length > 0;
+  }
+  return c;
 }
 
 function createServer() {
@@ -119,17 +166,28 @@ function createServer() {
   });
   }
 
-  wss.on('connection', (ws) => {
+  wss.on('connection', async (ws) => {
   connectedClients.add(ws);
   console.log('Dashboard conectado. Clientes:', connectedClients.size);
-  
-  // Enviar estado actual al cliente nuevo
-  if (orchestrator) {
-    ws.send(JSON.stringify({ 
-      type: 'state', 
-      data: orchestrator.getState(),
-      timestamp: new Date().toISOString()
-    }));
+
+  try {
+    let statePayload = null;
+    if (orchestrator) {
+      statePayload = { ...orchestrator.getState(), _activeRun: true };
+    } else {
+      statePayload = await loadDashboardStateFromDisk();
+    }
+    if (statePayload) {
+      ws.send(
+        JSON.stringify({
+          type: 'state',
+          data: statePayload,
+          timestamp: new Date().toISOString()
+        })
+      );
+    }
+  } catch (e) {
+    console.error('WS estado inicial:', e.message);
   }
 
   ws.on('message', async (raw) => {
@@ -165,7 +223,7 @@ function createServer() {
         safeCredentials[key] = { email: val.email, configured: !!val.password };
       }
     }
-    res.json({ config, credentials: safeCredentials });
+    res.json({ config: sanitizeProjectConfigForClient(config), credentials: safeCredentials });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
@@ -195,6 +253,84 @@ function createServer() {
   }
   });
 
+  /** Diagrama Mermaid del flujo (según agents.team y scrum.maxSprints). */
+  app.get('/api/flow/diagram', async (req, res) => {
+    try {
+      const config = await fs.readJson('./config/project-config.json');
+      res.json({ mermaid: buildMermaidFromConfig(config) });
+    } catch (e) {
+      res.status(500).json({ error: e.message, mermaid: 'flowchart TD\n  ERR[Error cargando config]' });
+    }
+  });
+
+  /** Comprueba modelo de chat y, si RAG activo, modelo de embeddings. */
+  app.get('/api/ollama/verify', async (req, res) => {
+    try {
+      const current = await fs.readJson('./config/project-config.json').catch(() => ({}));
+      const fromQuery = typeof req.query.baseUrl === 'string' ? req.query.baseUrl.trim() : '';
+      const baseUrl = (fromQuery || current.agents?.local?.baseUrl || 'http://localhost:11434').replace(/\/$/, '');
+      const model = (typeof req.query.model === 'string' && req.query.model.trim()) || current.agents?.local?.model || 'llama3.2';
+      const embedModel =
+        (typeof req.query.embedModel === 'string' && req.query.embedModel.trim()) ||
+        current.agents?.local?.embedModel ||
+        current.agents?.local?.rag?.embedModel ||
+        'nomic-embed-text';
+      const ragEnabled =
+        req.query.rag === '1' ||
+        req.query.rag === 'true' ||
+        current.agents?.local?.rag?.enabled === true;
+
+      const authHeaders = authHeadersFromLocalConfig(current.agents?.local || {});
+      const v = await verifyOllamaModels(baseUrl, model, embedModel, { authHeaders });
+      if (!v.ok) {
+        return res.status(502).json({
+          baseUrl,
+          model,
+          embedModel,
+          ragEnabled,
+          ok: false,
+          error: v.error,
+          hint: '¿Está `ollama serve` en marcha y la URL correcta?'
+        });
+      }
+      res.json({
+        baseUrl,
+        model,
+        embedModel,
+        ragEnabled,
+        ok: true,
+        hasChat: v.hasChat,
+        hasEmbed: v.hasEmbed,
+        modelNames: v.modelNames,
+        hintChat: v.hasChat ? null : `Instala el modelo de chat: ollama pull ${model}`,
+        hintEmbed:
+          ragEnabled && !v.hasEmbed
+            ? `RAG activo: necesitas un modelo de embeddings (aparte del de chat). Ejecuta: ollama pull ${embedModel}`
+            : null
+      });
+    } catch (e) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  /** Modelos Ollama instalados (para combo en Settings). Query ?baseUrl= opcional. */
+  app.get('/api/ollama/models', async (req, res) => {
+    try {
+      const current = await fs.readJson('./config/project-config.json');
+      const fromQuery = typeof req.query.baseUrl === 'string' ? req.query.baseUrl.trim() : '';
+      const fromConfig = current.agents?.local?.baseUrl;
+      const baseUrl = (fromQuery || fromConfig || 'http://localhost:11434').replace(/\/$/, '');
+      const authHeaders = authHeadersFromLocalConfig(current.agents?.local || {});
+      const result = await listModels(baseUrl, { authHeaders });
+      if (!result.ok) {
+        return res.status(502).json({ error: result.error || 'No se pudo contactar con Ollama', baseUrl, models: [] });
+      }
+      res.json({ baseUrl, models: result.models });
+    } catch (e) {
+      res.status(500).json({ error: e.message, models: [] });
+    }
+  });
+
 // Iniciar el proyecto
   app.post('/api/start', async (req, res) => {
   if (isRunning) {
@@ -215,7 +351,8 @@ function createServer() {
     } else {
       const baseUrl = config.agents?.local?.baseUrl || 'http://localhost:11434';
       const model = config.agents?.local?.model || 'llama3.2';
-      const health = await checkHealth(baseUrl, model);
+      const authHeaders = authHeadersFromLocalConfig(config.agents?.local || {});
+      const health = await checkHealth(baseUrl, model, { authHeaders });
       if (!health.ok) {
         return res.status(400).json({
           error: `No se puede conectar con Ollama en ${baseUrl}. Inicia Ollama ("ollama serve") y revisa agents.local.baseUrl. Detalle: ${health.error || 'desconocido'}`
@@ -225,6 +362,29 @@ function createServer() {
         return res.status(400).json({
           error: `Ollama está activo pero el modelo "${model}" no está disponible. Ejecuta: ollama pull ${model}`
         });
+      }
+
+      const ragOn = config.agents?.local?.rag?.enabled === true;
+      if (ragOn) {
+        const embedModel =
+          config.agents?.local?.embedModel ||
+          config.agents?.local?.rag?.embedModel ||
+          'nomic-embed-text';
+        const v = await verifyOllamaModels(baseUrl, model, embedModel, { authHeaders });
+        if (!v.ok) {
+          return res.status(400).json({
+            error: `No se pudo comprobar modelos Ollama: ${v.error}`
+          });
+        }
+        if (!v.hasEmbed) {
+          return res.status(400).json({
+            error:
+              `RAG está activo (agents.local.rag.enabled) pero falta el modelo de embeddings «${embedModel}» en Ollama. ` +
+              `No se “importa” el RAG en Ollama: es un segundo modelo que calcula vectores. En una terminal ejecuta:\n` +
+              `  ollama pull ${embedModel}\n` +
+              `Luego vuelve a iniciar el proyecto. (Puedes desactivar RAG en Settings si no lo necesitas.)`
+          });
+        }
       }
     }
 
@@ -245,19 +405,70 @@ function createServer() {
   }
   });
 
-// Pausar/reanudar
-  app.post('/api/pause', (req, res) => {
-  if (!orchestrator) return res.status(400).json({ error: 'No hay proyecto activo' });
-  broadcast('paused', {});
-  res.json({ success: true });
+// Control de ejecución (pausa entre pasos / parada al terminar sprint o hito de discovery)
+  app.post('/api/run/pause', (req, res) => {
+    if (!orchestrator) return res.status(400).json({ error: 'No hay proyecto en ejecución' });
+    orchestrator.setPaused(true);
+    broadcast('run_control', { paused: true });
+    res.json({ success: true, paused: true });
   });
 
-// Obtener estado actual
-  app.get('/api/state', (req, res) => {
-  if (!orchestrator) {
-    return res.json({ status: 'idle', sprints: [], logs: [] });
+  app.post('/api/run/resume', (req, res) => {
+    if (!orchestrator) return res.status(400).json({ error: 'No hay proyecto en ejecución' });
+    orchestrator.setPaused(false);
+    broadcast('run_control', { paused: false });
+    res.json({ success: true, paused: false });
+  });
+
+  app.post('/api/run/stop-after-step', (req, res) => {
+    if (!orchestrator) return res.status(400).json({ error: 'No hay proyecto en ejecución' });
+    orchestrator.requestStopAfterCurrentStep();
+    broadcast('run_control', { stopPending: true });
+    res.json({ success: true, stopPending: true });
+  });
+
+  /** Compatibilidad: antiguo POST /api/pause → pausar */
+  app.post('/api/pause', (req, res) => {
+    if (!orchestrator) return res.status(400).json({ error: 'No hay proyecto activo' });
+    orchestrator.setPaused(true);
+    broadcast('run_control', { paused: true });
+    res.json({ success: true, paused: true });
+  });
+
+// Estado del dashboard: orquestador en vivo o última sesión en disco (outputs/…/state.json)
+  app.get('/api/state', async (req, res) => {
+  try {
+    if (orchestrator) {
+      return res.json({ ...orchestrator.getState(), _activeRun: true });
+    }
+    const restored = await loadDashboardStateFromDisk();
+    if (restored) {
+      return res.json(restored);
+    }
+    return res.json({
+      status: 'idle',
+      sessionId: null,
+      currentSprint: 0,
+      maxSprints: 5,
+      sprints: [],
+      runPaused: false,
+      artifacts: {
+        prd: null,
+        architecture: null,
+        testPlan: null,
+        sprintPlan: null,
+        implementations: [],
+        qaReports: [],
+        finalCode: null
+      },
+      logs: [],
+      errors: [],
+      _restoredFromDisk: false,
+      _activeRun: false
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
   }
-  res.json(orchestrator.getState());
   });
 
 // Listar sesiones guardadas
@@ -267,16 +478,22 @@ function createServer() {
     await fs.ensureDir(outputsDir);
     const sessions = await fs.readdir(outputsDir);
     const sessionData = await Promise.all(
-      sessions.filter(s => s.startsWith('session-')).map(async (s) => {
+      sessions.filter((s) => s.startsWith('session-')).map(async (s) => {
         try {
           const statePath = path.join(outputsDir, s, 'state.json');
+          const st = await fs.stat(statePath).catch(() => null);
           const state = await fs.readJson(statePath);
-          return { id: s, ...state };
+          return {
+            id: s,
+            mtimeMs: st ? st.mtimeMs : 0,
+            ...state
+          };
         } catch (e) {
-          return { id: s, error: 'No state file' };
+          return { id: s, error: 'No state file', mtimeMs: 0 };
         }
       })
     );
+    sessionData.sort((a, b) => (b.mtimeMs || 0) - (a.mtimeMs || 0));
     res.json(sessionData);
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -292,6 +509,34 @@ function createServer() {
   } catch (e) {
     res.status(404).json({ error: 'Sesión no encontrada' });
   }
+  });
+
+  /** Marcar sesión como "última" para F5 / GET /api/state (sin reanudar el LLM). */
+  app.post('/api/session/focus', async (req, res) => {
+    try {
+      const id = (req.body && (req.body.id || req.body.folder)) || '';
+      if (typeof id !== 'string' || !id.startsWith('session-') || id.includes('..')) {
+        return res.status(400).json({ error: 'id de carpeta inválido (debe ser session-…)' });
+      }
+      const statePath = path.join('./outputs', id, 'state.json');
+      if (!(await fs.pathExists(statePath))) {
+        return res.status(404).json({ error: 'No existe state.json en esa sesión' });
+      }
+      const state = await fs.readJson(statePath);
+      await fs.writeJson(
+        path.join('./outputs', '.last-dashboard-session.json'),
+        {
+          outputFolder: id,
+          sessionId: state.sessionId,
+          updatedAt: new Date().toISOString(),
+          manualPick: true
+        },
+        { spaces: 2 }
+      );
+      res.json({ success: true, id });
+    } catch (e) {
+      res.status(500).json({ error: e.message });
+    }
   });
 
 // Obtener artefacto específico
@@ -319,9 +564,24 @@ function createServer() {
   orchestrator = new ScrumMasterOrchestrator(config, credentials);
   
   // Conectar todos los eventos al WebSocket
-  const events = ['log', 'status', 'phase', 'sprint_start', 'sprint_update', 
-                  'agent_working', 'agent_ready', 'agent_initializing', 'agent_response',
-                  'artifact_created', 'action_required', 'delivery', 'error'];
+  const events = [
+    'log',
+    'status',
+    'phase',
+    'sprint_start',
+    'sprint_update',
+    'agent_working',
+    'agent_ready',
+    'agent_initializing',
+    'agent_sending',
+    'agent_response',
+    'artifact_created',
+    'action_required',
+    'delivery',
+    'error',
+    'run_control',
+    'run_pause_waiting'
+  ];
   
   events.forEach(event => {
     orchestrator.on(event, (data) => {
@@ -332,16 +592,30 @@ function createServer() {
   try {
     await orchestrator.initialize();
     await orchestrator.runFullProject();
-    broadcast('completed', { 
+    broadcast('completed', {
       sessionId: orchestrator.state.sessionId,
-      outputDir: path.resolve('./outputs')
+      outputDir: path.resolve(orchestrator.outputDir),
+      sessionFolder: path.basename(orchestrator.outputDir)
     });
   } catch (error) {
     broadcast('error', { message: error.message });
     throw error;
   } finally {
     isRunning = false;
-    await orchestrator.cleanup();
+    if (orchestrator) {
+      try {
+        await orchestrator.saveState();
+      } catch (e) {
+        console.error('[run] saveState en finally:', e.message);
+      }
+    }
+    if (orchestrator) {
+      try {
+        await orchestrator.cleanup();
+      } catch (e) {
+        console.error('[run] cleanup:', e.message);
+      }
+    }
   }
   }
 
@@ -349,6 +623,26 @@ function createServer() {
     return new Promise((resolve, reject) => {
       server.once('error', reject);
       server.listen(port, () => resolve(server));
+    });
+  }
+
+  if (!createServer._shutdownRegistered) {
+    createServer._shutdownRegistered = true;
+    const saveOnExit = async () => {
+      if (orchestrator) {
+        try {
+          await orchestrator.saveState();
+          console.log('[ai-scrum] Estado guardado en disco (cierre del servidor).');
+        } catch (e) {
+          console.error('[ai-scrum] No se pudo guardar el estado:', e.message);
+        }
+      }
+    };
+    process.on('SIGINT', () => {
+      saveOnExit().finally(() => process.exit(0));
+    });
+    process.on('SIGTERM', () => {
+      saveOnExit().finally(() => process.exit(0));
     });
   }
 

@@ -25,12 +25,14 @@ jest.mock('../lib/local-llm', () => {
   const actual = jest.requireActual('../lib/local-llm');
   return {
     ...actual,
-    checkHealth: jest.fn()
+    checkHealth: jest.fn(),
+    listModels: jest.fn(),
+    verifyOllamaModels: jest.fn().mockResolvedValue({ ok: true, hasChat: true, hasEmbed: true })
   };
 });
 
 const fs = require('fs-extra');
-const { checkHealth } = require('../lib/local-llm');
+const { checkHealth, listModels } = require('../lib/local-llm');
 const { createServer } = require('../server');
 
 describe('server API (integration)', () => {
@@ -133,6 +135,44 @@ describe('server API (integration)', () => {
     const res = await request(app).post('/api/start').send({});
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
+  });
+
+  test('GET /api/flow/diagram devuelve texto Mermaid', async () => {
+    fs.readJson.mockResolvedValue({
+      agents: {
+        team: [
+          { role: 'productOwner', enabled: true, label: 'PO' },
+          { role: 'scrumMaster', enabled: true, label: 'SM' }
+        ]
+      },
+      scrum: { maxSprints: 3 }
+    });
+    const { app } = createServer();
+    const res = await request(app).get('/api/flow/diagram');
+    expect(res.status).toBe(200);
+    expect(res.body.mermaid).toMatch(/flowchart TD/);
+    expect(res.body.mermaid).toMatch(/DEC\{/);
+  });
+
+  test('GET /api/ollama/models returns lista desde Ollama', async () => {
+    fs.readJson.mockResolvedValue({
+      agents: { local: { baseUrl: 'http://localhost:11434' } }
+    });
+    listModels.mockResolvedValue({ ok: true, models: ['mistral:latest', 'llama3.2:1b'] });
+    const { app } = createServer();
+    const res = await request(app).get('/api/ollama/models');
+    expect(res.status).toBe(200);
+    expect(res.body.baseUrl).toBe('http://localhost:11434');
+    expect(res.body.models).toEqual(['mistral:latest', 'llama3.2:1b']);
+  });
+
+  test('GET /api/ollama/models returns 502 si Ollama falla', async () => {
+    fs.readJson.mockResolvedValue({ agents: { local: {} } });
+    listModels.mockResolvedValue({ ok: false, models: [], error: 'ECONNREFUSED' });
+    const { app } = createServer();
+    const res = await request(app).get('/api/ollama/models');
+    expect(res.status).toBe(502);
+    expect(res.body.models).toEqual([]);
   });
 
   test('POST /api/start (local) returns 200 when health OK', async () => {

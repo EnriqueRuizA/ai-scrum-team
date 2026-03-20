@@ -82,7 +82,23 @@ npm run setup
 
 **Dashboard:** `http://localhost:<puerto>` (por defecto `http://localhost:3000`).
 
+- **F5 / recargar:** el panel vuelve a pedir `GET /api/state` y el WebSocket envía el estado al conectar. Los **logs** y **artefactos** se reconstruyen desde `outputs/session-XXXX/state.json` (y el puntero `outputs/.last-dashboard-session.json` que se actualiza en cada `saveState`). Si **reinicias solo el servidor** Node, también se recupera la última sesión guardada en disco.
+- **Parar el servidor (Ctrl+C):** se intenta **guardar `state.json`** antes de salir. En el dashboard, **Sesiones en disco** + **Cargar en panel** lista `outputs/session-*` (por fecha) y restaura la vista; **POST /api/session/focus** deja esa sesión como predeterminada para el próximo F5.
+- **Pausa / parada:** en el panel lateral, **Pausa** (`POST /api/run/pause`) hace que el flujo **espere entre pasos** (no interrumpe una respuesta del modelo ya en curso). **Reanudar** (`POST /api/run/resume`). **Stop tras sprint** (`POST /api/run/stop-after-step`) termina al **acabar el sprint actual** (o un hito de discovery) y guarda estado (`status: stopped`). **No existe reanudar el mismo run** tras parar el proceso Node: la recuperación es **vista + artefactos** o un **nuevo** “Iniciar proyecto”.
+- **Informes QA:** en artefactos tipo QA, la pestaña **Lectura** muestra recomendación, casos de prueba y bugs con **colores** (severidad y PASS/FAIL).
+
 > **Importante:** No abras el `index.html` con doble clic (`file://`). Sin el servidor Node, **no hay** `/api/config`, **no se guarda** la configuración y el WebSocket quedará en **DISCONNECTED**. Usa siempre la URL que imprime la consola al arrancar.
+
+En **Settings** del panel completo (`/`): puedes elegir **backend** (Ollama vs Claude), la **URL de Ollama** y un **combo de modelos locales** cargado desde el servidor (`GET /api/ollama/models`). Al ejecutar el proyecto, una **barra de carga** bajo el encabezado indica cuando el orquestador está **esperando respuesta del modelo** (eventos WebSocket `agent_sending` / `agent_response` y mensajes en log).
+
+### Flujo visual y equipo (`agents.team`)
+
+- Pestaña **Flujo**: diagrama **Mermaid** generado desde `config/project-config.json` (`GET /api/flow/diagram`), según roles **activos** y `scrum.maxSprints`.
+- En **Settings → Equipo**: activa/desactiva roles, edita el nombre visible, **añade** filas con roles que falten o **quita** filas (no puedes eliminar la fila del **Scrum Master**; debe quedar al menos un SM **activo** al guardar). Roles válidos: `productOwner`, `developer`, `qaTester`, `scrumMaster`.
+- **RAG (importante):** **no existe “importar RAG” dentro de Ollama.** El proyecto lee ficheros de tu disco (`agents.local.rag.indexPaths`), trocea el texto y llama a la API de Ollama **`/api/embeddings`** usando un **segundo modelo** (embeddings), distinto del de chat. Por defecto suele ser **`nomic-embed-text`**: si no lo tienes, verás `404 model not found`. Solución en terminal: `ollama pull nomic-embed-text` (o el nombre que pongas en `agents.local.embedModel`). En **Settings** hay casilla **Activar RAG**, campo **Modelo de embeddings** y botón **Comprobar chat + embeddings** (`GET /api/ollama/verify`). Al **Iniciar proyecto**, si RAG está activo y falta el modelo de embeddings, el servidor devuelve error claro antes de arrancar el flujo.
+- **RAG — contexto:** tras PRD, arquitectura y plan de pruebas, el orquestador **inyecta** resúmenes en el índice (`injectArtifactRag`). Ajusta `agents.local.rag.indexPaths` (p. ej. `.`, `./lib`, `./prompts`) para ampliar contexto.
+- **Entrega real**: con **Copia working-app tras cada sprint** los ficheros del JSON de implementación se escriben en `outputs/session-…/working-app/`. Si **Comprobaciones reales cada sprint** está activo, el orquestador ejecuta ahí **`npm install`**, **`node --check`** en `.js` y **`npm test`** (según `package.json`), y pasa el **informe** al QA para que no sea solo revisión “a ojo”. Opciones en `outputs`: **`requireFilesEachSprint`** (rechazar sprint sin `files[]`), **`implementationRetryMax`** (reintentos al developer si 0 ficheros), **`failSprintIfChecksFail`** (no aprobar si fallan npm/sintaxis/test). Al terminar el flujo: **`final-app/`** + README y las mismas comprobaciones de entrega si las tienes activadas.
+- **`pipeline.ragArtifactMaxChars`**: tamaño máximo del texto inyectado por artefacto (por defecto 100000).
 
 ### Dos interfaces en el repo (por qué “no es la misma vista”)
 
@@ -180,7 +196,10 @@ o
   "sessionDir": "./sessions",
   "local": {
     "baseUrl": "http://localhost:11434",
+    "llmConnectionPreset": "ollama_local",
+    "llmConnectionLabel": "",
     "model": "nombre-del-modelo-en-ollama",
+    "generateTimeoutMs": 1200000,
     "embedModel": "nomic-embed-text",
     "rag": {
       "enabled": true,
@@ -191,6 +210,13 @@ o
 }
 ```
 
+- **`agents.timeout`**: se usa sobre todo en el flujo **Claude** (esperas en el navegador). **No** limita bien a Ollama.
+- **`agents.local.llmConnectionPreset`**: `ollama_local` | `remote_api` | `custom` — no cambia la URL; sirve para **que coincida con la realidad** y salga claro en logs. Si lo omites, se infiere por host (localhost → local).
+- **`agents.local.llmConnectionLabel`**: texto libre (p. ej. «Cursor», «OpenRouter») que verás en **cada llamada al modelo** y en el resumen al iniciar el proyecto.
+- **`agents.local.generateTimeoutMs`** (opcional): tiempo máximo en milisegundos para cada llamada a Ollama (`/api/generate`). Si no lo pones, el código usa **900000** (15 min). Con modelos grandes (p. ej. 32B) en CPU, sube a **1200000–1800000** (20–30 min) si ves *Timeout esperando respuesta del modelo local*.
+
+**Si ves `fetch failed`, `HeadersTimeoutError` o `UND_ERR_HEADERS_TIMEOUT`:** venían del **`fetch` de Node (undici)**, que limita cabeceras/cuerpo (~300 s). Las rutas a Ollama (`/api/generate`, `/api/embeddings`, `/api/tags`) usan **HTTP nativo**. Opcional: **`agents.local.embedTimeoutMs`** para embeddings/RAG (por defecto interno 10 min si no lo defines).
+
 **Pasos:**
 
 1. Instala y ejecuta Ollama (`ollama serve`).
@@ -199,6 +225,19 @@ o
 4. El servidor, al iniciar el proyecto, comprueba que Ollama responde y que el modelo existe; si no, verás un error claro en el dashboard o en la respuesta de `POST /api/start`.
 
 **No necesitas** credenciales de Claude en este modo.
+
+#### API key (proxy, Ollama en la nube, proveedor compatible)
+
+Si el endpoint en **`agents.local.baseUrl`** exige autenticación, puedes configurarla así (el dashboard en **Settings** tiene los mismos campos; la clave **no** se devuelve en `GET /api/config`, solo `hasApiKey`):
+
+| Campo | Descripción |
+|--------|-------------|
+| **`apiKey`** | Clave en el JSON (evita subirla a git; mejor variable de entorno). |
+| **`apiKeyEnv`** | Nombre de variable de entorno (p. ej. `OPENAI_API_KEY`); **tiene prioridad** sobre `apiKey` del fichero. |
+| **`apiKeyMode`** | `bearer` → `Authorization: Bearer <clave>` (OpenAI, muchas APIs). `x-api-key` → cabecera `X-API-Key`. `custom` → usa `apiKeyHeader` + `apiKeyPrefix`. |
+| *(env global)* | Sin tocar el config: `AI_SCRUM_LOCAL_API_KEY` u `OLLAMA_API_KEY`. |
+
+Las peticiones a **`/api/generate`**, **`/api/embeddings`** y **`/api/tags`** llevan esas cabeceras. El backend sigue siendo el **API estilo Ollama** (no es un cliente genérico OpenAI `chat/completions`).
 
 ### 6.2 Modo `claude` (Claude.ai + Playwright)
 
