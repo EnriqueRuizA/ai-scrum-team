@@ -1,11 +1,10 @@
-// orchestrator.js - Scrum Master: orquesta todos los agentes y sprints
+// orchestrator.js - Wrapper to load new local orchestrator
+const LocalOrchestrator = require('./src/orchestrator/orchestrator.js');
+module.exports = LocalOrchestrator;
 
-const ClaudeWebAgent = require('./agents/base-agent');
-const ProductOwnerAgent = require('./agents/product-owner');
-const { DeveloperAgent, QATesterAgent } = require('./agents/developer-qa');
-const LocalRAGAgent = require('./agents/local-rag-agent');
-const { LocalProductOwnerAgent, LocalDeveloperAgent, LocalQATesterAgent } = require('./agents/local-agents');
-const { SCRUM_MASTER } = require('./prompts');
+// Only local agents are needed when backend is "local"
+const { LocalRAGAgent } = require('./agents/local-rag-agent');
+// Eliminar las importaciones de los agentes obsoletos
 const { normalizeTeam, getEnabledRoles } = require('./lib/default-team');
 const {
   extractFilesFromImplementation,
@@ -166,13 +165,34 @@ class ScrumMasterOrchestrator {
         })
       );
       if (enabled.has('productOwner')) {
-        this.agents.productOwner = new LocalProductOwnerAgent(this.config, this.sessionDir, this.outputDir);
+        this.agents.productOwner = new LocalRAGAgent({
+          name: this.teamLabel('qaTester'),
+          role: 'productOwner',
+          persona: SCRUM_MASTER(this.config),
+          config: this.config,
+          sessionDir: this.sessionDir,
+          outputDir: this.outputDir
+        });
       }
       if (enabled.has('developer')) {
-        this.agents.developer = new LocalDeveloperAgent(this.config, this.sessionDir, this.outputDir);
+        this.agents.developer = new LocalRAGAgent({
+          name: this.teamLabel('qaTester'),
+          role: 'developer',
+          persona: SCRUM_MASTER(this.config),
+          config: this.config,
+          sessionDir: this.sessionDir,
+          outputDir: this.outputDir
+        });
       }
       if (enabled.has('qaTester')) {
-        this.agents.qaTester = new LocalQATesterAgent(this.config, this.sessionDir, this.outputDir);
+        this.agents.qaTester = new LocalRAGAgent({
+          name: this.teamLabel('qaTester'),
+          role: 'qaTester',
+          persona: SCRUM_MASTER(this.config),
+          config: this.config,
+          sessionDir: this.sessionDir,
+          outputDir: this.outputDir
+        });
       }
       this.agents.scrumMaster = new LocalRAGAgent({
         name: this.teamLabel('scrumMaster'),
@@ -264,32 +284,7 @@ class ScrumMasterOrchestrator {
     }
   }
 
-  createScrumMasterAgent(credentials) {
-    const agent = new ClaudeWebAgent({
-      name: 'Carlos (Scrum Master)',
-      role: 'scrum-master',
-      persona: SCRUM_MASTER(this.config),
-      credentials,
-      sessionDir: this.sessionDir,
-      headless: this.config.agents?.headless,
-      slowMo: this.config.agents?.slowMo
-    });
-    return agent;
-  }
-
-  async initAgent(agentKey) {
-    try {
-      this.log(`Inicializando ${agentKey}...`);
-      this.emit('agent_initializing', { agentKey });
-      await this.agents[agentKey].initialize();
-      this.emit('agent_ready', { agentKey });
-    } catch (error) {
-      this.log(`Error inicializando ${agentKey}: ${error.message}`, 'error');
-      this.state.errors.push({ agentKey, error: error.message, timestamp: new Date().toISOString() });
-    }
-  }
-
-  async runFullProject() {
+// Removed unused createScrumMasterAgent and else block that used ClaudeWebAgent
     this.log('=== INICIANDO PROYECTO COMPLETO ===');
     this.state.status = 'running';
     this.runControl.stopAfterCurrentStep = false;
