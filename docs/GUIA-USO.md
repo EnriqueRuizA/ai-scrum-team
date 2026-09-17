@@ -187,7 +187,9 @@ o
 "agents": { "backend": "claude", ... }
 ```
 
-### 6.1 Modo `local` (Ollama)
+### 6.1 Modo `local` (Ollama u OpenAI-compatible)
+
+Puedes usar **Ollama** (`/api/generate`) o proveedores **tipo OpenAI** (`/v1/chat/completions`, `/v1/embeddings`, `/v1/models`): ChatGPT (OpenAI), DeepSeek, Groq, Mistral, Together, un proxy estilo Cursor, etc.
 
 ```json
 "agents": {
@@ -195,10 +197,12 @@ o
   "timeout": 180000,
   "sessionDir": "./sessions",
   "local": {
+    "providerPreset": "ollama_local",
+    "httpAdapter": "ollama",
     "baseUrl": "http://localhost:11434",
     "llmConnectionPreset": "ollama_local",
     "llmConnectionLabel": "",
-    "model": "nombre-del-modelo-en-ollama",
+    "model": "llama3.2",
     "generateTimeoutMs": 1200000,
     "embedModel": "nomic-embed-text",
     "rag": {
@@ -210,12 +214,17 @@ o
 }
 ```
 
+- **`agents.local.providerPreset`**: plantilla en el dashboard (`ollama_local`, `openai`, `deepseek`, `cursor`, `groq`, `mistral`, `together`, `custom_openai`, …). Define URL y modelos sugeridos.
+- **`agents.local.httpAdapter`**: `ollama` | `openai_compatible`. Si lo omites, se deduce del `providerPreset`. Puedes fijarlo a mano para forzar el protocolo.
+- Si la **URL base termina en `/v1`** (p. ej. `https://api.openai.com/v1`), la app usa **`openai_compatible`** y lista con **`GET /v1/models`**, aunque `httpAdapter` diga `ollama` por error — así se evita el 404 de **`GET …/v1/api/tags`** (Ollama nativo).
+- Con **`openai_compatible`**, la **URL base** debe acabar en **`/v1`** (o en **`/openai/v1`**, p. ej. Groq); el código normaliza si falta `/v1`.
+
 - **`agents.timeout`**: se usa sobre todo en el flujo **Claude** (esperas en el navegador). **No** limita bien a Ollama.
 - **`agents.local.llmConnectionPreset`**: `ollama_local` | `remote_api` | `custom` — no cambia la URL; sirve para **que coincida con la realidad** y salga claro en logs. Si lo omites, se infiere por host (localhost → local).
 - **`agents.local.llmConnectionLabel`**: texto libre (p. ej. «Cursor», «OpenRouter») que verás en **cada llamada al modelo** y en el resumen al iniciar el proyecto.
 - **`agents.local.generateTimeoutMs`** (opcional): tiempo máximo en milisegundos para cada llamada a Ollama (`/api/generate`). Si no lo pones, el código usa **900000** (15 min). Con modelos grandes (p. ej. 32B) en CPU, sube a **1200000–1800000** (20–30 min) si ves *Timeout esperando respuesta del modelo local*.
 
-**Si ves `fetch failed`, `HeadersTimeoutError` o `UND_ERR_HEADERS_TIMEOUT`:** venían del **`fetch` de Node (undici)**, que limita cabeceras/cuerpo (~300 s). Las rutas a Ollama (`/api/generate`, `/api/embeddings`, `/api/tags`) usan **HTTP nativo**. Opcional: **`agents.local.embedTimeoutMs`** para embeddings/RAG (por defecto interno 10 min si no lo defines).
+**HTTP:** todo va por **HTTP nativo** de Node (sin `fetch` del orquestador hacia el LLM). Ollama: `/api/generate`, `/api/embeddings`, `/api/tags`. OpenAI-compatible: `/v1/chat/completions`, `/v1/embeddings`, `/v1/models`. Opcional: **`agents.local.embedTimeoutMs`** para embeddings/RAG.
 
 **Pasos:**
 
@@ -235,9 +244,18 @@ Si el endpoint en **`agents.local.baseUrl`** exige autenticación, puedes config
 | **`apiKey`** | Clave en el JSON (evita subirla a git; mejor variable de entorno). |
 | **`apiKeyEnv`** | Nombre de variable de entorno (p. ej. `OPENAI_API_KEY`); **tiene prioridad** sobre `apiKey` del fichero. |
 | **`apiKeyMode`** | `bearer` → `Authorization: Bearer <clave>` (OpenAI, muchas APIs). `x-api-key` → cabecera `X-API-Key`. `custom` → usa `apiKeyHeader` + `apiKeyPrefix`. |
-| *(env global)* | Sin tocar el config: `AI_SCRUM_LOCAL_API_KEY` u `OLLAMA_API_KEY`. |
+| *(env global)* | Sin tocar el config: `AI_SCRUM_LOCAL_API_KEY`, `OLLAMA_API_KEY` u `OPENAI_API_KEY`. |
 
-Las peticiones a **`/api/generate`**, **`/api/embeddings`** y **`/api/tags`** llevan esas cabeceras. El backend sigue siendo el **API estilo Ollama** (no es un cliente genérico OpenAI `chat/completions`).
+Esas cabeceras se aplican tanto a **Ollama** como a rutas **/v1/…** del adaptador OpenAI-compatible.
+
+**Probar la clave sin guardar:** **Settings → 🔌 Probar URL y API key** o `POST /api/ollama/test-auth`. Lista modelos con **`GET /api/tags`** (Ollama) o **`GET /v1/models`** (OpenAI-compatible), según `httpAdapter`.
+
+**Clave `crsr_…` (Cursor IDE)** y **`https://api.openai.com/v1`:** no son compatibles. OpenAI solo acepta claves **`sk-…`** de [platform.openai.com](https://platform.openai.com/api-keys).
+
+**API oficial Cursor (Cloud Agents):** documentación en [cursor.com/docs](https://cursor.com/docs/cloud-agent/api/endpoints): **Basic Auth** (usuario = API key, contraseña vacía), p. ej. `GET https://api.cursor.com/v0/models`. En el dashboard elige la plantilla **«Cursor Cloud API»**, URL `https://api.cursor.com` y modo de clave **Basic**. Eso permite **probar la clave y listar modelos**; **no** sustituye a `/v1/chat/completions` para ejecutar el orquestador Scrum (usa Ollama, OpenAI-compatible o Claude).
+Variable de entorno opcional: **`CURSOR_API_KEY`** (misma prioridad que otras claves globales del bloque local).
+
+**Plantillas en API:** `GET /api/llm/provider-presets` devuelve la lista para el dashboard.
 
 ### 6.2 Modo `claude` (Claude.ai + Playwright)
 

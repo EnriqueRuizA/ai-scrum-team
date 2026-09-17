@@ -21,22 +21,19 @@ jest.mock('../orchestrator', () => {
   }));
 });
 
-jest.mock('../lib/local-llm', () => {
-  const actual = jest.requireActual('../lib/local-llm');
-  return {
-    ...actual,
-    checkHealth: jest.fn(),
-    listModels: jest.fn(),
-    verifyOllamaModels: jest.fn().mockResolvedValue({ ok: true, hasChat: true, hasEmbed: true })
-  };
-});
+jest.mock('../lib/unified-local-llm', () => ({
+  listModels: jest.fn(),
+  checkHealth: jest.fn(),
+  verifyLlmModels: jest.fn().mockResolvedValue({ ok: true, hasChat: true, hasEmbed: true })
+}));
 
 const fs = require('fs-extra');
-const { checkHealth, listModels } = require('../lib/local-llm');
+const { checkHealth, listModels } = require('../lib/unified-local-llm');
 const { createServer } = require('../server');
 
 describe('server API (integration)', () => {
   test('GET /api/config returns config and safe credentials', async () => {
+    fs.pathExists.mockResolvedValue(true);
     fs.readJson.mockImplementation(async (p) => {
       if (String(p).includes('project-config.json')) return { project: { name: 'X' }, outputs: { port: 3000 } };
       if (String(p).includes('credentials.json')) return { claude: { email: 'a@b.com', password: 'secret' } };
@@ -55,6 +52,7 @@ describe('server API (integration)', () => {
   });
 
   test('GET /api/config: Claude configured with email only (magic link)', async () => {
+    fs.pathExists.mockResolvedValue(true);
     fs.readJson.mockImplementation(async (p) => {
       if (String(p).includes('project-config.json')) return { project: { name: 'X' } };
       if (String(p).includes('credentials.json')) return { claude: { email: 'solo@mail.com', note: 'x' } };
@@ -96,6 +94,7 @@ describe('server API (integration)', () => {
   });
 
   test('POST /api/credentials writes merged credentials', async () => {
+    fs.pathExists.mockResolvedValue(true);
     fs.readJson.mockResolvedValue({ claude: { email: 'old', password: 'oldpass' } });
     fs.writeJson.mockResolvedValue(undefined);
 
@@ -173,6 +172,45 @@ describe('server API (integration)', () => {
     const res = await request(app).get('/api/ollama/models');
     expect(res.status).toBe(502);
     expect(res.body.models).toEqual([]);
+  });
+
+  test('POST /api/ollama/test-auth OK y usa listModels con auth del body', async () => {
+    fs.readJson.mockResolvedValue({
+      agents: { local: { baseUrl: 'http://localhost:11434', apiKey: 'saved' } }
+    });
+    listModels.mockResolvedValue({ ok: true, models: ['a:latest'] });
+    const { app } = createServer();
+    const res = await request(app)
+      .post('/api/ollama/test-auth')
+      .send({ local: { baseUrl: 'https://api.example.com', apiKey: 'from-body' } });
+    expect(res.status).toBe(200);
+    expect(res.body.ok).toBe(true);
+    expect(res.body.baseUrl).toBe('https://api.example.com');
+    expect(res.body.authConfigured).toBe(true);
+    expect(listModels).toHaveBeenCalledWith(
+      'https://api.example.com',
+      expect.objectContaining({ authHeaders: expect.any(Object) })
+    );
+  });
+
+  test('POST /api/ollama/test-auth 502 y hint si no hay auth', async () => {
+    fs.readJson.mockResolvedValue({ agents: { local: { baseUrl: 'http://x.test' } } });
+    listModels.mockResolvedValue({ ok: false, error: '401' });
+    const { app } = createServer();
+    const res = await request(app).post('/api/ollama/test-auth').send({ local: {} });
+    expect(res.status).toBe(502);
+    expect(res.body.ok).toBe(false);
+    expect(res.body.authConfigured).toBe(false);
+    expect(String(res.body.hint || '')).toMatch(/API key|clave/i);
+  });
+
+  test('GET /api/llm/provider-presets devuelve lista', async () => {
+    fs.readJson.mockResolvedValue({});
+    const { app } = createServer();
+    const res = await request(app).get('/api/llm/provider-presets');
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body.presets)).toBe(true);
+    expect(res.body.presets.some((p) => p.id === 'openai')).toBe(true);
   });
 
   test('POST /api/start (local) returns 200 when health OK', async () => {

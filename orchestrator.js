@@ -21,6 +21,7 @@ const path = require('path');
 const { v4: uuidv4 } = require('uuid');
 const { buildLlmConnectionInfo, formatLlmConnectionLogBlock } = require('./lib/llm-connection-info');
 const { authHeadersFromLocalConfig } = require('./lib/local-llm');
+const { resolveHttpAdapterFromLocal } = require('./lib/llm-provider-presets');
 
 class ScrumMasterOrchestrator {
   constructor(config, credentials) {
@@ -151,6 +152,11 @@ class ScrumMasterOrchestrator {
       const conn = buildLlmConnectionInfo(loc);
       const auth = authHeadersFromLocalConfig(loc);
       const embedModel = loc.embedModel || loc.rag?.embedModel || 'nomic-embed-text';
+      const httpAdapter = resolveHttpAdapterFromLocal(loc);
+      const presetLabel = loc.providerPreset ? ` · proveedor config: ${loc.providerPreset}` : '';
+      this.log(
+        `Adaptador LLM: ${httpAdapter}${presetLabel} (${httpAdapter === 'openai_compatible' ? 'API tipo OpenAI /v1' : 'API Ollama /api'})`
+      );
       this.log(
         formatLlmConnectionLogBlock(conn, loc, {
           model: loc.model || 'llama3.2',

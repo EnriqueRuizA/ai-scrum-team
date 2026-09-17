@@ -1,7 +1,7 @@
 {
   "project": {
     "name": "JobTracker Pro",
-    "description": "Aplicación web para comprobar a que ofertas de linkedin me he inscrito y cuales me han respondido por email, con filtros y palabras clave",
+    "description": "Aplicación web para comprobar a que ofertas de linkedin me he inscrito y para cuales de ellas tengo respuesta por email y en que sentido (rechazado, interesados... etc)",
     "version": "0.1.0"
   },
   "scrum": {
@@ -37,8 +37,8 @@
         "label": "Carlos (Scrum Master)"
       }
     ],
-    "backend": "claude",
-    "headless": false,
+    "backend": "local",
+    "headless": true,
     "slowMo": 100,
     "timeout": 180000,
     "sessionDir": "./sessions",
@@ -46,12 +46,14 @@
     "userDataDir": "",
     "local": {
       "baseUrl": "http://localhost:11434",
+      "providerPreset": "ollama_local",
+      "httpAdapter": "ollama",
       "llmConnectionPreset": "ollama_local",
-      "llmConnectionLabel": "",
+      "llmConnectionLabel": "CURSOR-API",
       "apiKeyEnv": "",
-      "apiKeyMode": "x-api-key",
+      "apiKeyMode": "bearer",
       "generateTimeoutMs": 1200000,
-      "model": "gemma3:1b",
+      "model": "gpt-oss:20b",
       "embedModel": "nomic-embed-text",
       "rag": {
         "enabled": true,
@@ -67,7 +69,7 @@
       "apiKeyPrefix": "",
       "apiKey": ""
     },
-    "note": "backend: 'claude' | 'local'. llmConnectionPreset: ollama_local | remote_api | custom + llmConnectionLabel (texto en logs). API estilo Ollama. apiKey/apiKeyEnv opcional. RAG: ollama pull <embedModel>."
+    "note": "backend: claude | local. providerPreset + httpAdapter (ollama | openai_compatible). OpenAI-compatible: /v1/chat/completions. Claude navegador ≠ esta API. apiKey/apiKeyEnv opcional."
   },
   "outputs": {
     "saveArtifacts": true,

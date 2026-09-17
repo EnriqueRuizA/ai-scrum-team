@@ -61,6 +61,25 @@ describe('lib/local-llm', () => {
     expect(authHeadersFromLocalConfig({ apiKey: 'k', apiKeyMode: 'x-api-key' })).toEqual({ 'X-API-Key': 'k' });
   });
 
+  test('authHeadersFromLocalConfig: Basic (Cursor API)', () => {
+    const key = 'key_abc';
+    const token = Buffer.from(`${key}:`, 'utf8').toString('base64');
+    expect(authHeadersFromLocalConfig({ apiKey: key, apiKeyMode: 'basic' })).toEqual({
+      Authorization: `Basic ${token}`
+    });
+  });
+
+  test('authHeadersFromLocalConfig: OPENAI_API_KEY como respaldo', () => {
+    delete process.env.AI_SCRUM_LOCAL_API_KEY;
+    delete process.env.OLLAMA_API_KEY;
+    process.env.OPENAI_API_KEY = 'sk-openai';
+    try {
+      expect(authHeadersFromLocalConfig({})).toEqual({ Authorization: 'Bearer sk-openai' });
+    } finally {
+      delete process.env.OPENAI_API_KEY;
+    }
+  });
+
   test('authHeadersFromLocalConfig: prioridad apiKeyEnv sobre apiKey', () => {
     process.env.TEST_SCRUM_KEY = 'from-env';
     try {

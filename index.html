@@ -1376,23 +1376,30 @@
     </div>
 
     <div class="form-section">
-      <div class="form-section-title">🦙 Ollama — modelo local</div>
+      <div class="form-section-title">🦙 IA local — Ollama u OpenAI-compatible</div>
       <div style="font-size:10px; color:var(--text-dim); margin-bottom:12px; line-height:1.45">
-        Solo se usa cuando el backend de agentes es <strong>local</strong>. Pulsa <strong>Cargar modelos</strong> para leer los instalados en Ollama (<code>ollama list</code>).
-        Cambia la URL si Ollama no está en el puerto por defecto.
-        <strong>RAG</strong> no es un archivo que subas a Ollama: usa un <em>segundo modelo</em> (embeddings) vía API; debe estar descargado con <code>ollama pull …</code> como el de chat.
-        Si tu servidor usa <strong>API key</strong> (proxy, Ollama en la nube, OpenAI-compatible, etc.), configúrala abajo o con variable de entorno; la clave <strong>no</strong> se muestra de vuelta en el navegador.
+        Solo cuando el backend de agentes es <strong>local</strong>. Puedes usar <strong>Ollama</strong> (API <code>/api/generate</code>) o proveedores <strong>tipo OpenAI</strong> (ChatGPT, DeepSeek, Cursor proxy, Groq, Mistral… → <code>/v1/chat/completions</code>).
+        <strong>Claude.ai en el navegador</strong> no usa esta sección: elige <em>Backend → Claude</em> arriba.
+        <strong>RAG</strong> necesita un modelo de embeddings según tu proveedor (Ollama: <code>ollama pull …</code>; cloud: id de embedding en su documentación).
+        La <strong>API key</strong> no se devuelve al navegador al recargar la config.
+      </div>
+      <div class="form-group" style="margin-bottom:14px">
+        <label class="form-label">Proveedor de API (plantilla)</label>
+        <select class="form-input" id="local_llm_provider_preset"></select>
+        <p style="font-size:9px;color:var(--text-dim);margin-top:6px;line-height:1.45">
+          Al cambiar, se rellenan URL base, modelos sugeridos y modo de clave. Ajusta después si tu cuenta usa otros nombres de modelo.
+        </p>
       </div>
       <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:12px">
         <div class="form-group">
           <label class="form-label">Backend de agentes</label>
           <select class="form-input" id="agent_backend">
-            <option value="local">Ollama (IA local)</option>
-            <option value="claude">Claude.ai (navegador)</option>
+            <option value="local">Local — Ollama o API cloud (OpenAI-compatible)</option>
+            <option value="claude">Claude.ai — navegador (Playwright)</option>
           </select>
         </div>
         <div class="form-group">
-          <label class="form-label">URL base Ollama</label>
+          <label class="form-label">URL base (Ollama o …/v1)</label>
           <input
             class="form-input"
             type="text"
@@ -1443,6 +1450,7 @@
           <label class="form-label">Cómo enviar la clave</label>
           <select class="form-input" id="local_ollama_api_key_mode" onchange="updateOllamaApiKeyModeUI()">
             <option value="bearer">Authorization: Bearer …</option>
+            <option value="basic">Basic (usuario = clave, contraseña vacía) — Cursor API</option>
             <option value="x-api-key">Cabecera X-API-Key</option>
             <option value="custom">Cabecera personalizada</option>
           </select>
@@ -1479,6 +1487,30 @@
           />
         </div>
       </div>
+      <div style="display:flex; flex-wrap:wrap; align-items:center; gap:10px; margin-bottom:6px">
+        <button
+          type="button"
+          class="btn btn-secondary"
+          onclick="testOllamaAuthConnection()"
+          style="font-size:10px;padding:8px 12px"
+        >
+          🔌 Probar URL y API key
+        </button>
+        <span
+          id="local_ollama_auth_test_result"
+          style="font-size:10px;color:var(--text-dim);max-width:100%;line-height:1.45"
+        ></span>
+      </div>
+      <p
+        id="local_auth_test_help"
+        style="font-size:9px;color:var(--text-dim);margin:-2px 0 12px;line-height:1.45"
+      >
+        Usa los valores de este formulario (<strong>no</strong> hace falta guardar). El servidor prueba con
+        <strong>GET /v1/models</strong> (OpenAI-compatible),
+        <strong>GET /v0/models</strong> (Cursor Cloud API, <code>https://api.cursor.com</code>, Basic Auth)
+        o <strong>GET /api/tags</strong> (Ollama), según la plantilla y la URL.
+        La clave de Cursor <strong>no</strong> sirve en <code>api.openai.com</code>; para Cursor usa plantilla «Cursor Cloud API» y modo Basic.
+      </p>
       <div class="ollama-row">
         <div class="form-group" style="flex:2; min-width:240px">
           <label class="form-label">Modelo local</label>
@@ -1916,7 +1948,7 @@
       case 'agent_sending': {
         const t = data && data.llmTarget;
         const sub = t
-          ? `→ ${t.host} · modelo «${t.model}»${t.userLabel ? ' · ' + t.userLabel : ''} [${t.preset}]`
+          ? `→ ${t.host} · «${t.model}»${t.userLabel ? ' · ' + t.userLabel : ''} · ${t.httpAdapter || '?'}`
           : 'Ollama / Claude…';
         setLlmRequestProgress(true, 'Llamando al modelo… ' + sub);
         break;
@@ -2892,6 +2924,65 @@
       .replace(/"/g, '&quot;');
   }
 
+  async function populateLocalLlmProviderSelect() {
+    const sel = document.getElementById('local_llm_provider_preset');
+    if (!sel) return false;
+    try {
+      const res = await fetch('/api/llm/provider-presets');
+      const data = await res.json();
+      window._llmProviderPresets = data.presets || [];
+      sel.innerHTML = '';
+      window._llmProviderPresets.forEach((p) => {
+        const o = document.createElement('option');
+        o.value = p.id;
+        o.textContent = p.label;
+        if (p.description) o.title = p.description;
+        sel.appendChild(o);
+      });
+      wireLocalLlmProviderPresetSelect();
+      return true;
+    } catch (e) {
+      console.error(e);
+      sel.innerHTML = '<option value="ollama_local">Ollama (local)</option>';
+      return false;
+    }
+  }
+
+  function onLocalLlmProviderPresetChange() {
+    const id = document.getElementById('local_llm_provider_preset')?.value;
+    const p = (window._llmProviderPresets || []).find((x) => x.id === id);
+    if (!p) return;
+    const bu = document.getElementById('local_ollama_baseurl');
+    if (bu && p.defaultBaseUrl) bu.value = p.defaultBaseUrl;
+    const modeEl = document.getElementById('local_ollama_api_key_mode');
+    if (modeEl && p.defaultApiKeyMode) modeEl.value = p.defaultApiKeyMode;
+    const modSel = document.getElementById('local_ollama_model');
+    if (modSel && p.defaultModel) {
+      const exists = Array.from(modSel.options).some((o) => o.value === p.defaultModel);
+      if (!exists) {
+        const o = document.createElement('option');
+        o.value = p.defaultModel;
+        o.textContent = p.defaultModel + ' (sugerido)';
+        modSel.insertBefore(o, modSel.firstChild);
+      }
+      modSel.value = p.defaultModel;
+    }
+    const emb = document.getElementById('local_ollama_embed_model');
+    if (emb && p.defaultEmbedModel) emb.value = p.defaultEmbedModel;
+    updateOllamaApiKeyModeUI();
+    updateLocalLlmConnectionPreview();
+    if (!window._suppressDashboardEvents) {
+      notify('Plantilla aplicada (revisa API key; guarda para persistir).', 'success');
+    }
+  }
+
+  function wireLocalLlmProviderPresetSelect() {
+    const sel = document.getElementById('local_llm_provider_preset');
+    if (!sel || sel.dataset.wired === '1') return;
+    sel.dataset.wired = '1';
+    sel.addEventListener('change', onLocalLlmProviderPresetChange);
+  }
+
   async function refreshOllamaModels() {
     if (!isAppServerOrigin()) return;
     const baseInput = document.getElementById('local_ollama_baseurl');
@@ -2907,12 +2998,20 @@
       sel.innerHTML = '<option value="">Cargando modelos…</option>';
     }
     try {
-      const res = await fetch('/api/ollama/models?baseUrl=' + encodeURIComponent(baseUrl));
+      const local = readLocalOllamaSettingsFromForm();
+      const res = await fetch('/api/ollama/test-auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ local })
+      });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || 'HTTP ' + res.status);
+      if (!res.ok || data.ok === false) {
+        const msg = [data.error, data.hint].filter(Boolean).join(' — ') || 'HTTP ' + res.status;
+        throw new Error(msg);
+      }
       if (!sel) return;
       sel.innerHTML = '';
-      const models = data.models || [];
+      const models = data.models || data.modelsPreview || [];
       if (models.length === 0) {
         const o = document.createElement('option');
         o.value = '';
@@ -2928,7 +3027,7 @@
       }
       if (previous && models.includes(previous)) sel.value = previous;
     } catch (e) {
-      notify('No se pudieron listar modelos Ollama: ' + e.message, 'error');
+      notify('No se pudieron listar modelos: ' + e.message, 'error');
       if (sel) sel.innerHTML = '<option value="">(error al cargar)</option>';
     } finally {
       if (btn) {
@@ -2943,6 +3042,7 @@
       notify(MSG_DEBES_ABRIR_LOCALHOST, 'error');
       return;
     }
+    window._suppressDashboardEvents = true;
     try {
       const res = await fetch('/api/config');
       if (!res.ok) {
@@ -2950,7 +3050,20 @@
         throw new Error(err.error || 'HTTP ' + res.status);
       }
       const { config, credentials } = await res.json();
-      
+
+      await populateLocalLlmProviderSelect();
+      const provSel = document.getElementById('local_llm_provider_preset');
+      if (provSel) {
+        const savedP = config.agents?.local?.providerPreset;
+        if (savedP && Array.from(provSel.options).some((o) => o.value === savedP)) {
+          provSel.value = savedP;
+        } else if (config.agents?.local?.httpAdapter === 'openai_compatible') {
+          provSel.value = Array.from(provSel.options).some((o) => o.value === 'custom_openai')
+            ? 'custom_openai'
+            : provSel.value;
+        }
+      }
+
       document.getElementById('claude_email').value = credentials.claude?.email || '';
       document.getElementById('gmail_email').value = credentials.gmail?.email || '';
       document.getElementById('linkedin_email').value = credentials.linkedin?.email || '';
@@ -3040,6 +3153,87 @@
       if (vr) vr.textContent = '';
     } catch (e) {
       notify('Error cargando configuración: ' + e.message, 'error');
+    } finally {
+      window._suppressDashboardEvents = false;
+    }
+  }
+
+  /** Lee agents.local desde el formulario Settings (misma forma que al guardar). */
+  function readLocalOllamaSettingsFromForm() {
+    const presetId = document.getElementById('local_llm_provider_preset')?.value || 'ollama_local';
+    const pr = (window._llmProviderPresets || []).find((x) => x.id === presetId);
+    let httpAdapter = 'ollama';
+    if (pr) {
+      if (pr.httpAdapter === 'openai_compatible') httpAdapter = 'openai_compatible';
+      else if (pr.httpAdapter === 'cursor_cloud') httpAdapter = 'cursor_cloud';
+    }
+
+    const loc = {
+      baseUrl: (document.getElementById('local_ollama_baseurl')?.value || '').trim() || 'http://localhost:11434',
+      providerPreset: presetId,
+      httpAdapter,
+      llmConnectionPreset: document.getElementById('local_llm_connection_preset')?.value || 'ollama_local',
+      llmConnectionLabel: (document.getElementById('local_llm_connection_label')?.value || '').trim(),
+      model: (document.getElementById('local_ollama_model')?.value || '').trim() || 'llama3.2',
+      embedModel:
+        (document.getElementById('local_ollama_embed_model')?.value || '').trim() || 'nomic-embed-text',
+      apiKeyMode: document.getElementById('local_ollama_api_key_mode')?.value || 'bearer',
+      apiKeyEnv: (document.getElementById('local_ollama_api_key_env')?.value || '').trim(),
+      rag: {
+        enabled: document.getElementById('local_rag_enabled')?.checked === true
+      }
+    };
+    const mode = loc.apiKeyMode;
+    if (mode === 'custom') {
+      loc.apiKeyHeader = (document.getElementById('local_ollama_api_key_header')?.value || '').trim();
+      loc.apiKeyPrefix = document.getElementById('local_ollama_api_key_prefix')?.value ?? '';
+    } else {
+      loc.apiKeyHeader = '';
+      loc.apiKeyPrefix = '';
+    }
+    const newKey = (document.getElementById('local_ollama_api_key')?.value || '').trim();
+    if (newKey) loc.apiKey = newKey;
+    return loc;
+  }
+
+  async function testOllamaAuthConnection() {
+    if (!isAppServerOrigin()) {
+      notify(MSG_DEBES_ABRIR_LOCALHOST, 'error');
+      return;
+    }
+    const el = document.getElementById('local_ollama_auth_test_result');
+    if (el) el.textContent = 'Probando conexión…';
+    try {
+      const local = readLocalOllamaSettingsFromForm();
+      const res = await fetch('/api/ollama/test-auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ local })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const line = [data.error, data.hint].filter(Boolean).join(' ');
+        if (el) el.textContent = 'Error: ' + (line || 'HTTP ' + res.status);
+        notify(data.hint || data.error || 'Fallo al probar la API', 'error');
+        return;
+      }
+      const auth = data.authConfigured ? data.authHeaderNames?.join(', ') || 'sí' : 'sin cabeceras de clave';
+      const preview = (data.modelsPreview || []).slice(0, 5).join(', ');
+      const more = data.modelCount > 5 ? '…' : '';
+      if (el) {
+        const adapt = data.httpAdapter ? ' · adaptador: ' + data.httpAdapter : '';
+        el.textContent =
+          '✓ ' +
+          (data.message || 'OK') +
+          adapt +
+          ' · Auth: ' +
+          auth +
+          (preview ? ' · Ej.: ' + preview + more : '');
+      }
+      notify(data.message || 'Conexión y API key OK', 'success');
+    } catch (e) {
+      if (el) el.textContent = 'Error: ' + e.message;
+      notify(e.message || String(e), 'error');
     }
   }
 
@@ -3131,6 +3325,8 @@
       return;
     }
 
+    await populateLocalLlmProviderSelect();
+
     const config = {
       project: {
         name: document.getElementById('proj_name').value,
@@ -3142,32 +3338,7 @@
         shareSession: document.getElementById('share_session').checked,
         backend: document.getElementById('agent_backend')?.value || 'local',
         team,
-        local: (() => {
-          const loc = {
-            baseUrl: (document.getElementById('local_ollama_baseurl')?.value || '').trim() || 'http://localhost:11434',
-            llmConnectionPreset: document.getElementById('local_llm_connection_preset')?.value || 'ollama_local',
-            llmConnectionLabel: (document.getElementById('local_llm_connection_label')?.value || '').trim(),
-            model: (document.getElementById('local_ollama_model')?.value || '').trim() || 'llama3.2',
-            embedModel:
-              (document.getElementById('local_ollama_embed_model')?.value || '').trim() || 'nomic-embed-text',
-            apiKeyMode: document.getElementById('local_ollama_api_key_mode')?.value || 'bearer',
-            apiKeyEnv: (document.getElementById('local_ollama_api_key_env')?.value || '').trim(),
-            rag: {
-              enabled: document.getElementById('local_rag_enabled')?.checked === true
-            }
-          };
-          const mode = loc.apiKeyMode;
-          if (mode === 'custom') {
-            loc.apiKeyHeader = (document.getElementById('local_ollama_api_key_header')?.value || '').trim();
-            loc.apiKeyPrefix = document.getElementById('local_ollama_api_key_prefix')?.value ?? '';
-          } else {
-            loc.apiKeyHeader = '';
-            loc.apiKeyPrefix = '';
-          }
-          const newKey = (document.getElementById('local_ollama_api_key')?.value || '').trim();
-          if (newKey) loc.apiKey = newKey;
-          return loc;
-        })()
+        local: readLocalOllamaSettingsFromForm()
       },
       outputs: {
         writeWorkingCopyEachSprint: document.getElementById('out_working_copy')?.checked !== false,
@@ -3247,8 +3418,10 @@
   }
 
   function filterLogs() {
-    const filter = document.getElementById('logFilter').value.toLowerCase();
+    const filterEl = document.getElementById('logFilter');
+    const filter = (filterEl && filterEl.value ? filterEl.value : '').toLowerCase();
     const el = document.getElementById('fullLogBody');
+    if (!el) return;
     el.querySelectorAll('.log-entry').forEach(line => {
       const agent = line.querySelector('.log-agent')?.textContent.toLowerCase() || '';
       line.style.display = !filter || agent.includes(filter) ? '' : 'none';

@@ -7,8 +7,21 @@ const path = require('path');
 const fs = require('fs-extra');
 
 const ScrumMasterOrchestrator = require('./orchestrator');
-const { checkHealth, listModels, verifyOllamaModels, authHeadersFromLocalConfig } = require('./lib/local-llm');
+const { authHeadersFromLocalConfig, rawApiKeyFromLocalConfig } = require('./lib/local-llm');
+const {
+  hintAfterListModelsFailure,
+  misconfiguredCrsrKeyWithOpenAiCompatible
+} = require('./lib/llm-auth-hints');
+const { listModels, checkHealth, verifyLlmModels } = require('./lib/unified-local-llm');
+const { listPresetsForApi, resolveHttpAdapterFromLocal } = require('./lib/llm-provider-presets');
 const { buildMermaidFromConfig } = require('./lib/flow-mermaid');
+
+/** Etiqueta del endpoint usado al listar modelos (logs y JSON del dashboard). */
+function listModelsEndpointLabel(httpAdapter) {
+  if (httpAdapter === 'cursor_cloud') return 'GET /v0/models';
+  if (httpAdapter === 'openai_compatible') return 'GET /v1/models';
+  return 'GET /api/tags';
+}
 
 /** Evita borrar backend Ollama/Claude al guardar solo project/scrum/agents parciales desde el dashboard */
 function mergeProjectConfigPatch(current, patch) {
@@ -93,6 +106,21 @@ function mergeCredentialsPatch(current, body) {
     }
   }
   return out;
+}
+
+/**
+ * Para POST /api/ollama/test-auth: mezcla agents.local del disco con el cuerpo (valores del formulario).
+ * No sobrescribe apiKey del fichero si el formulario envía vacío (significa “usar la guardada”).
+ */
+function mergeLocalForOllamaTest(fileLocal, patch) {
+  const base = { ...(fileLocal || {}) };
+  if (!patch || typeof patch !== 'object') return base;
+  for (const [k, v] of Object.entries(patch)) {
+    if (k === 'apiKey' && (v == null || String(v).trim() === '')) continue;
+    if (v === undefined) continue;
+    base[k] = v;
+  }
+  return base;
 }
 
 /** No exponer apiKey al navegador; indica si habrá cabecera de autenticación (archivo o env). */
@@ -207,8 +235,16 @@ function createServer() {
 // Obtener configuración actual
   app.get('/api/config', async (req, res) => {
   try {
-    const config = await fs.readJson('./config/project-config.json');
-    const credentials = await fs.readJson('./config/credentials.json');
+    const config = await fs.readJson('./config/project-config.json').catch(() => ({}));
+    let credentials = {};
+    try {
+      const credPath = './config/credentials.json';
+      if (await fs.pathExists(credPath)) {
+        credentials = await fs.readJson(credPath);
+      }
+    } catch (e) {
+      credentials = {};
+    }
     // No enviar contraseñas al frontend
     const safeCredentials = {};
     for (const [key, val] of Object.entries(credentials)) {
@@ -232,7 +268,12 @@ function createServer() {
 // Actualizar credenciales
   app.post('/api/credentials', async (req, res) => {
   try {
-    const current = await fs.readJson('./config/credentials.json');
+    await fs.ensureDir('./config');
+    let current = {};
+    const credPath = './config/credentials.json';
+    if (await fs.pathExists(credPath)) {
+      current = await fs.readJson(credPath).catch(() => ({}));
+    }
     const updated = mergeCredentialsPatch(current, req.body);
     await fs.writeJson('./config/credentials.json', updated, { spaces: 2 });
     res.json({ success: true });
@@ -244,7 +285,8 @@ function createServer() {
 // Actualizar configuración del proyecto
   app.post('/api/config', async (req, res) => {
   try {
-    const current = await fs.readJson('./config/project-config.json');
+    await fs.ensureDir('./config');
+    const current = await fs.readJson('./config/project-config.json').catch(() => ({}));
     const updated = mergeProjectConfigPatch(current, req.body);
     await fs.writeJson('./config/project-config.json', updated, { spaces: 2 });
     res.json({ success: true });
@@ -263,34 +305,49 @@ function createServer() {
     }
   });
 
+  /** Plantillas de proveedor (OpenAI, DeepSeek, Ollama…) para el dashboard. */
+  app.get('/api/llm/provider-presets', (req, res) => {
+    try {
+      res.json({ presets: listPresetsForApi() });
+    } catch (e) {
+      res.status(500).json({ error: e.message, presets: [] });
+    }
+  });
+
   /** Comprueba modelo de chat y, si RAG activo, modelo de embeddings. */
   app.get('/api/ollama/verify', async (req, res) => {
     try {
       const current = await fs.readJson('./config/project-config.json').catch(() => ({}));
+      const localCfg = current.agents?.local || {};
       const fromQuery = typeof req.query.baseUrl === 'string' ? req.query.baseUrl.trim() : '';
-      const baseUrl = (fromQuery || current.agents?.local?.baseUrl || 'http://localhost:11434').replace(/\/$/, '');
-      const model = (typeof req.query.model === 'string' && req.query.model.trim()) || current.agents?.local?.model || 'llama3.2';
+      const baseUrl = (fromQuery || localCfg.baseUrl || 'http://localhost:11434').replace(/\/$/, '');
+      const model = (typeof req.query.model === 'string' && req.query.model.trim()) || localCfg.model || 'llama3.2';
       const embedModel =
         (typeof req.query.embedModel === 'string' && req.query.embedModel.trim()) ||
-        current.agents?.local?.embedModel ||
-        current.agents?.local?.rag?.embedModel ||
+        localCfg.embedModel ||
+        localCfg.rag?.embedModel ||
         'nomic-embed-text';
       const ragEnabled =
         req.query.rag === '1' ||
         req.query.rag === 'true' ||
-        current.agents?.local?.rag?.enabled === true;
+        localCfg.rag?.enabled === true;
 
-      const authHeaders = authHeadersFromLocalConfig(current.agents?.local || {});
-      const v = await verifyOllamaModels(baseUrl, model, embedModel, { authHeaders });
+      const httpAdapter = resolveHttpAdapterFromLocal(localCfg);
+      const authHeaders = authHeadersFromLocalConfig(localCfg);
+      const v = await verifyLlmModels(baseUrl, model, embedModel, { authHeaders, local: localCfg });
       if (!v.ok) {
         return res.status(502).json({
           baseUrl,
           model,
           embedModel,
           ragEnabled,
+          httpAdapter,
           ok: false,
           error: v.error,
-          hint: '¿Está `ollama serve` en marcha y la URL correcta?'
+          hint:
+            httpAdapter === 'openai_compatible'
+              ? '¿URL base correcta (…/v1), API key y acceso a red?'
+              : '¿Está `ollama serve` en marcha y la URL correcta?'
         });
       }
       res.json({
@@ -298,14 +355,21 @@ function createServer() {
         model,
         embedModel,
         ragEnabled,
+        httpAdapter,
         ok: true,
         hasChat: v.hasChat,
         hasEmbed: v.hasEmbed,
         modelNames: v.modelNames,
-        hintChat: v.hasChat ? null : `Instala el modelo de chat: ollama pull ${model}`,
+        hintChat: v.hasChat
+          ? null
+          : httpAdapter === 'openai_compatible'
+            ? `El proveedor no lista el modelo de chat «${model}». Revisa el id exacto en su documentación.`
+            : `Instala el modelo de chat: ollama pull ${model}`,
         hintEmbed:
           ragEnabled && !v.hasEmbed
-            ? `RAG activo: necesitas un modelo de embeddings (aparte del de chat). Ejecuta: ollama pull ${embedModel}`
+            ? httpAdapter === 'openai_compatible'
+              ? `RAG: no aparece el modelo de embeddings «${embedModel}» en la lista del proveedor.`
+              : `RAG activo: necesitas un modelo de embeddings (aparte del de chat). Ejecuta: ollama pull ${embedModel}`
             : null
       });
     } catch (e) {
@@ -313,19 +377,145 @@ function createServer() {
     }
   });
 
-  /** Modelos Ollama instalados (para combo en Settings). Query ?baseUrl= opcional. */
+  /**
+   * Prueba conexión y API key (Ollama /api/tags, OpenAI /v1/models, Cursor Cloud /v0/models).
+   * Body opcional: { local: { ... } } mezclado con project-config (apiKey vacío = no cambia la guardada).
+   */
+  app.post('/api/ollama/test-auth', async (req, res) => {
+    try {
+      const current = await fs.readJson('./config/project-config.json').catch(() => ({}));
+      const fileLocal = current.agents?.local || {};
+      const patch = req.body?.local && typeof req.body.local === 'object' ? req.body.local : {};
+      const local = mergeLocalForOllamaTest(fileLocal, patch);
+
+      let baseUrl =
+        typeof req.body?.baseUrl === 'string' && req.body.baseUrl.trim()
+          ? req.body.baseUrl.trim()
+          : (local.baseUrl || 'http://localhost:11434').trim();
+      baseUrl = baseUrl.replace(/\/$/, '');
+
+      const httpAdapter = resolveHttpAdapterFromLocal(local);
+      const crsrMix = misconfiguredCrsrKeyWithOpenAiCompatible(local);
+      if (crsrMix) {
+        const ah = authHeadersFromLocalConfig(local);
+        const names = Object.keys(ah);
+        return res.status(400).json({
+          ok: false,
+          baseUrl,
+          httpAdapter,
+          listEndpoint: listModelsEndpointLabel(httpAdapter),
+          authConfigured: names.length > 0,
+          authHeaderNames: names,
+          models: [],
+          error: crsrMix.error,
+          hint: crsrMix.hint
+        });
+      }
+
+      const authHeaders = authHeadersFromLocalConfig(local);
+      const authHeaderNames = Object.keys(authHeaders);
+      const result = await listModels(baseUrl, { authHeaders, local });
+
+      const listEndpoint = listModelsEndpointLabel(httpAdapter);
+
+      if (!result.ok) {
+        const rawKey = rawApiKeyFromLocalConfig(local);
+        const cursorOpenAiHint = hintAfterListModelsFailure(
+          result.error,
+          baseUrl,
+          rawKey,
+          httpAdapter
+        );
+        const defaultHint =
+          authHeaderNames.length === 0 &&
+          (httpAdapter === 'openai_compatible' || httpAdapter === 'cursor_cloud')
+            ? 'Las APIs cloud suelen exigir API key: rellena el campo o apiKeyEnv / OPENAI_API_KEY / CURSOR_API_KEY.'
+            : authHeaderNames.length === 0
+              ? 'No se envió API key: rellena el campo, define apiKeyEnv o variables AI_SCRUM_LOCAL_API_KEY / OLLAMA_API_KEY.'
+              : 'Revisa URL base, la clave y el modo (Bearer, Basic para Cursor API, X-API-Key o personalizada).';
+        return res.status(502).json({
+          ok: false,
+          baseUrl,
+          httpAdapter,
+          listEndpoint: listModelsEndpointLabel(httpAdapter),
+          authConfigured: authHeaderNames.length > 0,
+          authHeaderNames,
+          models: [],
+          error: result.error,
+          hint: cursorOpenAiHint || defaultHint
+        });
+      }
+
+      const models = result.models || [];
+      res.json({
+        ok: true,
+        baseUrl,
+        httpAdapter,
+        authConfigured: authHeaderNames.length > 0,
+        authHeaderNames,
+        modelCount: models.length,
+        models,
+        modelsPreview: models.slice(0, 30),
+        message: `Conexión OK: ${listEndpoint} respondió (${models.length} modelo(s)).`
+      });
+    } catch (e) {
+      res.status(500).json({ ok: false, error: e.message });
+    }
+  });
+
+  /** Modelos instalados (Ollama /api/tags, OpenAI /v1/models, Cursor /v0/models). Query ?baseUrl= opcional. */
   app.get('/api/ollama/models', async (req, res) => {
     try {
       const current = await fs.readJson('./config/project-config.json');
+      const localCfg = current.agents?.local || {};
       const fromQuery = typeof req.query.baseUrl === 'string' ? req.query.baseUrl.trim() : '';
-      const fromConfig = current.agents?.local?.baseUrl;
+      const fromConfig = localCfg.baseUrl;
       const baseUrl = (fromQuery || fromConfig || 'http://localhost:11434').replace(/\/$/, '');
-      const authHeaders = authHeadersFromLocalConfig(current.agents?.local || {});
-      const result = await listModels(baseUrl, { authHeaders });
-      if (!result.ok) {
-        return res.status(502).json({ error: result.error || 'No se pudo contactar con Ollama', baseUrl, models: [] });
+      const httpAdapter = resolveHttpAdapterFromLocal(localCfg);
+      const crsrMix = misconfiguredCrsrKeyWithOpenAiCompatible(localCfg);
+      if (crsrMix) {
+        const ah = authHeadersFromLocalConfig(localCfg);
+        const names = Object.keys(ah);
+        return res.status(400).json({
+          error: crsrMix.error,
+          baseUrl,
+          httpAdapter,
+          listEndpoint: listModelsEndpointLabel(httpAdapter),
+          authConfigured: names.length > 0,
+          models: [],
+          hint: crsrMix.hint
+        });
       }
-      res.json({ baseUrl, models: result.models });
+      const authHeaders = authHeadersFromLocalConfig(localCfg);
+      const authHeaderNames = Object.keys(authHeaders);
+      const result = await listModels(baseUrl, { authHeaders, local: localCfg });
+      if (!result.ok) {
+        const rawKey = rawApiKeyFromLocalConfig(localCfg);
+        const cursorOpenAiHint = hintAfterListModelsFailure(
+          result.error,
+          baseUrl,
+          rawKey,
+          httpAdapter
+        );
+        const defaultHint =
+          authHeaderNames.length === 0 &&
+          (httpAdapter === 'openai_compatible' || httpAdapter === 'cursor_cloud')
+            ? 'Las APIs cloud exigen API key: guárdala en Settings, define apiKeyEnv o OPENAI_API_KEY / CURSOR_API_KEY en el entorno donde corre el servidor.'
+            : authHeaderNames.length === 0
+              ? 'No se envió API key: rellena el campo en Settings, apiKeyEnv o AI_SCRUM_LOCAL_API_KEY / OLLAMA_API_KEY.'
+              : null;
+        const hint = cursorOpenAiHint || defaultHint;
+        return res.status(502).json({
+          error: result.error || 'No se pudo listar modelos',
+          baseUrl,
+          httpAdapter,
+          listEndpoint: listModelsEndpointLabel(httpAdapter),
+          authConfigured: authHeaderNames.length > 0,
+          models: [],
+          ...(hint ? { hint } : {})
+        });
+      }
+      res.json({ baseUrl, httpAdapter, models: result.models });
     } catch (e) {
       res.status(500).json({ error: e.message, models: [] });
     }
@@ -349,40 +539,59 @@ function createServer() {
         });
       }
     } else {
-      const baseUrl = config.agents?.local?.baseUrl || 'http://localhost:11434';
-      const model = config.agents?.local?.model || 'llama3.2';
-      const authHeaders = authHeadersFromLocalConfig(config.agents?.local || {});
-      const health = await checkHealth(baseUrl, model, { authHeaders });
-      if (!health.ok) {
+      const localCfg = config.agents?.local || {};
+      const baseUrl = localCfg.baseUrl || 'http://localhost:11434';
+      const model = localCfg.model || 'llama3.2';
+      const httpAdapter = resolveHttpAdapterFromLocal(localCfg);
+      if (httpAdapter === 'cursor_cloud') {
         return res.status(400).json({
-          error: `No se puede conectar con Ollama en ${baseUrl}. Inicia Ollama ("ollama serve") y revisa agents.local.baseUrl. Detalle: ${health.error || 'desconocido'}`
+          error:
+            'La API oficial de Cursor (api.cursor.com) usa Basic Auth y expone GET /v0/models para Cloud Agents; ' +
+            'no ofrece /v1/chat/completions para este orquestador. Para «Iniciar proyecto» elige Ollama, un proveedor OpenAI-compatible (p. ej. OpenAI con sk-…) o backend Claude (navegador). ' +
+            'Puedes usar la plantilla «Cursor Cloud API» solo para probar la clave y listar modelos en Settings.'
         });
+      }
+      const authHeaders = authHeadersFromLocalConfig(localCfg);
+      const health = await checkHealth(baseUrl, model, { authHeaders, local: localCfg });
+      if (!health.ok) {
+        const detail = health.error || 'desconocido';
+        let errorMsg;
+        if (httpAdapter === 'openai_compatible') {
+          errorMsg = `No se puede conectar con la API en ${baseUrl}. Revisa URL (…/v1), red y API key. Detalle: ${detail}`;
+        } else {
+          errorMsg = `No se puede conectar con Ollama en ${baseUrl}. Inicia Ollama ("ollama serve") y revisa agents.local.baseUrl. Detalle: ${detail}`;
+        }
+        return res.status(400).json({ error: errorMsg });
       }
       if (health.modelLoaded === false) {
-        return res.status(400).json({
-          error: `Ollama está activo pero el modelo "${model}" no está disponible. Ejecuta: ollama pull ${model}`
-        });
+        let errorMsg;
+        if (httpAdapter === 'openai_compatible') {
+          errorMsg = `La API respondió pero no aparece el modelo de chat «${model}» en el listado. Revisa el id en la documentación del proveedor.`;
+        } else {
+          errorMsg = `Ollama está activo pero el modelo "${model}" no está disponible. Ejecuta: ollama pull ${model}`;
+        }
+        return res.status(400).json({ error: errorMsg });
       }
 
-      const ragOn = config.agents?.local?.rag?.enabled === true;
+      const ragOn = localCfg.rag?.enabled === true;
       if (ragOn) {
         const embedModel =
-          config.agents?.local?.embedModel ||
-          config.agents?.local?.rag?.embedModel ||
-          'nomic-embed-text';
-        const v = await verifyOllamaModels(baseUrl, model, embedModel, { authHeaders });
+          localCfg.embedModel || localCfg.rag?.embedModel || 'nomic-embed-text';
+        const v = await verifyLlmModels(baseUrl, model, embedModel, { authHeaders, local: localCfg });
         if (!v.ok) {
           return res.status(400).json({
-            error: `No se pudo comprobar modelos Ollama: ${v.error}`
+            error: `No se pudo comprobar modelos: ${v.error}`
           });
         }
         if (!v.hasEmbed) {
           return res.status(400).json({
             error:
-              `RAG está activo (agents.local.rag.enabled) pero falta el modelo de embeddings «${embedModel}» en Ollama. ` +
-              `No se “importa” el RAG en Ollama: es un segundo modelo que calcula vectores. En una terminal ejecuta:\n` +
-              `  ollama pull ${embedModel}\n` +
-              `Luego vuelve a iniciar el proyecto. (Puedes desactivar RAG en Settings si no lo necesitas.)`
+              httpAdapter === 'openai_compatible'
+                ? `RAG activo pero el proveedor no lista el modelo de embeddings «${embedModel}». Cambia embedModel en Settings o desactiva RAG.`
+                : `RAG está activo (agents.local.rag.enabled) pero falta el modelo de embeddings «${embedModel}» en Ollama. ` +
+                  `No se “importa” el RAG en Ollama: es un segundo modelo que calcula vectores. En una terminal ejecuta:\n` +
+                  `  ollama pull ${embedModel}\n` +
+                  `Luego vuelve a iniciar el proyecto. (Puedes desactivar RAG en Settings si no lo necesitas.)`
           });
         }
       }
@@ -616,6 +825,7 @@ function createServer() {
         console.error('[run] cleanup:', e.message);
       }
     }
+    orchestrator = null;
   }
   }
 
@@ -667,17 +877,24 @@ if (require.main === module) {
 ║                                               ║
 ║  1. Configura credenciales en Settings        ║
 ║  2. Ajusta el proyecto si necesitas           ║
-║  3. Click "Start Project"                     ║
+║  3. Pulsa «Iniciar proyecto» en el dashboard  ║
 ╚═══════════════════════════════════════════════╝
   `);
 
       const config = require('./config/project-config.json');
       if (config.outputs?.autoOpenDashboard) {
-        const open = (url) => {
-          const cmd = process.platform === 'darwin' ? 'open' : process.platform === 'win32' ? 'start' : 'xdg-open';
-          require('child_process').exec(`${cmd} ${url}`);
+        const url = `http://localhost:${PORT}`;
+        const open = () => {
+          const { exec } = require('child_process');
+          if (process.platform === 'win32') {
+            exec(`start "" "${url}"`, { windowsHide: true }, () => {});
+          } else if (process.platform === 'darwin') {
+            exec(`open "${url}"`, () => {});
+          } else {
+            exec(`xdg-open "${url}"`, () => {});
+          }
         };
-        setTimeout(() => open(`http://localhost:${PORT}`), 1000);
+        setTimeout(open, 1000);
       }
     })
     .catch((err) => {

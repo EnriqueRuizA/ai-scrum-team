@@ -1,7 +1,9 @@
 // agents/local-rag-agent.js - Agente que usa IA local (Ollama) + RAG para edición y generación
 
-const { generate, authHeadersFromLocalConfig } = require('../lib/local-llm');
+const { authHeadersFromLocalConfig } = require('../lib/local-llm');
+const { generate } = require('../lib/unified-local-llm');
 const { buildLlmConnectionInfo, formatLlmRequestOneLiner } = require('../lib/llm-connection-info');
+const { resolveHttpAdapterFromLocal } = require('../lib/llm-provider-presets');
 const { buildIndex, addChunksToIndex, retrieve, formatRetrieved } = require('../lib/rag');
 const path = require('path');
 const fs = require('fs-extra');
@@ -42,6 +44,9 @@ class LocalRAGAgent {
 
     /** Para logs: tipo de origen (local vs remoto) y etiqueta opcional. */
     this.llmConnectionInfo = buildLlmConnectionInfo(local);
+
+    /** `ollama` | `openai_compatible` — según proveedor elegido. */
+    this.httpAdapter = resolveHttpAdapterFromLocal(local);
   }
 
   /** Línea corta de verificación en cada llamada al modelo. */
@@ -55,7 +60,8 @@ class LocalRAGAgent {
       baseUrl: this.llmBaseUrl,
       embedModel: this.embedModel,
       embedTimeoutMs: this.embedTimeoutMs,
-      authHeaders: this.llmAuthHeaders
+      authHeaders: this.llmAuthHeaders,
+      httpAdapter: this.httpAdapter
     };
   }
 
@@ -113,7 +119,9 @@ class LocalRAGAgent {
     } catch (e) {
       const hint =
         /404|not found|pull/i.test(String(e.message))
-          ? ` Instala el modelo de embeddings en Ollama (no se “importa” el RAG): ollama pull ${this.embedModel}`
+          ? this.httpAdapter === 'openai_compatible'
+            ? ` Revisa el id del modelo de embeddings en la documentación del proveedor (embedModel: ${this.embedModel}).`
+            : ` Instala el modelo de embeddings en Ollama (no se “importa” el RAG): ollama pull ${this.embedModel}`
           : '';
       this.log(`addRAGContext failed: ${e.message}.${hint}`, 'warn');
     }
@@ -132,7 +140,8 @@ class LocalRAGAgent {
         preset: this.llmConnectionInfo.preset,
         userLabel: this.llmConnectionInfo.userLabel || null,
         host: this.llmConnectionInfo.host,
-        model: this.llmModel
+        model: this.llmModel,
+        httpAdapter: this.httpAdapter
       }
     });
 
@@ -154,7 +163,8 @@ class LocalRAGAgent {
       baseUrl: this.llmBaseUrl,
       model: this.llmModel,
       timeout: this.llmTimeout,
-      authHeaders: this.llmAuthHeaders
+      authHeaders: this.llmAuthHeaders,
+      httpAdapter: this.httpAdapter
     });
 
     this.emit('response', { agent: this.name, preview: (response || '').substring(0, 200) });
