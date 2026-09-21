@@ -13,29 +13,56 @@ class RAG {
 
   async build() {
     logger.info('Construyendo índice RAG...');
+    const files = [];
+    
+    // Recopilar todos los archivos antes de procesarlos
     for (const dir of this.paths) {
-      const files = await require('fs-extra').readdir(dir);
-      for (const f of files) {
-        const p = require('path').join(dir, f);
-        if (require('fs').statSync(p).isDirectory()) continue;
-        if (!['.js', '.md', '.json'].includes(require('path').extname(p))) continue;
-        const text = await require('fs-extra').readFile(p, 'utf8');
-        const embedding = await this.ollama.embeddings({ model: this.embedModel, inputs: [text] });
-        this.vectorStore.push({ id: p, content: text, embedding: embedding.data[0] });
+      try {
+        const dirFiles = await require('fs-extra').readdir(dir);
+        for (const f of dirFiles) {
+          const p = require('path').join(dir, f);
+          if (require('fs').statSync(p).isDirectory()) continue;
+          const ext = require('path').extname(p);
+          if (!['.js', '.md', '.json'].includes(ext)) continue;
+          files.push({ path: p, name: f });
+        }
+      } catch (error) {
+        logger.error(`Error al leer directorio ${dir}:`, error.message);
       }
     }
+
+    // Procesar archivos en paralelo
+    const promises = files.map(async ({ path }) => {
+      try {
+        const text = await require('fs-extra').readFile(path, 'utf8');
+        const embedding = await this.ollama.embeddings({ model: this.embedModel, inputs: [text] });
+        return { id: path, content: text, embedding: embedding.data[0] };
+      } catch (error) {
+        logger.error(`Error procesando archivo ${path}:`, error.message);
+        return null;
+      }
+    });
+
+    const results = await Promise.all(promises);
+    this.vectorStore = results.filter(Boolean);
+    
     logger.info(`Índice RAG construido con ${this.vectorStore.length} vectores`);
   }
 
   async query(queryText) {
-    const qEmbed = await this.ollama.embeddings({ model: this.embedModel, inputs: [queryText] });
-    const scores = this.vectorStore.map(v => ({
-      id: v.id,
-      score: cosineSimilarity(qEmbed.data[0], v.embedding),
-      snippet: v.content.slice(0, 300) + '…'
-    }));
-    scores.sort((a, b) => b.score - a.score);
-    return scores.slice(0, this.topK);
+    try {
+      const qEmbed = await this.ollama.embeddings({ model: this.embedModel, inputs: [queryText] });
+      const scores = this.vectorStore.map(v => ({
+        id: v.id,
+        score: cosineSimilarity(qEmbed.data[0], v.embedding),
+        snippet: v.content.slice(0, 300) + '…'
+      }));
+      scores.sort((a, b) => b.score - a.score);
+      return scores.slice(0, this.topK);
+    } catch (error) {
+      logger.error('Error en consulta RAG:', error.message);
+      return [];
+    }
   }
 }
 

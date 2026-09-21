@@ -17,21 +17,36 @@ class FileEditor {
   async write(file, content) {
     const p = path.resolve(this.base, file);
     logger.debug(`Writing ${p}`);
-    await fs.ensureDir(path.dirname(p));
-    await fs.writeFile(p, content, 'utf8');
-    return p;
+    try {
+      await fs.ensureDir(path.dirname(p));
+      await fs.writeFile(p, content, 'utf8');
+      return p;
+    } catch (error) {
+      logger.error('Error escribiendo archivo:', error.message);
+      throw error;
+    }
   }
 
   async patch(file, replacer) {
-    const txt = await this.read(file);
-    const updated = replacer(txt);
-    return await this.write(file, updated);
+    try {
+      const txt = await this.read(file);
+      const updated = replacer(txt);
+      return await this.write(file, updated);
+    } catch (error) {
+      logger.error('Error aplicando patch:', error.message);
+      throw error;
+    }
   }
 
   async delete(file) {
     const p = path.resolve(this.base, file);
     logger.info(`Deleting ${p}`);
-    await fs.remove(p);
+    try {
+      await fs.remove(p);
+    } catch (error) {
+      logger.error('Error eliminando archivo:', error.message);
+      throw error;
+    }
   }
 }
 

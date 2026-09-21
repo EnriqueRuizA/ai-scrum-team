@@ -18,9 +18,14 @@ class OllamaClient {
     };
     if (this.apiKey) opts.headers['Authorization'] = `Bearer ${this.apiKey}`;
 
-    const resp = await fetch(url, opts);
-    if (!resp.ok) throw new Error(`Ollama error: ${resp.statusText}`);
-    return stream ? resp.body : await resp.json();
+    try {
+      const resp = await fetch(url, opts);
+      if (!resp.ok) throw new Error(`Ollama error: ${resp.statusText}`);
+      return stream ? resp.body : await resp.json();
+    } catch (error) {
+      logger.error('Error en generación Ollama:', error.message);
+      throw error;
+    }
   }
 
   async embeddings({ model, inputs }) {
@@ -33,9 +38,14 @@ class OllamaClient {
     };
     if (this.apiKey) opts.headers['Authorization'] = `Bearer ${this.apiKey}`;
 
-    const resp = await fetch(url, opts);
-    if (!resp.ok) throw new Error(`Ollama embeddings error: ${resp.statusText}`);
-    return await resp.json();
+    try {
+      const resp = await fetch(url, opts);
+      if (!resp.ok) throw new Error(`Ollama embeddings error: ${resp.statusText}`);
+      return await resp.json();
+    } catch (error) {
+      logger.error('Error en embeddings Ollama:', error.message);
+      throw error;
+    }
   }
 }
 

@@ -25,17 +25,36 @@ class ScrumMasterOrchestrator {
 
   async init() {
     logger.info('Inicializando orchestrator…');
-    await fs.ensureDir(this.outputDir);
-    // Instanciar agentes según config
-    for (const member of this.config.agents.team) {
-      if (!member.enabled) continue;
-      const persona = prompts[member.role] ? prompts[member.role](this.config) : `Rol ${member.role}`;
-      const agent = new LocalAgent({ name: member.label, role: member.role, persona, config: this.config });
-      await agent.init();
-      this.agents[member.role] = agent;
+    try {
+      await fs.ensureDir(this.outputDir);
+      
+      // Inicializar agentes en paralelo
+      const agentPromises = [];
+      for (const member of this.config.agents.team) {
+        if (!member.enabled) continue;
+        
+        const persona = prompts[member.role] ? prompts[member.role](this.config) : `Rol ${member.role}`;
+        const agent = new LocalAgent({ name: member.label, role: member.role, persona, config: this.config });
+        agentPromises.push(agent.init());
+      }
+      
+      await Promise.all(agentPromises);
+      
+      // Asignar agentes al estado
+      for (const member of this.config.agents.team) {
+        if (!member.enabled) continue;
+        const agent = this.agents[member.role];
+        if (agent) {
+          this.agents[member.role] = agent;
+        }
+      }
+      
+      this.state.status = 'ready';
+      logger.info('Orchestrator listo.');
+    } catch (error) {
+      logger.error('Error inicializando orchestrator:', error.message);
+      throw error;
     }
-    this.state.status = 'ready';
-    logger.info('Orchestrator listo.');
   }
 
   getState() {
@@ -45,26 +64,57 @@ class ScrumMasterOrchestrator {
   async runSprint() {
     const sprintNum = this.state.currentSprint + 1;
     logger.info(`Iniciando sprint ${sprintNum}`);
-    // 1. Sprint Planning (scrum master)
-    const scrumMaster = this.agents.scrumMaster;
-    const planningPrompt = `Planifica el sprint ${sprintNum}.`; // could be more detailed
-    await scrumMaster.runTask(planningPrompt);
-    // 2. PO refina historias (productOwner)
-    const po = this.agents.productOwner;
-    const refinePrompt = `Refina las historias del sprint ${sprintNum}.`;
-    await po.runTask(refinePrompt);
-    // 3. Developer implementa
-    const dev = this.agents.developer;
-    const devPrompt = `Implementa las historias del sprint ${sprintNum}.`;
-    await dev.runTask(devPrompt);
-    // 4. QA revisa
-    const qa = this.agents.qaTester;
-    const qaPrompt = `Ejecuta pruebas para el sprint ${sprintNum}.`;
-    await qa.runTask(qaPrompt);
+    
+    try {
+      // Ejecutar tareas en paralelo
+      const tasks = [
+        // 1. Sprint Planning (scrum master)
+        async () => {
+          const scrumMaster = this.agents.scrumMaster;
+          if (scrumMaster) {
+            const planningPrompt = `Planifica el sprint ${sprintNum}.`;
+            await scrumMaster.runTask(planningPrompt);
+          }
+        },
+        
+        // 2. PO refina historias (productOwner)
+        async () => {
+          const po = this.agents.productOwner;
+          if (po) {
+            const refinePrompt = `Refina las historias del sprint ${sprintNum}.`;
+            await po.runTask(refinePrompt);
+          }
+        },
+        
+        // 3. Developer implementa
+        async () => {
+          const dev = this.agents.developer;
+          if (dev) {
+            const devPrompt = `Implementa las historias del sprint ${sprintNum}.`;
+            await dev.runTask(devPrompt);
+          }
+        },
+        
+        // 4. QA revisa
+        async () => {
+          const qa = this.agents.qaTester;
+          if (qa) {
+            const qaPrompt = `Ejecuta pruebas para el sprint ${sprintNum}.`;
+            await qa.runTask(qaPrompt);
+          }
+        }
+      ];
 
-    this.state.currentSprint = sprintNum;
-    this.state.status = 'sprint-completed';
-    logger.info(`Sprint ${sprintNum} completado`);
+      // Ejecutar todas las tareas en paralelo
+      await Promise.all(tasks.map(task => task()));
+      
+      this.state.currentSprint = sprintNum;
+      this.state.status = 'sprint-completed';
+      logger.info(`Sprint ${sprintNum} completado`);
+    } catch (error) {
+      logger.error('Error ejecutando sprint:', error.message);
+      throw error;
+    }
   }
 }
 

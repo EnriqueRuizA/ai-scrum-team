@@ -27,29 +27,51 @@ class LocalAgent {
   }
 
   async init() {
-    if (this.config.local.rag?.enabled) {
-      logger.info(`(${this.role}) Construyendo RAG…`);
-      await this.rag.build();
+    try {
+      if (this.config.local.rag?.enabled) {
+        logger.info(`(${this.role}) Construyendo RAG…`);
+        await this.rag.build();
+      }
+      logger.info(`(${this.role}) Agente inicializado`);
+    } catch (error) {
+      logger.error(`(${this.role}) Error inicializando agente:`, error.message);
+      throw error;
     }
-    logger.info(`(${this.role}) Agente inicializado`);
   }
 
   async generatePrompt(prompt) {
-    const messages = [
-      { role: 'system', content: `Eres ${this.persona}.` },
-      { role: 'user', content: prompt }
-    ];
-    const ctx = await this.rag.query(prompt);
-    if (ctx.length) {
-      messages.push({ role: 'assistant', content: `Contexto relevante: ${ctx.map(c => c.snippet).join('\n')}` });
+    try {
+      const messages = [
+        { role: 'system', content: `Eres ${this.persona}.` },
+        { role: 'user', content: prompt }
+      ];
+      
+      if (this.config.local.rag?.enabled) {
+        const ctx = await this.rag.query(prompt);
+        if (ctx.length) {
+          messages.push({ 
+            role: 'assistant', 
+            content: `Contexto relevante: ${ctx.map(c => c.snippet).join('\n')}` 
+          });
+        }
+      }
+      
+      const res = await this.llm.generate({ 
+        model: this.config.local.model, 
+        messages 
+      });
+      
+      return res.choices[0].message.content;
+    } catch (error) {
+      logger.error(`(${this.role}) Error generando prompt:`, error.message);
+      throw error;
     }
-    const res = await this.llm.generate({ model: this.config.local.model, messages });
-    return res.choices[0].message.content;
   }
 
   async handleResponse(response) {
     try {
       const obj = JSON.parse(response);
+      
       if (obj.action === 'write') {
         await this.editor.write(obj.file, obj.content);
         logger.info(`(${this.role}) Archivo ${obj.file} creado/actualizado`);
@@ -62,15 +84,20 @@ class LocalAgent {
       } else {
         logger.warn(`(${this.role}) Acción desconocida: ${obj.action}`);
       }
-    } catch (e) {
-      logger.error(`(${this.role}) Error procesando respuesta: ${e.message}`);
+    } catch (error) {
+      logger.error(`(${this.role}) Error procesando respuesta: ${error.message}`);
     }
   }
 
   async runTask(taskPrompt) {
-    const res = await this.generatePrompt(taskPrompt);
-    await this.handleResponse(res);
-    return res;
+    try {
+      const res = await this.generatePrompt(taskPrompt);
+      await this.handleResponse(res);
+      return res;
+    } catch (error) {
+      logger.error(`(${this.role}) Error ejecutando tarea:`, error.message);
+      throw error;
+    }
   }
 }
 
