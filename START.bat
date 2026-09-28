@@ -7,7 +7,7 @@ cd /d "P:\REPOSITORIO GIT\ai-scrum-team"
 echo Cambiando al directorio: %CD%
 
 REM Intenta obtener el puerto del dashboard desde config/project-config.json usando PowerShell
-for /f "tokens=*" %%a in ('powershell -Command "(Get-Content config/project-config.json | ConvertFrom-Json).outputs.port"') do (
+for /f "tokens=*" %%a in ('powershell -Command "(Get-Content config/project-config.json | ConvertFrom-Json).outputs.port" 2^>^&1') do (
   set "DASH_PORT=%%a"
   goto :portFound
 )
