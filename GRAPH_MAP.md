@@ -37,6 +37,26 @@ agents\base-agent.js:
 │    return await this.page.waitForSelector(combined, { timeout });
 ⋮
 
+agents\local-rag-agent.js:
+⋮
+│class LocalRAGAgent {
+│  constructor({ name, role, persona, config, sessionDir = './sessions', outputDir = null }) {
+│    this.name = name;
+│    this.role = role;
+│    this.persona = persona;
+│    this.config = config;
+│    this.sessionDir = sessionDir;
+│    this.outputDir = outputDir;
+│    this.initialized = false;
+│    this.eventHandlers = {};
+⋮
+│  log(message, level = 'info') {
+│    const timestamp = new Date().toISOString();
+│    const logEntry = { timestamp, agent: this.name, role: this.role, level, message };
+│    this.emit('log', logEntry);
+│    console.log(`[${timestamp}] [${this.role}] ${message}`);
+⋮
+
 lib\cursor-cloud-llm.js:
 ⋮
 │async function listModels(baseUrl, opts = {}) {
@@ -60,37 +80,6 @@ lib\default-team.js:
 │    enabled: true,
 │    label: DEFAULT_LABELS[role] || role
 │  }));
-⋮
-
-lib\deliverable.js:
-⋮
-│function collectFileObjects(arr) {
-│  if (!Array.isArray(arr)) return [];
-│  return arr
-│    .filter((f) => f && typeof f === 'object' && f.path && (f.code != null || f.content != null))
-│    .map((f) => ({
-│      path: String(f.path).replace(/^\//, ''),
-│      code: f.code != null ? String(f.code) : String(f.content)
-│    }));
-⋮
-│async function runNodeSyntaxCheck(appDir) {
-│  const results = { ok: true, files: [], errors: [] };
-│  const root = path.resolve(appDir);
-│  if (!(await fs.pathExists(root))) return results;
-│
-│  async function walk(dir) {
-│    const entries = await fs.readdir(dir, { withFileTypes: true }).catch(() => []);
-│    for (const ent of entries) {
-│      if (ent.name === 'node_modules' || ent.name === '.git') continue;
-│      const full = path.join(dir, ent.name);
-⋮
-│async function runNpmTestIfPresent(appDir, timeoutMs = 120000) {
-│  const pkgPath = path.join(appDir, 'package.json');
-│  if (!(await fs.pathExists(pkgPath))) return { ran: false, ok: true, message: 'Sin package.json' }
-│  const pkg = await fs.readJson(pkgPath);
-│  if (!pkg.scripts || !pkg.scripts.test) return { ran: false, ok: true, message: 'Sin script test' 
-│  const r = tryExec('npm test', { cwd: appDir, timeout: timeoutMs });
-│  return { ran: true, ok: r.ok, message: r.ok ? undefined : (r.stderr || r.message || 'npm test fal
 ⋮
 
 lib\llm-connection-info.js:
@@ -119,23 +108,7 @@ lib\llm-connection-info.js:
 ⋮
 
 lib\llm-provider-presets.js:
-⋮
-│function baseUrlImpliesOpenAiCompatible(baseUrl) {
-│  const s = String(baseUrl || '').trim().replace(/\/+$/, '');
-│  if (!s) return false;
-│  return /\/v1$/i.test(s);
-⋮
 │function resolveHttpAdapterFromLocal(local = {}) {
-│  const explicit = String(local.httpAdapter || '').trim();
-│  const baseUrl = String(local.baseUrl || '').trim();
-│
-│  if (explicit === 'cursor_cloud') return 'cursor_cloud';
-│  if (explicit === 'openai_compatible') return 'openai_compatible';
-│  if (explicit === 'ollama') {
-│    if (baseUrlImpliesOpenAiCompatible(baseUrl)) return 'openai_compatible';
-│    return 'ollama';
-│  }
-│
 ⋮
 
 lib\local-llm.js:
@@ -276,6 +249,17 @@ lib\parse-llm-json.js:
 │    let next = -1;
 │    let useBrace = false;
 ⋮
+│function parseLlmJsonResponse(text) {
+│  if (text == null || typeof text !== 'string') return null;
+│
+│  const t = normalizeLlmText(text);
+│  if (!t) return null;
+│
+│  const roots = allMarkdownFenceEndIndices(t);
+│  const nonZero = roots.filter((r) => r > 0);
+│  const ordered = nonZero.length ? [...nonZero, 0] : [0];
+│
+⋮
 
 lib\rag.js:
 ⋮
@@ -292,6 +276,19 @@ lib\rag.js:
 ⋮
 │function cosineSimilarity(a, b) {
 │  return dot(a, b) / (norm(a) * norm(b));
+⋮
+
+lib\unified-local-llm.js:
+⋮
+│async function listModels(baseUrl, opts = {}) {
+│  const a = adapterFromOpts(opts);
+│  if (a === 'cursor_cloud') {
+│    return cursorCloud.listModels(baseUrl, opts);
+│  }
+│  if (a === 'openai_compatible') {
+│    return openaiCompat.listModels(baseUrl, opts);
+│  }
+│  return ollama.listModels(baseUrl, opts);
 ⋮
 
 orchestrator.js:
@@ -386,6 +383,17 @@ public\parse-llm-json-browser.js:
 │      let next = -1;
 │      let useBrace = false;
 ⋮
+│  function parseLlmJsonResponse(text) {
+│    if (text == null || typeof text !== 'string') return null;
+│
+│    const t = normalizeLlmText(text);
+│    if (!t) return null;
+│
+│    const roots = allMarkdownFenceEndIndices(t);
+│    const nonZero = roots.filter((r) => r > 0);
+│    const ordered = nonZero.length ? [...nonZero, 0] : [0];
+│
+⋮
 
 src\file\validator.js:
 ⋮
@@ -417,12 +425,7 @@ src\file\validator.js:
 ⋮
 
 src\llm\ragi.js:
-⋮
 │function cosineSimilarity(a, b) {
-│  const dot = a.reduce((sum, x, i) => sum + x * b[i], 0);
-│  const normA = Math.sqrt(a.reduce((s, x) => s + x * x, 0));
-│  const normB = Math.sqrt(b.reduce((s, x) => s + x * x, 0));
-│  return dot / (normA * normB + 1e-10);
 ⋮
 
 src\utils\logger.js:
