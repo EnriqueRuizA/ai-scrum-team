@@ -1,0 +1,448 @@
+# Mapa del repositorio
+
+```
+
+agents\base-agent.js:
+⋮
+│class ClaudeWebAgent {
+│  constructor({ name, role, persona, credentials, sessionDir = './sessions', headless = false, slow
+│    this.name = name;
+│    this.role = role;
+│    this.persona = persona;
+│    this.credentials = credentials;
+│    this.sessionDir = sessionDir;
+│    this.headless = headless;
+│    this.slowMo = slowMo;
+│    this.userDataDir = userDataDir;
+⋮
+│  log(message, level = 'info') {
+│    const timestamp = new Date().toISOString();
+│    const logEntry = { timestamp, agent: this.name, role: this.role, level, message };
+│    this.emit('log', logEntry);
+│    console.log(`[${timestamp}] [${this.role}] ${message}`);
+⋮
+│  async waitForLoggedIn(timeout = 30000) {
+│    this.log('Esperando login completado...');
+│    const startTime = Date.now();
+│    
+│    while (Date.now() - startTime < timeout) {
+│      await this.page.waitForTimeout(2000);
+│      if (await this.checkIfLoggedIn()) {
+│        return true;
+│      }
+│      const url = this.page.url();
+⋮
+│  async waitForElement(selectors, timeout = 15000) {
+│    const combined = Array.isArray(selectors) ? selectors.join(', ') : selectors;
+│    return await this.page.waitForSelector(combined, { timeout });
+⋮
+
+lib\cursor-cloud-llm.js:
+⋮
+│async function listModels(baseUrl, opts = {}) {
+│  const origin = normalizeCursorApiOrigin(baseUrl);
+│  try {
+│    const data = await requestOpenAICompat(`${origin}/v0/models`, {
+│      method: 'GET',
+│      timeoutMs: 20000,
+│      errorPrefix: 'Cursor Cloud models',
+│      authHeaders: opts.authHeaders
+│    });
+│    const models = Array.isArray(data.models)
+⋮
+
+lib\default-team.js:
+⋮
+│function defaultTeam() {
+│  return VALID_ROLES.map((role) => ({
+│    id: role,
+│    role,
+│    enabled: true,
+│    label: DEFAULT_LABELS[role] || role
+│  }));
+⋮
+
+lib\deliverable.js:
+⋮
+│function collectFileObjects(arr) {
+│  if (!Array.isArray(arr)) return [];
+│  return arr
+│    .filter((f) => f && typeof f === 'object' && f.path && (f.code != null || f.content != null))
+│    .map((f) => ({
+│      path: String(f.path).replace(/^\//, ''),
+│      code: f.code != null ? String(f.code) : String(f.content)
+│    }));
+⋮
+│async function runNodeSyntaxCheck(appDir) {
+│  const results = { ok: true, files: [], errors: [] };
+│  const root = path.resolve(appDir);
+│  if (!(await fs.pathExists(root))) return results;
+│
+│  async function walk(dir) {
+│    const entries = await fs.readdir(dir, { withFileTypes: true }).catch(() => []);
+│    for (const ent of entries) {
+│      if (ent.name === 'node_modules' || ent.name === '.git') continue;
+│      const full = path.join(dir, ent.name);
+⋮
+│async function runNpmTestIfPresent(appDir, timeoutMs = 120000) {
+│  const pkgPath = path.join(appDir, 'package.json');
+│  if (!(await fs.pathExists(pkgPath))) return { ran: false, ok: true, message: 'Sin package.json' }
+│  const pkg = await fs.readJson(pkgPath);
+│  if (!pkg.scripts || !pkg.scripts.test) return { ran: false, ok: true, message: 'Sin script test' 
+│  const r = tryExec('npm test', { cwd: appDir, timeout: timeoutMs });
+│  return { ran: true, ok: r.ok, message: r.ok ? undefined : (r.stderr || r.message || 'npm test fal
+⋮
+
+lib\llm-connection-info.js:
+⋮
+│function hostFromBaseUrl(baseUrl) {
+│  try {
+│    const u = new URL(baseUrl);
+│    const port = u.port;
+│    const defaultPort = u.protocol === 'https:' ? '443' : '80';
+│    const p =
+│      port && port !== defaultPort && String(port) !== '80' && String(port) !== '443'
+│        ? `:${port}`
+│        : '';
+│    return `${u.hostname}${p}`;
+⋮
+│function inferPresetFromUrl(baseUrl) {
+│  try {
+│    const u = new URL(baseUrl);
+│    const h = (u.hostname || '').toLowerCase();
+│    if (h === 'localhost' || h === '127.0.0.1' || h === '::1') return 'ollama_local';
+│    if (/^192\.168\.\d+\.\d+$/.test(h)) return 'ollama_local';
+│    if (/^10\.\d+\.\d+\.\d+$/.test(h)) return 'ollama_local';
+│    if (h.endsWith('.local')) return 'ollama_local';
+│  } catch {
+│    /* ignore */
+⋮
+
+lib\llm-provider-presets.js:
+⋮
+│function baseUrlImpliesOpenAiCompatible(baseUrl) {
+│  const s = String(baseUrl || '').trim().replace(/\/+$/, '');
+│  if (!s) return false;
+│  return /\/v1$/i.test(s);
+⋮
+│function resolveHttpAdapterFromLocal(local = {}) {
+│  const explicit = String(local.httpAdapter || '').trim();
+│  const baseUrl = String(local.baseUrl || '').trim();
+│
+│  if (explicit === 'cursor_cloud') return 'cursor_cloud';
+│  if (explicit === 'openai_compatible') return 'openai_compatible';
+│  if (explicit === 'ollama') {
+│    if (baseUrlImpliesOpenAiCompatible(baseUrl)) return 'openai_compatible';
+│    return 'ollama';
+│  }
+│
+⋮
+
+lib\local-llm.js:
+⋮
+│function rawApiKeyFromLocalConfig(local = {}) {
+│  const envName = typeof local.apiKeyEnv === 'string' ? local.apiKeyEnv.trim() : '';
+│  if (envName && process.env[envName] != null) {
+│    const k = String(process.env[envName]).trim();
+│    if (k) return k;
+│  }
+│  if (local.apiKey != null) {
+│    const k = String(local.apiKey).trim();
+│    if (k && k !== '__REDACTED__') return k;
+│  }
+⋮
+│function requestOllama(urlString, opts) {
+│  const method = opts.method || 'POST';
+│  const timeoutMs = opts.timeoutMs;
+│  const signal = opts.signal;
+│  const errorPrefix = opts.errorPrefix || 'Ollama';
+│
+│  return new Promise((resolve, reject) => {
+│    const url = new URL(urlString);
+│    const isHttps = url.protocol === 'https:';
+│    const lib = isHttps ? https : http;
+│
+⋮
+│async function listModels(baseUrl = DEFAULT_BASE, opts = {}) {
+│  const url = (baseUrl || DEFAULT_BASE).replace(/\/$/, '');
+│  try {
+│    const data = await requestOllama(`${url}/api/tags`, {
+│      method: 'GET',
+│      timeoutMs: 20000,
+│      errorPrefix: 'Ollama tags',
+│      authHeaders: opts.authHeaders
+│    });
+│    const models = (data.models || []).map(m => m.name).filter(Boolean);
+⋮
+│function modelNameMatches(installedName, wanted) {
+│  if (!wanted || !installedName) return false;
+│  const w = String(wanted).trim();
+│  const n = String(installedName).trim();
+│  return n === w || n.startsWith(`${w}:`);
+⋮
+
+lib\openai-compatible-llm.js:
+⋮
+│function requestOpenAICompat(urlString, opts) {
+│  const method = opts.method || 'POST';
+│  const timeoutMs = opts.timeoutMs;
+│  const signal = opts.signal;
+│  const errorPrefix = opts.errorPrefix || 'OpenAI-compat';
+│
+│  return new Promise((resolve, reject) => {
+│    const url = new URL(urlString);
+│    const isHttps = url.protocol === 'https:';
+│    const lib = isHttps ? https : http;
+│
+⋮
+│function normalizeV1Base(baseUrl) {
+│  let u = (baseUrl || 'https://api.openai.com/v1').trim().replace(/\/$/, '');
+│  if (/\/v1$/i.test(u)) return u;
+│  if (/\/openai\/v1$/i.test(u)) return u;
+│  return `${u}/v1`;
+⋮
+│async function listModels(baseUrl, opts = {}) {
+│  const base = normalizeV1Base(baseUrl);
+│  try {
+│    const data = await requestOpenAICompat(`${base}/models`, {
+│      method: 'GET',
+│      timeoutMs: 20000,
+│      errorPrefix: 'OpenAI-compat models',
+│      authHeaders: opts.authHeaders
+│    });
+│    const models = (data.data || []).map((m) => m.id).filter(Boolean);
+⋮
+
+lib\parse-llm-json.js:
+⋮
+│function extractBalancedObject(str, braceIndex) {
+│  if (braceIndex < 0 || braceIndex >= str.length || str[braceIndex] !== '{') {
+│    return null;
+│  }
+│  let depth = 0;
+│  let inString = false;
+│  let escape = false;
+│
+│  for (let i = braceIndex; i < str.length; i++) {
+│    const c = str[i];
+│
+⋮
+│function extractBalancedArray(str, start) {
+│  if (start < 0 || str[start] !== '[') return null;
+│  let depth = 0;
+│  let inString = false;
+│  let escape = false;
+│
+│  for (let i = start; i < str.length; i++) {
+│    const c = str[i];
+│
+│    if (inString) {
+⋮
+│function normalizeLlmText(text) {
+│  let t = text.trim();
+│  if (t.charCodeAt(0) === 0xfeff) t = t.slice(1);
+│  return t;
+⋮
+│function allMarkdownFenceEndIndices(text) {
+│  const set = new Set();
+│
+│  const reJson = /```(?:json|JSON)\s*\r?\n?/g;
+│  let m;
+│  while ((m = reJson.exec(text)) !== null) {
+│    set.add(m.index + m[0].length);
+│  }
+│
+│  // ```\n o ```\r\n (bloque genérico; no coincide ```json\n porque tras ``` no hay solo espacios a
+⋮
+│function parseSliceWithRepair(slice) {
+│  try {
+│    return JSON.parse(slice);
+│  } catch {
+│    try {
+│      const fixed = slice.replace(/,(\s*[}\]])/g, '$1');
+│      if (fixed !== slice) return JSON.parse(fixed);
+│    } catch {
+│      /* ignore */
+│    }
+⋮
+│function tryParseBalancedJsonFrom(text, from) {
+│  if (from < 0) from = 0;
+│  if (from >= text.length) return null;
+│
+│  for (let pos = from; pos < text.length; ) {
+│    const openBrace = text.indexOf('{', pos);
+│    const openBracket = text.indexOf('[', pos);
+│
+│    let next = -1;
+│    let useBrace = false;
+⋮
+
+lib\rag.js:
+⋮
+│function chunkText(text, opts = {}) {
+│  const size = opts.chunkSize || CHUNK_SIZE;
+│  const overlap = opts.overlap || CHUNK_OVERLAP;
+│  const chunks = [];
+│  let start = 0;
+│  while (start < text.length) {
+│    let end = start + size;
+│    if (end < text.length) {
+│      const nextNewline = text.indexOf('\n', end);
+│      if (nextNewline !== -1 && nextNewline < end + 200) end = nextNewline + 1;
+⋮
+│function cosineSimilarity(a, b) {
+│  return dot(a, b) / (norm(a) * norm(b));
+⋮
+
+orchestrator.js:
+⋮
+│class ScrumMasterOrchestrator {
+│  constructor(config, credentials) {
+│    this.config = config;
+│    this.credentials = credentials;
+│    this.sessionId = uuidv4();
+│    this.outputDir = path.join('./outputs', `session-${this.sessionId.substring(0, 8)}`);
+│    this.sessionDir = config.agents?.sessionDir || './sessions';
+│    
+│    this.agents = {};
+│    this.team = normalizeTeam(config);
+⋮
+│  log(message, level = 'info', agent = 'ScrumMaster') {
+│    const entry = { timestamp: new Date().toISOString(), agent, level, message };
+│    this.state.logs.push(entry);
+│    this.emit('log', entry);
+│    console.log(`[${entry.timestamp}] [${agent}] [${level.toUpperCase()}] ${message}`);
+│    this.saveState();
+⋮
+
+prompts\index.js:
+⋮
+│const PROJECT_CONTEXT = (config) => `
+⋮
+
+public\parse-llm-json-browser.js:
+⋮
+│(function (global) {
+│  'use strict';
+│
+│  function extractBalancedObject(str, braceIndex) {
+│    if (braceIndex < 0 || braceIndex >= str.length || str[braceIndex] !== '{') {
+│      return null;
+│    }
+│    let depth = 0;
+│    let inString = false;
+│    let escape = false;
+│
+│    for (let i = braceIndex; i < str.length; i++) {
+│      const c = str[i];
+│
+⋮
+│  function extractBalancedArray(str, start) {
+│    if (start < 0 || str[start] !== '[') return null;
+│    let depth = 0;
+│    let inString = false;
+│    let escape = false;
+│
+│    for (let i = start; i < str.length; i++) {
+│      const c = str[i];
+│
+│      if (inString) {
+⋮
+│  function normalizeLlmText(text) {
+│    let t = text.trim();
+│    if (t.charCodeAt(0) === 0xfeff) t = t.slice(1);
+│    return t;
+⋮
+│  function allMarkdownFenceEndIndices(text) {
+│    const set = new Set();
+│
+│    const reJson = /```(?:json|JSON)\s*\r?\n?/g;
+│    let m;
+│    while ((m = reJson.exec(text)) !== null) {
+│      set.add(m.index + m[0].length);
+│    }
+│
+│    const rePlain = /```\s*\r?\n/g;
+⋮
+│  function parseSliceWithRepair(slice) {
+│    try {
+│      return JSON.parse(slice);
+│    } catch {
+│      try {
+│        const fixed = slice.replace(/,(\s*[}\]])/g, '$1');
+│        if (fixed !== slice) return JSON.parse(fixed);
+│      } catch {
+│        /* ignore */
+│      }
+⋮
+│  function tryParseBalancedJsonFrom(text, from) {
+│    if (from < 0) from = 0;
+│    if (from >= text.length) return null;
+│
+│    for (let pos = from; pos < text.length; ) {
+│      const openBrace = text.indexOf('{', pos);
+│      const openBracket = text.indexOf('[', pos);
+│
+│      let next = -1;
+│      let useBrace = false;
+⋮
+
+src\file\validator.js:
+⋮
+│class Validator {
+│  static async lint(file) {
+│    try {
+│      execSync(`npx eslint ${file} --quiet`, { stdio: 'pipe' });
+│      return { ok: true };
+│    } catch (e) {
+│      return { ok: false, error: e.stdout.toString() };
+│    }
+│  }
+│
+│  static async syntax(file) {
+│    try {
+│      await import(file);
+│      return { ok: true };
+│    } catch (e) {
+│      return { ok: false, error: e.message };
+│    }
+⋮
+│  static async test() {
+│    try {
+│      const out = execSync('npm test --silent', { encoding: 'utf8' });
+│      return { ok: true, output: out };
+│    } catch (e) {
+│      return { ok: false, error: e.stdout };
+│    }
+⋮
+
+src\llm\ragi.js:
+⋮
+│function cosineSimilarity(a, b) {
+│  const dot = a.reduce((sum, x, i) => sum + x * b[i], 0);
+│  const normA = Math.sqrt(a.reduce((s, x) => s + x * x, 0));
+│  const normB = Math.sqrt(b.reduce((s, x) => s + x * x, 0));
+│  return dot / (normA * normB + 1e-10);
+⋮
+
+src\utils\logger.js:
+⋮
+│module.exports = {
+│  info: (...msg) => {
+│    const timestamp = new Date().toISOString();
+│    const logMessage = `[INFO] [${timestamp}] ${msg.join(' ')}`;
+│    console.log(logMessage);
+│    // También escribir en archivo de log
+│    fs.appendFileSync(path.join(logDir, 'app.log'), `${logMessage}\n`);
+│  },
+│  debug: (...msg) => {
+│    const timestamp = new Date().toISOString();
+⋮
+│  error: (...msg) => {
+│    const timestamp = new Date().toISOString();
+│    const logMessage = `[ERROR] [${timestamp}] ${msg.join(' ')}`;
+│    console.error(logMessage);
+│    fs.appendFileSync(path.join(logDir, 'app.log'), `${logMessage}\n`);
+⋮
+
+```
