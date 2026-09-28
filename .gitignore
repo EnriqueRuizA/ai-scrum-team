@@ -1,3 +1,7 @@
 credentials.json
 .aider*
 /outputs/
+
+node_modules/
+dist/
+.aider*
