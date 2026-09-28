@@ -18,9 +18,8 @@ set "DASH_PORT=3000"
 :portFound
 echo Puerto del dashboard: %DASH_PORT%
 
-REM Evitar que el script "parezca que no funciona" por EADDRINUSE.
-REM Si ya hay un servidor escuchando en 3000, no arrancamos otro.
-powershell -NoProfile -Command "if (Get-NetTCPConnection -LocalPort 3000 -State Listen -ErrorAction SilentlyContinue) { Write-Host '[OK] Ya hay un servidor en http://localhost:3000 (puerto 3000 en uso).'; exit 0 } else { exit 1 }"
+REM Verificar si el puerto está en uso
+powershell -NoProfile -Command "if (Get-NetTCPConnection -LocalPort %DASH_PORT% -State Listen -ErrorAction SilentlyContinue) { Write-Host '[OK] Ya hay un servidor en http://localhost:%DASH_PORT% (puerto %DASH_PORT% en uso).'; exit 0 } else { exit 1 }"
 if %errorlevel%==0 (
   echo.
   echo IMPORTANTE: Usa el dashboard en el NAVEGADOR, no abras index.html con doble clic.
@@ -30,6 +29,17 @@ if %errorlevel%==0 (
   exit /b 0
 )
 
-echo El puerto 3000 está en uso.  No se puede iniciar el servidor.
+REM Si el puerto no está en uso, iniciar el servidor
+echo Iniciando servidor...
+node server.js
+if %errorlevel%==0 (
+  echo Servidor iniciado correctamente en http://localhost:%DASH_PORT%/
+  echo Abre: http://localhost:%DASH_PORT%/
+  start "" "http://localhost:%DASH_PORT%/"
+) else (
+  echo Error al iniciar el servidor.
+)
+
 endlocal
-exit /b 1
+exit /b %errorlevel%
+```
