@@ -6,3 +6,5 @@ node_modules/
 dist/
 .aider*
 GRAPH_MAP.md
+opencode.json
+docs/PLAN-EDITING_FLOW.md
