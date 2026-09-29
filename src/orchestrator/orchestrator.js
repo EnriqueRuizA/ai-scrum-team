@@ -1,6 +1,6 @@
 // src/orchestrator/orchestrator.js
 const { LocalAgent } = require('../agent/local.js');
-const prompts = require('../prompts/index.js');
+const prompts = require('../../prompts/index.js');
 const { v4: uuidv4 } = require('uuid');
 const fs = require('fs-extra');
 const path = require('path');
