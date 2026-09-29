@@ -1,0 +1,68 @@
+{
+  "description": "Schema of ai-scrum-team repository (as of 2026-09-29)",
+  "components": [
+    {"name": "orchestrator.js", "type": "Orchestrator", "path": "src/orchestrator/orchestrator.js"},
+    {"name": "server.js", "type": "API Server", "path": "server.js"},
+    {"name": "product-owner.js", "type": "Agent", "path": "agents/product-owner.js"},
+    {"name": "developer-qa.js", "type": "Agent", "path": "agents/developer-qa.js"},
+    {"name": "local-rag-agent.js", "type": "Agent", "path": "agents/local-rag-agent.js"},
+    {"name": "base-agent.js", "type": "Agent", "path": "agents/base-agent.js"},
+    {"name": "ollama.js", "type": "LLM Adapter", "path": "src/llm/ollama.js"},
+    {"name": "local-llm.js", "type": "LLM Adapter", "path": "src/llm/local-llm.js"},
+    {"name": "openai-compatible-llm.js", "type": "LLM Adapter", "path": "src/llm/openai-compatible-llm.js"},
+    {"name": "ragi.js", "type": "LLM Adapter", "path": "src/llm/ragi.js"},
+    {"name": "deliverable.js", "type": "Utility", "path": "lib/deliverable.js"},
+    {"name": "parse-llm-json.js", "type": "Utility", "path": "lib/parse-llm-json.js"},
+    {"name": "cursor-cloud-llm.js", "type": "Utility", "path": "lib/cursor-cloud-llm.js"},
+    {"name": "client-parse-llm.js", "type": "Utility", "path": "public/parse-llm-json-browser.js"}
+  ],
+  "dependencies": [
+    {"source": "src/orchestrator/orchestrator.js", "target": "server.js"},
+    {"source": "server.js", "target": "agents/*.js"},
+    {"source": "server.js", "target": "src/llm/*.js"},
+    {"source": "agents/*.js", "target": "lib/*.js"},
+    {"source": "agents/*.js", "target": "public/*.js"}
+  ],
+  "config": {
+    "project-config": "config/project-config.json",
+    "credentials": "config/credentials.json"
+  },
+  "diagram": {
+    "mermaid": "graph TD\n  ORCHESTRATOR[Orchestrator] --> SERVER[API Server]\n  SERVER --> AGENTS[Agents]\n  SERVER --> LLM[LLM Adapters]\n  SERVER --> UI[Client UI]\n  ORCHESTRATOR --> CONFIG[Project Config]\n  AGENTS --> AO[Product‑Owner Agent]\n  AGENTS --> DQA[Developer‑QA Agent]\n  AGENTS --> LRA[Local‑RAG Agent]\n  AGENTS --> BA[Base Agent]\n  LLM --> OLLAMA[Ollama Adapter]\n  LLM --> LOCALLLM[Local‑LLM Adapter]\n  LLM --> OPENAI[OpenAI‑compatible Adapter]\n  UI --> PUBLIC[public/*.js]", 
+    "graph": {
+      "nodes": [
+        {"id": "ORCHESTRATOR", "label": "Orchestrator"},
+        {"id": "SERVER", "label": "API Server"},
+        {"id": "AGENTS", "label": "Agents"},
+        {"id": "LLM", "label": "LLM Adapters"},
+        {"id": "UI", "label": "Client UI"},
+        {"id": "CONFIG", "label": "Project Config"},
+        {"id": "AO", "label": "Product‑Owner Agent"},
+        {"id": "DQA", "label": "Developer‑QA Agent"},
+        {"id": "LRA", "label": "Local‑RAG Agent"},
+        {"id": "BA", "label": "Base Agent"},
+        {"id": "OLLAMA", "label": "Ollama Adapter"},
+        {"id": "LOCALLLM", "label": "Local‑LLM Adapter"},
+        {"id": "OPENAI", "label": "OpenAI‑compatible Adapter"},
+        {"id": "PUBLIC", "label": "public/*.js"}
+      ],
+      "edges": [
+        {"source": "ORCHESTRATOR", "target": "SERVER"},
+        {"source": "SERVER", "target": "AGENTS"},
+        {"source": "SERVER", "target": "LLM"},
+        {"source": "SERVER", "target": "UI"},
+        {"source": "ORCHESTRATOR", "target": "CONFIG"},
+        {"source": "AGENTS", "target": "AO"},
+        {"source": "AGENTS", "target": "DQA"},
+        {"source": "AGENTS", "target": "LRA"},
+        {"source": "AGENTS", "target": "BA"},
+        {"source": "LLM", "target": "OLLAMA"},
+        {"source": "LLM", "target": "LOCALLLM"},
+        {"source": "LLM", "target": "OPENAI"},
+        {"source": "UI", "target": "PUBLIC"}
+      ]
+    }
+  },
+  "validationNotes": "Dependencies are inferred from import statements in source files. The diagram nodes correspond to all components listed.",
+  "timestamp": "2026-09-29T14:17:00Z"
+}
