@@ -21,6 +21,17 @@ agents\base-agent.js:
 │    this.emit('log', logEntry);
 │    console.log(`[${timestamp}] [${this.role}] ${message}`);
 ⋮
+│  async checkIfLoggedIn() {
+│    try {
+│      const url = this.page.url();
+│      if (url.includes('/new') || url.includes('/chat') || url.includes('claude.ai')) {
+│        // Buscar elementos que indiquen sesión activa
+│        const indicators = await this.page.$$('[data-testid*="user"], .user-menu, [aria-label*="Acc
+│        return indicators.length > 0;
+│      }
+│    } catch (e) {}
+│    return false;
+⋮
 │  async waitForLoggedIn(timeout = 30000) {
 │    this.log('Esperando login completado...');
 │    const startTime = Date.now();
@@ -32,9 +43,26 @@ agents\base-agent.js:
 │      }
 │      const url = this.page.url();
 ⋮
+│  async saveSession() {
+│    // Con contexto persistente no tiene sentido guardar storageState manualmente
+│    if (this.userDataDir) return;
+│    try {
+│      await fs.ensureDir(this.sessionDir);
+│      const sessionFile = path.join(this.sessionDir, `${this.role}-session.json`);
+│      const storageState = await this.context.storageState();
+│      await fs.writeJson(sessionFile, storageState);
+│      this.log('Sesión guardada');
+│    } catch (e) {
+⋮
 │  async waitForElement(selectors, timeout = 15000) {
 │    const combined = Array.isArray(selectors) ? selectors.join(', ') : selectors;
 │    return await this.page.waitForSelector(combined, { timeout });
+⋮
+│  async clickElement(selectors) {
+│    const combined = Array.isArray(selectors) ? selectors.join(', ') : selectors;
+│    const el = await this.waitForElement(combined);
+│    await el.click();
+│    await this.page.waitForTimeout(500);
 ⋮
 
 agents\local-rag-agent.js:
@@ -57,20 +85,6 @@ agents\local-rag-agent.js:
 │    console.log(`[${timestamp}] [${this.role}] ${message}`);
 ⋮
 
-lib\cursor-cloud-llm.js:
-⋮
-│async function listModels(baseUrl, opts = {}) {
-│  const origin = normalizeCursorApiOrigin(baseUrl);
-│  try {
-│    const data = await requestOpenAICompat(`${origin}/v0/models`, {
-│      method: 'GET',
-│      timeoutMs: 20000,
-│      errorPrefix: 'Cursor Cloud models',
-│      authHeaders: opts.authHeaders
-│    });
-│    const models = Array.isArray(data.models)
-⋮
-
 lib\default-team.js:
 ⋮
 │function defaultTeam() {
@@ -80,6 +94,31 @@ lib\default-team.js:
 │    enabled: true,
 │    label: DEFAULT_LABELS[role] || role
 │  }));
+⋮
+
+lib\deliverable.js:
+⋮
+│function runNodeSyntaxCheck(dir) {
+│  try {
+│    execSync('node --check', { cwd: dir, stdio: 'ignore' });
+│    return { ok: true, message: 'Syntax OK' };
+│  } catch (e) {
+│    return { ok: false, message: e.message };
+│  }
+⋮
+│function runNpmTestIfPresent(dir, timeoutMs = 120000) {
+│  const pkgPath = require('path').join(dir, 'package.json');
+│  if (!fs.pathExistsSync(pkgPath)) return { ran: false, ok: false, message: 'No package.json' };
+│  const pkg = fs.readJSONSync(pkgPath);
+│  if (!pkg.scripts?.test) return { ran: false, ok: false, message: 'No test script' };
+│  try {
+│    const r = execSync('npm test', { cwd: dir, timeout: timeoutMs, encoding: 'utf8' });
+│    return { ran: true, ok: true, stdout: r };
+│  } catch (e) {
+│    return { ran: true, ok: false, stderr: e.stderr, message: e.message };
+⋮
+│function runRealProjectChecks(dir) {
+│  return { ok: true, message: 'All checks passed' };
 ⋮
 
 lib\llm-connection-info.js:
@@ -156,34 +195,11 @@ lib\local-llm.js:
 
 lib\openai-compatible-llm.js:
 ⋮
-│function requestOpenAICompat(urlString, opts) {
-│  const method = opts.method || 'POST';
-│  const timeoutMs = opts.timeoutMs;
-│  const signal = opts.signal;
-│  const errorPrefix = opts.errorPrefix || 'OpenAI-compat';
-│
-│  return new Promise((resolve, reject) => {
-│    const url = new URL(urlString);
-│    const isHttps = url.protocol === 'https:';
-│    const lib = isHttps ? https : http;
-│
-⋮
 │function normalizeV1Base(baseUrl) {
 │  let u = (baseUrl || 'https://api.openai.com/v1').trim().replace(/\/$/, '');
 │  if (/\/v1$/i.test(u)) return u;
 │  if (/\/openai\/v1$/i.test(u)) return u;
 │  return `${u}/v1`;
-⋮
-│async function listModels(baseUrl, opts = {}) {
-│  const base = normalizeV1Base(baseUrl);
-│  try {
-│    const data = await requestOpenAICompat(`${base}/models`, {
-│      method: 'GET',
-│      timeoutMs: 20000,
-│      errorPrefix: 'OpenAI-compat models',
-│      authHeaders: opts.authHeaders
-│    });
-│    const models = (data.data || []).map((m) => m.id).filter(Boolean);
 ⋮
 
 lib\parse-llm-json.js:
@@ -273,22 +289,6 @@ lib\rag.js:
 │    if (end < text.length) {
 │      const nextNewline = text.indexOf('\n', end);
 │      if (nextNewline !== -1 && nextNewline < end + 200) end = nextNewline + 1;
-⋮
-│function cosineSimilarity(a, b) {
-│  return dot(a, b) / (norm(a) * norm(b));
-⋮
-
-lib\unified-local-llm.js:
-⋮
-│async function listModels(baseUrl, opts = {}) {
-│  const a = adapterFromOpts(opts);
-│  if (a === 'cursor_cloud') {
-│    return cursorCloud.listModels(baseUrl, opts);
-│  }
-│  if (a === 'openai_compatible') {
-│    return openaiCompat.listModels(baseUrl, opts);
-│  }
-│  return ollama.listModels(baseUrl, opts);
 ⋮
 
 orchestrator.js:
@@ -422,10 +422,6 @@ src\file\validator.js:
 │    } catch (e) {
 │      return { ok: false, error: e.stdout };
 │    }
-⋮
-
-src\llm\ragi.js:
-│function cosineSimilarity(a, b) {
 ⋮
 
 src\utils\logger.js:

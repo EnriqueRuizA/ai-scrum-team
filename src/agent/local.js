@@ -7,12 +7,15 @@ const { v4: uuidv4 } = require('uuid');
 const { logger } = require('../utils/logger.js');
 
 class LocalAgent {
-  constructor({ name, role, persona, config }) {
+  constructor({ name, role, persona, model, config }) {
     this.id = uuidv4();
     this.name = name;
     this.role = role;
     this.persona = persona;
+    this.model = model; // Modelo específico para este agente
     this.config = config;
+    // Usar modelo del agente si está definido, sino el global
+    const agentModel = this.model?.trim() || config.local?.model || '';
     this.llm = new OllamaClient({
       baseUrl: config.local.baseUrl || 'http://localhost:11434',
       apiKey: config.local.apiKey || ''
@@ -57,7 +60,7 @@ class LocalAgent {
       }
       
       const res = await this.llm.generate({ 
-        model: this.config.local.model, 
+        model: agentModel || this.config.local.model, 
         messages 
       });
       

@@ -1,4 +1,4 @@
-// src/orchestrator/orchestrator.js
+// src/orchestrator/orchestrator.js - Orchestrator con soporte para ordering de agentes y models por agente
 const { LocalAgent } = require('../agent/local.js');
 const prompts = require('../../prompts/index.js');
 const { v4: uuidv4 } = require('uuid');
@@ -6,12 +6,91 @@ const fs = require('fs-extra');
 const path = require('path');
 const { logger } = require('../utils/logger.js');
 
+/**
+ * Resuelve el orden de ejecución de los agentes basado en agentsConfig.json o config principal.
+ * @returns {string[]} Array de roles en el orden especificado o legacy order
+ */
+function resolveAgentOrder(config) {
+  // Primario: agentsConfig.json
+  let agentsOrderConfig = [];
+  try {
+    const configPath = path.join(__dirname, '../../config/agents-config.json');
+    if (fs.existsSync(configPath)) {
+      const configData = fs.readJsonSync(configPath);
+      agentsOrderConfig = configData.agentsOrder || [];
+    }
+  } catch (e) {
+    // Ignorar errores leyendo agents-config.json
+  }
+  
+  // Fallback: extraer IDs de agentsConfig.json o usar legacy order
+  let order = [];
+  if (agentsOrderConfig.length > 0) {
+    // El archivo puede tener IDs o roles - intentar mapear
+    for (const id of agentsOrderConfig) {
+      // Intentar convertir ID a role
+      const roleMapping = {
+        'productOwner': 'productOwner',
+        'developer': 'developer',
+        'qaTester': 'qaTester',
+        'scrumMaster': 'scrumMaster'
+      };
+      const role = roleMapping[id] || id;
+      if (role) order.push(role);
+    }
+  }
+  
+  // Si no hay orden, usar legacy order del config principal
+  if (order.length === 0) {
+    const team = config.agents?.team || [];
+    order = team
+      .filter(t => t.enabled !== false)
+      .map(t => t.role);
+  }
+  
+  return order;
+}
+
+/**
+ * Resuelve el modelo por agente: primero agent.model, después defaultModel, luego gpt-4o-mini
+ */
+function resolveAgentModel(config, agentRole) {
+  // Leer config de agents
+  const agentsConfigPath = path.join(__dirname, '../../config/agents-config.json');
+  const agentConfig = { defaultModel: 'gpt-4o-mini' };
+  
+  try {
+    if (fs.existsSync(agentsConfigPath)) {
+      const configData = fs.readJsonSync(agentsConfigPath);
+      agentConfig.defaultModel = configData.defaultModel || 'gpt-4o-mini';
+    }
+  } catch (e) {}
+  
+  // Mapear role a ID para buscar en config
+  const roleMapping = {
+    'productOwner': 'productOwner',
+    'developer': 'developer',
+    'qaTester': 'qaTester',
+    'scrumMaster': 'scrumMaster'
+  };
+  
+  const agentId = roleMapping[agentRole] || agentRole;
+  const agentSpecificConfig = config.agents?.agents?.[agentId] || {};
+  
+  // Priority: agent.model > config.defaultModel > gpt-4o-mini
+  return agentSpecificConfig.model || agentConfig.defaultModel || 'gpt-4o-mini';
+}
+
 class ScrumMasterOrchestrator {
   constructor(config, credentials) {
     this.config = config;
     this.credentials = credentials;
     this.sessionId = uuidv4();
     this.outputDir = path.join('./outputs', `session-${this.sessionId.substring(0, 8)}`);
+    this.sessionDir = config.agents?.sessionDir || './sessions';
+    
+    this.agents = {};
+    this.team = []; // Cambiado a array en lugar de objeto
     this.state = {
       sessionId: this.sessionId,
       status: 'idle',
@@ -20,37 +99,41 @@ class ScrumMasterOrchestrator {
       sprints: [],
       artifacts: {}
     };
-    this.agents = {};
+    
+    // Guardar orden resuelto
+    this.agentOrder = resolveAgentOrder(config);
+    
+    this.eventHandlers = {};
   }
 
   async init() {
-    logger.info('Inicializando orchestrator…');
+    logger.info('Inicializando orchestrator...');
     try {
       await fs.ensureDir(this.outputDir);
       
-      // Inicializar agentes en paralelo
+      // Inicializar agentes según el orden resuelto
       const agentPromises = [];
-      for (const member of this.config.agents.team) {
-        if (!member.enabled) continue;
+      
+      for (const role of this.agentOrder) {
+        const member = this.config.agents.team.find(m => m.role === role && m.enabled);
+        if (!member) continue;
         
         const persona = prompts[member.role] ? prompts[member.role](this.config) : `Rol ${member.role}`;
-        const agent = new LocalAgent({ name: member.label, role: member.role, persona, config: this.config });
+        const model = resolveAgentModel(this.config, role);
+        const agent = new LocalAgent({ 
+          name: member.label, 
+          role: member.role,
+          persona, 
+          model,
+          config: this.config 
+        });
         agentPromises.push(agent.init());
+        
+        this.agents[member.role] = agent;
       }
       
-      await Promise.all(agentPromises);
+      logger.info(`Agentes inicializados en orden: ${this.agentOrder.join(', ')}`);
       
-      // Asignar agentes al estado
-      for (const member of this.config.agents.team) {
-        if (!member.enabled) continue;
-        const agent = this.agents[member.role];
-        if (agent) {
-          this.agents[member.role] = agent;
-        }
-      }
-      
-      this.state.status = 'ready';
-      logger.info('Orchestrator listo.');
     } catch (error) {
       logger.error('Error inicializando orchestrator:', error.message);
       throw error;
@@ -66,44 +149,25 @@ class ScrumMasterOrchestrator {
     logger.info(`Iniciando sprint ${sprintNum}`);
     
     try {
-      // Ejecutar tareas en paralelo
-      const tasks = [
-        // 1. Sprint Planning (scrum master)
-        async () => {
-          const scrumMaster = this.agents.scrumMaster;
-          if (scrumMaster) {
-            const planningPrompt = `Planifica el sprint ${sprintNum}.`;
-            await scrumMaster.runTask(planningPrompt);
-          }
-        },
+      // Ejecutar tareas según el orden de los agentes
+      const tasks = [];
+      
+      for (const role of this.agentOrder) {
+        const agent = this.agents[role];
+        if (!agent) continue;
         
-        // 2. PO refina historias (productOwner)
-        async () => {
-          const po = this.agents.productOwner;
-          if (po) {
-            const refinePrompt = `Refina las historias del sprint ${sprintNum}.`;
-            await po.runTask(refinePrompt);
-          }
-        },
-        
-        // 3. Developer implementa
-        async () => {
-          const dev = this.agents.developer;
-          if (dev) {
-            const devPrompt = `Implementa las historias del sprint ${sprintNum}.`;
-            await dev.runTask(devPrompt);
-          }
-        },
-        
-        // 4. QA revisa
-        async () => {
-          const qa = this.agents.qaTester;
-          if (qa) {
-            const qaPrompt = `Ejecuta pruebas para el sprint ${sprintNum}.`;
-            await qa.runTask(qaPrompt);
-          }
-        }
-      ];
+        tasks.push(async () => {
+          const stepPrompts = {
+            productOwner: `Como Product Owner, para el sprint ${sprintNum}: refina el backlog, define historias y prioridades.`,
+            developer: `Como Developer, para el sprint ${sprintNum}: implementa las funcionalidades definidas.`,
+            qaTester: `Como QA, para el sprint ${sprintNum}: ejecuta pruebas y valida la implementación.`,
+            scrumMaster: `Como Scrum Master, para el sprint ${sprintNum}: gestiona impedimentos y asegura el progreso del equipo.`
+          };
+          
+          const prompt = stepPrompts[role] || `Actúa como ${role} para el sprint ${sprintNum}.`;
+          await agent.runTask(prompt);
+        });
+      }
 
       // Ejecutar todas las tareas en paralelo
       await Promise.all(tasks.map(task => task()));

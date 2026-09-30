@@ -38,11 +38,15 @@
       }
     ],
     "backend": "local",
-        "rag": {
-          "enabled": true,
-          "indexPaths": [".", "./src", "./prompts"],
-          "topK": 5
-        },
+    "rag": {
+      "enabled": true,
+      "indexPaths": [
+        ".",
+        "./src",
+        "./prompts"
+      ],
+      "topK": 5
+    },
     "headless": true,
     "slowMo": 100,
     "timeout": 180000,

@@ -7,8 +7,10 @@
     "start": "node server.js",
     "setup": "npx playwright install chromium --force",
     "dev": "node server.js --dev --inspect=9229",
-    "test": "jest",
-    "test:watch": "jest --watch"
+    "test": "node tests/run-all-tests.js",
+    "test:unit": "node tests/test-agent-order.js",
+    "test:integration": "node tests/test-agent-orchestrator.js",
+    "test:watch": "node tests/test-agent-order.js"
   },
   "dependencies": {
     "chalk": "^4.1.2",

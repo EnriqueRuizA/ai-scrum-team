@@ -1,11 +1,3 @@
-// orchestrator.js - Wrapper to load new local orchestrator
-const LocalOrchestrator = require('./src/orchestrator/orchestrator.js');
-module.exports = LocalOrchestrator;
-
-// Only local agents are needed when backend is "local"
-const { LocalRAGAgent } = require('./agents/local-rag-agent');
-// Eliminar las importaciones de los agentes obsoletos
-const { normalizeTeam, getEnabledRoles } = require('./lib/default-team');
 const {
   extractFilesFromImplementation,
   writeFilesToDir,

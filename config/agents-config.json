@@ -1,0 +1,12 @@
+{
+  "agentsOrder": ["productOwner", "developer", "qaTester", "scrumMaster"],
+  "defaultModel": "gpt-4o-mini",
+  "agents": {
+    "productOwner": {},
+    "developer": {
+      "model": "gpt-oss:20b"
+    },
+    "qaTester": {},
+    "scrumMaster": {}
+  }
+}
