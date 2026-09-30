@@ -146,7 +146,7 @@ function createServer() {
   // Si no, GET / sirve public/index.html (vista compacta) y nunca ves el dashboard de raíz con Settings/pestañas.
   const sendDashboardRoot = (req, res) => {
     const rootDash = path.join(__dirname, 'index.html');
-    const publicDash = path.join(__dirname, 'public', 'index.html');
+    const publicDash = path.join(__dirname, 'public', 'dashboard-local.html');
     fs.pathExists(rootDash)
       .then((existsRoot) => {
         if (existsRoot) return res.sendFile(rootDash);
@@ -765,6 +765,147 @@ function createServer() {
   const exists = await fs.pathExists(appDir);
   if (!exists) return res.status(404).json({ error: 'App final no encontrada' });
   res.json({ path: appDir, message: `App disponible en: ${path.resolve(appDir)}` });
+  });
+
+  /**
+   * Endpoint para actualizar el orden de los agentes.
+   * PATCH /api/config/order con body: { "agentsOrder": ["agentA", "agentB", ...] }
+   */
+  app.patch('/api/config/order', async (req, res) => {
+  try {
+    const current = await fs.readJson('./config/project-config.json').catch(() => ({}));
+    const { agentsOrder } = req.body;
+    
+    if (!Array.isArray(agentsOrder)) {
+      return res.status(400).json({ error: 'agentsOrder debe ser una array' });
+    }
+    
+    // Leer también la config de agentsOrder
+    let agentsOrderConfig = [];
+    try {
+      const agentsConfigPath = './config/agents-config.json';
+      if (await fs.pathExists(agentsConfigPath)) {
+        const agentsOrderData = await fs.readJson(agentsConfigPath);
+        agentsOrderConfig = agentsOrderData.agentsOrder || [];
+      }
+    } catch (e) {}
+    
+    // Actualizar en el config principal
+    const updated = {
+      ...current,
+      agents: {
+        ...current.agents,
+        agentsOrder: agentsOrder
+      }
+    };
+    
+    // Guardar en el archivo
+    await fs.writeJson('./config/project-config.json', updated, { spaces: 2 });
+    // También guardar en agents-config.json si existe
+    if (await fs.pathExists('./config/agents-config.json')) {
+      await fs.writeJson(
+        './config/agents-config.json',
+        {
+          ...agentsOrderData,
+          agentsOrder: agentsOrder
+        },
+        { spaces: 2 }
+      );
+    } else {
+      // Crear si no existe
+      await fs.writeJson('./config/agents-config.json', {
+        agentsOrder: agentsOrder,
+        defaultModel: current.agents?.defaultModel || 'gpt-4o-mini',
+        agents: {
+          productOwner: {},
+          developer: {},
+          qaTester: {},
+          scrumMaster: {}
+        }
+      }, { spaces: 2 });
+    }
+    
+    res.json({ success: true, agentsOrder });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+  });
+
+  /**
+   * Endpoint para obtener la lista de modelos soportados.
+   * GET /api/config/models
+   */
+  app.get('/api/config/models', async (req, res) => {
+  try {
+    const current = await fs.readJson('./config/project-config.json').catch(() => ({}));
+    const localCfg = current.agents?.local || {};
+    const baseUrl = (localCfg.baseUrl || 'http://localhost:11434').replace(/\/$/, '');
+    const authHeaders = authHeadersFromLocalConfig(localCfg);
+    
+    const result = await listModels(baseUrl, { authHeaders, local: localCfg });
+    
+    if (!result.ok) {
+      return res.status(502).json({
+        error: result.error,
+        models: [],
+        available: []
+      });
+    }
+    
+    const models = result.models || [];
+    res.json({
+      baseUrl,
+      models,
+      available: models,
+      defaultModel: current.agents?.defaultModel || 'gpt-4o-mini'
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message, models: [], available: [] });
+  }
+  });
+
+  /**
+   * Endpoint para configurar el modelo de un agente específico.
+   * PATCH /api/config/agents/{id}/model con body: { "model": "gpt-4o" }
+   */
+  app.patch('/api/config/agents/:id/model', async (req, res) => {
+  try {
+    const agentId = decodeURIComponent(req.params.id);
+    const { model } = req.body;
+    
+    if (!model || typeof model !== 'string') {
+      return res.status(400).json({ error: 'model debe ser una cadena válida' });
+    }
+    
+    // Leer config de agents y actualizar el modelo del agente
+    const agentsConfigPath = './config/agents-config.json';
+    if (!(await fs.pathExists(agentsConfigPath))) {
+      return res.status(404).json({ error: 'Config de agentes no encontrada' });
+    }
+    
+    const agentsConfig = await fs.readJson(agentsConfigPath);
+    
+    if (!agentsConfig.agents || !agentsConfig.agents[agentId]) {
+      return res.status(404).json({ error: `Agente «${agentId}» no encontrado` });
+    }
+    
+    const updatedAgentsConfig = {
+      ...agentsConfig,
+      agents: {
+        ...agentsConfig.agents,
+        [agentId]: {
+          ...agentsConfig.agents[agentId],
+          model: model
+        }
+      }
+    };
+    
+    await fs.writeJson(agentsConfigPath, updatedAgentsConfig, { spaces: 2 });
+    
+    res.json({ success: true, agentId, model });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
   });
 
 // === LÓGICA DE EJECUCIÓN ===
