@@ -72,28 +72,43 @@
       }
     ],
     "flow": [
-      { "role": "scrumMaster", "task": "plan" },
-      { "role": "productOwner", "task": "refinar" },
-      { "role": "developer", "task": "implementar" },
+      {
+        "role": "scrumMaster",
+        "task": "plan"
+      },
+      {
+        "role": "productOwner",
+        "task": "refinar"
+      },
+      {
+        "role": "developer",
+        "task": "implementar"
+      },
       {
         "role": "qaTester",
         "task": "probar",
         "loop": {
           "until": "qa.passed",
           "max": 3,
-          "fix": { "role": "developer", "task": "implementar" }
+          "fix": {
+            "role": "developer",
+            "task": "implementar"
+          }
         }
       },
-      { "role": "scrumMaster", "task": "revisar" }
+      {
+        "role": "scrumMaster",
+        "task": "revisar"
+      }
     ],
     "backend": "local",
     "opencode": {
       "mode": "run",
+      "model": "opencode/longcat-2.5-preview-free",
+      "variant": "high",
       "url": "http://127.0.0.1:4096",
-      "model": "ollama/qwen3.5:9b",
       "timeoutMs": 600000,
-      "auto": false,
-      "note": "Motor agentico (FASE 2). mode: run (opencode run por llamada, sin proceso previo) | serve (opencode serve persistente, mas rapido; START.bat lo levanta solo). model con formato proveedor/modelo de opencode; debe existir (ollama list u opencode models)."
+      "auto": false
     },
     "models": [
       {
@@ -107,6 +122,34 @@
       {
         "id": "opencode/muse-spark-1.3-contributor-free",
         "label": "Muse Spark (opencode cloud, gratis)"
+      },
+      {
+        "id": "opencode/big-pickle",
+        "label": "opencode/big-pickle (opencode cloud)"
+      },
+      {
+        "id": "opencode/ling-3.0-flash-fin-free",
+        "label": "opencode/ling-3.0-flash-fin-free (opencode cloud)"
+      },
+      {
+        "id": "opencode/longcat-2.5-preview-free",
+        "label": "opencode/longcat-2.5-preview-free (opencode cloud)"
+      },
+      {
+        "id": "opencode/mimo-v2.6-flash-free",
+        "label": "opencode/mimo-v2.6-flash-free (opencode cloud)"
+      },
+      {
+        "id": "opencode/nemotron-3-ultra-free",
+        "label": "opencode/nemotron-3-ultra-free (opencode cloud)"
+      },
+      {
+        "id": "opencode/nemotron-3.5-lightning-free",
+        "label": "opencode/nemotron-3.5-lightning-free (opencode cloud)"
+      },
+      {
+        "id": "opencode/space-bunny-free",
+        "label": "opencode/space-bunny-free (opencode cloud)"
       }
     ],
     "rag": {
