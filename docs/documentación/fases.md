@@ -20,7 +20,8 @@ Estado del `docs/PLAN-REESTRUCTURACION.txt` (v2). Cada fase = commits `phase-N`.
 - **U0** (commit `246ad6c`) — START.bat llega al servidor (paréntesis en echoes).
 - **U1** (commit `cd0e820`) — roles+flow+loops, skills, validador, endpoints.
 - **U2** (commit `dcbeb0e`) — UI 3 pestañas, sin legacy, endpoint flow borrado.
-- **UX tooltips** (en curso) — sistema CSS `[data-tip]` (~50), sin duplicados (57 IDs únicos).
+- **UX tooltips** (commit `bf48c5b`) — sistema CSS `[data-tip]` (~50), sin duplicados (57 IDs únicos).
+- **UX modelos** (en curso) — registro `agents.models`, sin orden en roles, selects por rol/motor, `GET /api/engine/ollama-models`.
 
 ## Pendientes
 

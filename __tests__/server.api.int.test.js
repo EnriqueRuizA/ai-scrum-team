@@ -229,6 +229,18 @@ describe('server API (integration)', () => {
     expect(res.body.url).toBe('http://127.0.0.1:4096');
   });
 
+  test('GET /api/engine/ollama-models devuelve array (haya Ollama o no)', async () => {
+    fs.readJson.mockResolvedValue({});
+    const { app } = createServer();
+    const res = await request(app).get('/api/engine/ollama-models');
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body.models)).toBe(true);
+    for (const m of res.body.models) {
+      expect(typeof m.id).toBe('string');
+      expect(m.id.startsWith('ollama/')).toBe(true);
+    }
+  });
+
   test('POST /api/config valida y rechaza maxSprints absurdo', async () => {
     fs.readJson.mockResolvedValue({
       scrum: { maxSprints: 3 },

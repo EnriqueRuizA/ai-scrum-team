@@ -42,8 +42,32 @@ function validateTeam(team, errors) {
   }
 }
 
+/** Registro de modelos (ids elegibles por roles y motor). */
+function validateModels(models, errors) {
+  if (models === undefined) return [];
+  if (!Array.isArray(models)) {
+    errors.push('agents.models: debe ser array');
+    return [];
+  }
+  const ids = [];
+  const seen = new Set();
+  models.forEach((m, i) => {
+    const p = `agents.models[${i}]`;
+    if (!isObject(m) || typeof m.id !== 'string' || !m.id.trim()) {
+      errors.push(`${p}.id: string no vacio requerido (formato proveedor/modelo)`);
+      return;
+    }
+    if (seen.has(m.id)) errors.push(`${p}.id: duplicado (${m.id})`);
+    seen.add(m.id);
+    ids.push(m.id);
+    if (m.label !== undefined && typeof m.label !== 'string') {
+      errors.push(`${p}.label: debe ser string`);
+    }
+  });
+  return ids;
+}
 /** U1: valida roles libres (id unico, mission salvo clasicos, skills validas). */
-function validateRoles(roles, errors) {
+function validateRoles(roles, errors, modelIds) {
   if (roles === undefined) return;
   if (!Array.isArray(roles) || roles.length === 0) {
     errors.push('agents.roles: array no vacio requerido');
@@ -67,6 +91,8 @@ function validateRoles(roles, errors) {
     }
     if (r.model !== undefined && typeof r.model !== 'string') {
       errors.push(`${p}.model: debe ser string (proveedor/modelo)`);
+    } else if (typeof r.model === 'string' && r.model.trim() && modelIds.length > 0 && !modelIds.includes(r.model.trim())) {
+      errors.push(`${p}.model: no esta en agents.models (${r.model.trim()})`);
     }
     const mission = String(r.mission || '').trim();
     if (!VALID_ROLES.includes(r.id) && mission.length < 10) {
@@ -136,7 +162,7 @@ function validateFlow(flow, roles, errors) {
   });
 }
 
-function validateOpencode(oc, errors) {
+function validateOpencode(oc, errors, modelIds) {
   if (oc === undefined) return;
   if (!isObject(oc)) {
     errors.push('agents.opencode: debe ser objeto');
@@ -150,6 +176,8 @@ function validateOpencode(oc, errors) {
   }
   if (oc.model !== undefined && typeof oc.model !== 'string') {
     errors.push('agents.opencode.model: debe ser string (proveedor/modelo)');
+  } else if (typeof oc.model === 'string' && oc.model.trim() && modelIds.length > 0 && !modelIds.includes(oc.model.trim())) {
+    errors.push(`agents.opencode.model: no esta en agents.models (${oc.model.trim()})`);
   }
   if (oc.timeoutMs !== undefined && !(typeof oc.timeoutMs === 'number' && oc.timeoutMs >= 1000)) {
     errors.push('agents.opencode.timeoutMs: numero >= 1000');
@@ -164,9 +192,10 @@ function validateProjectConfig(config) {
   if (!isObject(config)) return { ok: false, errors: ['config raiz: debe ser objeto'] };
 
   validateTeam(config.agents?.team, errors);
-  validateRoles(config.agents?.roles, errors);
+  const modelIds = validateModels(config.agents?.models, errors);
+  validateRoles(config.agents?.roles, errors, modelIds);
   validateFlow(config.agents?.flow, config.agents?.roles, errors);
-  validateOpencode(config.agents?.opencode, errors);
+  validateOpencode(config.agents?.opencode, errors, modelIds);
 
   const ms = config.scrum?.maxSprints;
   if (ms !== undefined && (!Number.isInteger(ms) || ms < 1 || ms > 20)) {

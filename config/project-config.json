@@ -95,6 +95,16 @@
       "auto": false,
       "note": "Motor agentico (FASE 2). mode: run (opencode run por llamada, sin proceso previo) | serve (opencode serve persistente, mas rapido; START.bat lo levanta solo). model con formato proveedor/modelo de opencode; debe existir (ollama list u opencode models)."
     },
+    "models": [
+      {
+        "id": "ollama/qwen3.5:9b",
+        "label": "Qwen 3.5 9B (Ollama local)"
+      },
+      {
+        "id": "ollama/gpt-oss:20b",
+        "label": "GPT-OSS 20B (Ollama local)"
+      }
+    ],
     "rag": {
       "enabled": true,
       "indexPaths": [

@@ -116,4 +116,31 @@ describe('validateProjectConfig U1 (roles/flow)', () => {
     expect(validateProjectConfig({ agents: { roles: [], flow: [] } }).ok).toBe(false);
     expect(validateProjectConfig({ agents: {} }).ok).toBe(true);
   });
+
+  test('registro de modelos: duplicados, ids vacios y referencias', () => {
+    const c = {
+      agents: {
+        roles: [{ id: 'a', label: 'A', mission: 'Mision valida larga', model: 'x/y', skills: [], enabled: true }],
+        flow: [{ role: 'a', task: 'libre' }],
+        models: [{ id: 'x/y', label: 'XY' }, { id: 'x/y' }, { id: '' }],
+        opencode: { mode: 'run', model: 'no/existe' }
+      }
+    };
+    const r = validateProjectConfig(c);
+    expect(r.ok).toBe(false);
+    const j = r.errors.join('\n');
+    expect(j).toMatch('agents.models[1].id: duplicado');
+    expect(j).toMatch('agents.models[2].id');
+    expect(j).toMatch('agents.opencode.model: no esta en agents.models');
+    const ok = validateProjectConfig({
+      agents: {
+        roles: [{ id: 'a', label: 'A', mission: 'Mision valida larga', model: '', skills: [], enabled: true }],
+        flow: [{ role: 'a', task: 'libre' }],
+        models: [{ id: 'x/y' }],
+        opencode: { mode: 'run', model: 'x/y' }
+      }
+    });
+    expect(ok.errors).toEqual([]);
+    expect(ok.ok).toBe(true);
+  });
 });

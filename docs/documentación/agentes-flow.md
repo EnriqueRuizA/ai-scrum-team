@@ -9,8 +9,13 @@ Pestaña **Agentes** (U2) + modelo `agents.roles[]`/`agents.flow[]` (U1).
 
 ## UI (tab-agents)
 
-- Cards por rol: id (fijo si clásico), nombre, misión, modelo, skills (comas),
-  toggle activo, ↑↓, ✕, "+ Nuevo rol" (id `rol-N`).
+- Cards por rol: id (fijo si clásico), nombre, misión, modelo (select del
+  registro), skills (comas), toggle activo, ✕, "+ Nuevo rol" (id `rol-N`).
+  Sin orden en roles (el orden lo manda el flow, no la lista).
+- **Modelos** (`agents.models[]`): registro `{id, label}` con locales
+  (`ollama/…`) y cloud (`opencode/…-free`); editor en Ajustes + botón
+  "Cargar de Ollama" (`GET /api/engine/ollama-models`, sin duplicados);
+  selects por rol y motor; el validador rechaza ids fuera del registro.
 - Flow: filas rol + tarea + loop (`until`, `max` 1–10, fix rol/tarea) + `onError`,
   ↑↓, ✕, "+ Añadir paso". Tira viva = el flow tal cual se ejecutará.
 - Un solo Guardar → `POST /api/config {agents:{roles, flow}}` (validado, 400

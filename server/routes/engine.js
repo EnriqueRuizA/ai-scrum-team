@@ -7,6 +7,29 @@ const { listPresetsForApi, resolveHttpAdapterFromLocal } = require('../../lib/ll
 const { verifyLlmModels } = require('../../lib/unified-local-llm');
 const { mergeLocalForOllamaTest, listModelsEndpointLabel } = require('../helpers');
 function registerEngine(app, _ctx) {
+  /** Modelos instalados en Ollama local (`ollama list`) para importar al registro. */
+  app.get('/api/engine/ollama-models', async (req, res) => {
+    try {
+      const { spawnSafe } = require('../../utils/exec-safe');
+      const r = await spawnSafe('ollama', ['list'], { timeoutMs: 20000 });
+      if (r.code !== 0) {
+        return res.json({
+          models: [],
+          hint: 'Ollama no responde. ¿Esta `ollama serve` en marcha?'
+        });
+      }
+      const models = r.stdout
+        .split('\n')
+        .slice(1)
+        .map((l) => (l.trim().split(/\s+/)[0] || '').trim())
+        .filter((n) => n && n !== 'NAME')
+        .map((name) => ({ id: `ollama/${name}`, label: `${name} (Ollama local)` }));
+      res.json({ models });
+    } catch (e) {
+      res.json({ models: [], hint: `No se pudo ejecutar ollama list: ${e.message}` });
+    }
+  });
+
   /** Skills descubiertas en el workspace (para el desplegable de roles). */
   app.get('/api/skills', async (req, res) => {
     try {

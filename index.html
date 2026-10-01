@@ -1348,8 +1348,17 @@
             </select>
           </div>
           <div class="form-group">
-            <label class="form-label" data-tip="Formato proveedor/modelo. Local gratis: ollama/nombre. De opencode: opencode/…-free. Verificable con opencode models">Modelo (proveedor/modelo)</label>
-            <input class="form-input" type="text" id="oc_model" placeholder="ollama/qwen3.5:9b" autocomplete="off" />
+            <label class="form-label" data-tip="Modelo por defecto. Los roles pueden usar otro de la lista">Modelo por defecto</label>
+            <select class="form-input" id="oc_model"></select>
+          </div>
+        </div>
+        <div class="form-group" style="margin-bottom:8px">
+          <label class="form-label" data-tip="Añade aquí todos los modelos que quieras usar: locales (ollama/…) y cloud de opencode (opencode/…-free). Luego elígelos por rol">Modelos disponibles (locales y cloud)</label>
+          <div id="modelsEditor" style="display:flex; flex-direction:column; gap:6px; margin-bottom:8px"></div>
+          <div style="display:flex; gap:8px; align-items:center">
+            <button type="button" class="btn btn-secondary" onclick="addModelRow()" style="padding:4px 10px;font-size:10px" data-tip="Añade un id de modelo (formato proveedor/modelo, p. ej. opencode/mimo-v2.6-flash-free)">+ Añadir modelo</button>
+            <button type="button" class="btn btn-secondary" onclick="importOllamaModels()" style="padding:4px 10px;font-size:10px" data-tip="Lee ollama list e importa tus modelos instalados al registro (sin duplicados)">↻ Cargar de Ollama</button>
+            <span id="ollama_import_result" style="font-size:10px;color:var(--text-dim)"></span>
           </div>
         </div>
         <div class="form-group" style="margin-bottom:8px">
@@ -1515,6 +1524,125 @@
     }
   }
 
+  /** Modelos disponibles (registro agents.models). */
+  function currentModelsList() {
+    if (Array.isArray(window._modelsList) && window._modelsList.length) return window._modelsList;
+    return [{ id: 'ollama/qwen3.5:9b', label: 'Qwen 3.5 9B (Ollama local)' }];
+  }
+
+  function modelOptionsHtml(selected, emptyLabel) {
+    const list = currentModelsList();
+    let html = `<option value="">— ${emptyLabel || 'motor por defecto'} —</option>`;
+    for (const m of list) {
+      const label = m.label && m.label !== m.id ? `${m.label} (${m.id})` : m.id;
+      html += `<option value="${escHtml(m.id)}"${m.id === selected ? ' selected' : ''}>${escHtml(label)}</option>`;
+    }
+    if (selected && !list.some((m) => m.id === selected)) {
+      html += `<option value="${escHtml(selected)}" selected>${escHtml(selected)} (no registrado)</option>`;
+    }
+    return html;
+  }
+
+  /** Rellena todos los selects de modelo (motor + roles) preservando valores. */
+  function renderModelSelects() {
+    const ocSel = document.getElementById('oc_model');
+    if (ocSel) {
+      const cur = ocSel.value || ocSel.dataset.want || '';
+      ocSel.innerHTML = modelOptionsHtml(cur, 'elige modelo');
+    }
+    document.querySelectorAll('#rolesEditor .role-model').forEach((sel) => {
+      const cur = sel.value || sel.dataset.want || '';
+      sel.innerHTML = modelOptionsHtml(cur, 'motor por defecto');
+    });
+  }
+
+  function readModelsFromEditor() {
+    const host = document.getElementById('modelsEditor');
+    if (!host) return currentModelsList();
+    return Array.from(host.querySelectorAll('.model-row'))
+      .map((row) => ({
+        id: (row.querySelector('.model-id')?.value || '').trim(),
+        label: (row.querySelector('.model-label')?.value || '').trim()
+      }))
+      .filter((m) => m.id)
+      .map((m) => (m.label ? m : { id: m.id }));
+  }
+
+  function modelRowEl(m) {
+    const d = document.createElement('div');
+    d.className = 'model-row';
+    d.style.cssText = 'display:grid; grid-template-columns:2fr 2fr auto; gap:8px; align-items:end';
+    d.innerHTML = `
+      <input class="form-input model-id" style="padding:6px 8px;font-size:11px" placeholder="ollama/… u opencode/…-free" />
+      <input class="form-input model-label" style="padding:6px 8px;font-size:11px" placeholder="Etiqueta (opcional)" />
+      <button type="button" class="btn btn-secondary model-del" style="padding:4px 10px;font-size:10px">✕</button>`;
+    d.querySelector('.model-id').value = m.id || '';
+    d.querySelector('.model-label').value = m.label || '';
+    d.querySelector('.model-del').onclick = () => {
+      d.remove();
+      syncModelsToSelects();
+    };
+    d.querySelector('.model-id').addEventListener('input', syncModelsToSelects);
+    return d;
+  }
+
+  function renderModelsEditor(models) {
+    const host = document.getElementById('modelsEditor');
+    if (!host) return;
+    host.innerHTML = '';
+    const list = Array.isArray(models) && models.length ? models : currentModelsList();
+    window._modelsList = list.map((m) => ({ id: m.id, label: m.label || '' }));
+    list.forEach((m) => host.appendChild(modelRowEl(m)));
+    renderModelSelects();
+  }
+
+  function addModelRow() {
+    const host = document.getElementById('modelsEditor');
+    if (!host) return;
+    host.appendChild(modelRowEl({ id: '', label: '' }));
+  }
+
+  /** Importa `ollama list` al registro (sin duplicados). */
+  async function importOllamaModels() {
+    const el = document.getElementById('ollama_import_result');
+    if (el) el.textContent = 'Leyendo ollama list…';
+    try {
+      const res = await fetch('/api/engine/ollama-models');
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'HTTP ' + res.status);
+      const found = Array.isArray(data.models) ? data.models : [];
+      if (found.length === 0) {
+        if (el) el.textContent = data.hint || 'Sin modelos en Ollama.';
+        if (data.hint) notify(data.hint, 'warning');
+        return;
+      }
+      const have = new Set(readModelsFromEditor().map((m) => m.id));
+      let added = 0;
+      for (const m of found) {
+        if (!m.id || have.has(m.id)) continue;
+        const host = document.getElementById('modelsEditor');
+        if (host) host.appendChild(modelRowEl({ id: m.id, label: m.label || '' }));
+        have.add(m.id);
+        added += 1;
+      }
+      syncModelsToSelects();
+      if (el) el.textContent = added > 0 ? `✓ ${added} modelo(s) importados` : 'Ya estaban todos.';
+      notify(added > 0 ? `${added} modelo(s) de Ollama importados. Guarda ajustes para persistir.` : 'Sin modelos nuevos.', 'success');
+    } catch (e) {
+      if (el) el.textContent = 'Error';
+      notify('No se pudo leer Ollama: ' + e.message, 'error');
+    }
+  }
+
+  /** Tras editar la lista, actualiza selects sin perder lo elegido. */
+  function syncModelsToSelects() {
+    window._modelsList = readModelsFromEditor();
+    if (!window._modelsList.length) {
+      window._modelsList = [{ id: 'ollama/qwen3.5:9b', label: 'Qwen 3.5 9B (Ollama local)' }];
+    }
+    renderModelSelects();
+  }
+
   /** Lee roles del editor (pestaña Agentes). */
   function readRolesFromEditor() {
     const host = document.getElementById('rolesEditor');
@@ -1574,23 +1702,16 @@
         <textarea class="form-input role-mission" rows="2" placeholder="Qué hace este rol en 1-2 líneas…">${escHtml(r.mission || '')}</textarea></div>
       <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:10px">
         <div class="form-group" style="margin:0"><label class="form-label" data-tip="Modelo solo para este rol. Vacío = el del motor">Modelo (vacío = el del motor)</label>
-          <input class="form-input role-model" value="${escHtml(r.model || '')}" placeholder="ollama/qwen3.5:9b" /></div>
+          <select class="form-input role-model"></select></div>
         <div class="form-group" style="margin:0"><label class="form-label" data-tip="Skills de opencode que este rol puede cargar, separadas por comas. Deben existir en .opencode/skills">Skills (separadas por comas)</label>
           <input class="form-input role-skills" value="${escHtml((r.skills || []).join(', '))}" placeholder="mis-docs, git-release" /></div>
       </div>
       <details style="font-size:11px;margin-bottom:10px"><summary style="cursor:pointer;color:var(--text-dim)">Instrucciones extra</summary>
         <textarea class="form-input role-extra" rows="2" style="margin-top:6px" placeholder="Opcional: matices para este rol…">${escHtml(r.extra || '')}</textarea></details>
       <div style="display:flex;gap:6px">
-        <button type="button" class="btn btn-secondary role-up" data-tip="Subir este rol en la lista" style="padding:4px 10px;font-size:10px">↑</button>
-        <button type="button" class="btn btn-secondary role-down" data-tip="Bajar este rol en la lista" style="padding:4px 10px;font-size:10px">↓</button>
         <button type="button" class="btn btn-secondary role-del" data-tip="Quitar este rol. Los pasos del flow que lo usen fallarán al guardar" style="padding:4px 10px;font-size:10px">✕ Quitar</button>
       </div>`;
-    d.querySelector('.role-up').onclick = () => {
-      if (d.previousElementSibling) d.parentNode.insertBefore(d, d.previousElementSibling);
-    };
-    d.querySelector('.role-down').onclick = () => {
-      if (d.nextElementSibling) d.parentNode.insertBefore(d.nextElementSibling, d);
-    };
+    d.querySelector('.role-model').dataset.want = r.model || '';
     d.querySelector('.role-del').onclick = () => {
       d.remove();
       renderFlowRoleOptions();
@@ -1607,6 +1728,7 @@
     host.innerHTML = '';
     (Array.isArray(roles) && roles.length ? roles : defaultRoles()).forEach((r) => host.appendChild(roleCardEl(r)));
     renderFlowRoleOptions();
+    renderModelSelects();
   }
 
   function addRoleCard() {
@@ -2839,8 +2961,16 @@
       };
       const ocMode = document.getElementById('oc_mode');
       if (ocMode) ocMode.value = oc.mode === 'serve' ? 'serve' : 'run';
+      // Modelos primero (el select del motor y los de roles dependen de la lista).
+      window._modelsList = Array.isArray(config.agents?.models) && config.agents.models.length
+        ? config.agents.models.map((m) => ({ id: m.id, label: m.label || '' }))
+        : [{ id: 'ollama/qwen3.5:9b', label: 'Qwen 3.5 9B (Ollama local)' }];
+      renderModelsEditor(window._modelsList);
       const ocModel = document.getElementById('oc_model');
-      if (ocModel) ocModel.value = oc.model || 'ollama/qwen3.5:9b';
+      if (ocModel && oc.model) {
+        ocModel.dataset.want = oc.model;
+        renderModelSelects();
+      }
       const ocUrl = document.getElementById('oc_url');
       if (ocUrl) ocUrl.value = oc.url || 'http://127.0.0.1:4096';
       refreshEngineHealth();
@@ -2881,9 +3011,14 @@
     // U2: solo proyecto + motor. Roles/flow se guardan en la pestaña Agentes;
     // el resto (backend, local, outputs...) se preserva por merge en el servidor.
     const extra = window._opencodeExtra || {};
+    const models = readModelsFromEditor();
+    window._modelsList = models.length ? models : currentModelsList();
     const opencode = {
       mode: document.getElementById('oc_mode')?.value === 'serve' ? 'serve' : 'run',
-      model: document.getElementById('oc_model')?.value.trim() || 'ollama/qwen3.5:9b',
+      model:
+        document.getElementById('oc_model')?.value.trim() ||
+        (window._modelsList[0] && window._modelsList[0].id) ||
+        'ollama/qwen3.5:9b',
       url: document.getElementById('oc_url')?.value.trim() || 'http://127.0.0.1:4096'
     };
     if (extra.timeoutMs !== undefined) opencode.timeoutMs = extra.timeoutMs;
@@ -2898,7 +3033,8 @@
       },
       scrum: { maxSprints: parseInt(document.getElementById('proj_sprints').value) },
       agents: {
-        opencode
+        opencode,
+        models: window._modelsList
       }
     };
     
