@@ -25,7 +25,8 @@ Estado del `docs/PLAN-REESTRUCTURACION.txt` (v2). Cada fase = commits `phase-N`.
 - **UX cloud+variant** (commit `e537be4`) — `GET /api/engine/opencode-models` (muse-spark verificado sin login).
 - **UX conversaciones** (commit `c25e0c0`) — evento WS `exchange`, `GET /api/steps/:session`, vista Conversación, `variant` global/por rol.
 - **UX variantes** (commit `27658a9`) — catálogo con modificadores por modelo, datalists en UI.
-- **U3** (en curso) — verificación viva real OK (2 llamadas, 6 artefactos), sin endpoints huérfanos, ADR-0002.
+- **U3** (commit `dc39fb1`) — verificación viva real OK, sin huérfanos, ADR-0002.
+- **FASE 7** (en curso) — README/GUIA/TROUBLESHOOTING/ADR-0003/CHANGELOG, bump 1.1.0.
 - Nota: un sprint completo en modo `run` tarda >15 min (cold-boot por paso + loops); para verificación viva usar flujos mínimos o `serve`.
 
 ## Pendientes

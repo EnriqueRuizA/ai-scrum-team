@@ -1,104 +1,35 @@
-# AI Scrum Team - Dashboard Simplificado para Ollama Local
+# AI Scrum Team — Uso local (sin nube de pago)
 
-Un equipo de agentes AI que trabajan juntos usando **solo Ollama (local)** sin necesitar cuentas cloud.
+> Documento corto. La guía completa está en [`README.md`](README.md) y el uso
+> día a día en [`docs/GUIA-USO.md`](docs/GUIA-USO.md).
 
-## 🚀 Cómo comenzar
+Todo funciona con **modelos gratuitos**: Ollama en tu PC y/o modelos free de
+opencode. No necesitas API keys de OpenAI ni de Claude.
 
-```bat
-# 1. Asegúrate de que Ollama esté corriendo
-ollama serve
+## Requisitos
 
-# 2. Instala el modelo por defecto (ya viene configurado)
-ollama pull llama3.2
+- Node.js >= 20
+- [opencode](https://opencode.ai) instalado (`opencode --version` responde)
+- [Ollama](https://ollama.com) con al menos un modelo, p.ej.:
+  `ollama pull qwen3.5:9b` (o usa un modelo cloud `opencode/*-free`)
 
-# 3. Instala modelo RAG (opcional)
-ollama pull nomic-embed-text
-
-# 4. Abre el dashboard automáticamente al iniciar el servidor
-node server.js
-```
-
-## 📋 Dashboard simplificado
-
-- **URL de Ollama**: `http://localhost:11434` (personalizable)  
-- **Modelo por defecto**: `llama3.2` (configurable en config/agents-config.json)  
-- **RAG**: Opcional - indexa tus archivos para búsqueda contextual  
-
-## 🤖 Agentes disponibles
-
-| Rol        | Nombre ejemplo   | Descripción                          |
-|------------|------------------|--------------------------------------|
-| Product Owner | Sarah           | Gestiona el backlog y prioridades   |
-| Developer  | Alex             | Implementa funcionalidades           |
-| QA Tester  | María            | Ejecuta pruebas                     |
-| Scrum Master | Carlos          | Coordina el equipo y elimina bloqueos|
-
-## 📁 Estructura de archivos
-
-```
-├── config/project-config.json        # Configuración del proyecto
-├── config/agents-config.json         # Orden de agentes + modelos por agente (nuevo)
-├── public/dashboard-local.html       # Dashboard simplificado para Ollama
-├── orchestrator.js                   # Lógica del orquestrador
-└── server.js                         # Servidor Express + WebSocket
-```
-
-## 🆕 Nuevas características
-
-### 1. **Orden de agentes personalizado** (`agentsConfig.json`)
-
-Define el orden en que se ejecutan los agentes:
-
-```json
-{
-  "agentsOrder": ["productOwner", "developer", "qaTester", "scrumMaster"],
-  "defaultModel": "gpt-4o-mini",
-  "agents": {
-    "productOwner": {},
-    "developer": { "model": "gpt-4o" },
-    "qaTester": {},
-    "scrumMaster": {}
-  }
-}
-```
-
-### 2. **Endpoints de API nuevos**
-
-- `PATCH /api/config/order` - Cambia el orden de agentes  
-- `GET /api/config/models` - Lista modelos disponibles  
-- `PATCH /api/config/agents/{id}/model` - Configura modelo por agente  
-
-### 3. **Dashboard simplificado**
-
-Solo lo esencial para Ollama:
-- Configuración de conexión
-- Selección de modelo por defecto
-- Activación de RAG (opcional)
-- Probar conexión con un clic
-
-## ⚡ Instalación rápida
+## Arranque
 
 ```bat
-# Ollama
-curl -fsSL https://ollama.com/install.ps1 | iex
-
-# Modelos
-ollama pull llama3.2
-ollama pull nomic-embed-text
-
-# Servidor
-npm install
-node server.js
+START.bat
 ```
 
-## 📝 Notas
+Eso ejecuta el preflight (`node setup.js`: config válida, motor, modelo),
+levanta `opencode serve` solo si tu modo es `serve`, y abre
+http://127.0.0.1:3000.
 
-- El sistema usa **primero**: `agentsConfig.model` por agente  
-- Luego: `agentConfig.defaultModel`  
-- Finalmente: `gpt-4o-mini` (fallback)
+1. Mira el pill **Motor** (debe decir OK).
+2. Revisa **Agentes** (roles + flujo clásico por defecto) si quieres cambiar algo.
+3. Pulsa **Iniciar**.
 
-- Por defecto se usa el modelo de Ollama configurado en `project-config.json`
+## Notas
 
----
-
-**Preparado por AI-Scrum Team** 🤖
+- Sin credenciales en el proyecto: la auth vive en opencode
+  (`opencode auth login` solo si usas modelos cloud con login).
+- Para parar: `STOP.bat` (añade `--with-engine` para parar también el serve).
+- Si algo falla, mira [`docs/TROUBLESHOOTING.md`](docs/TROUBLESHOOTING.md).
