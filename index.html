@@ -1798,7 +1798,7 @@
       const s = document.createElement('script');
       s.src = 'https://cdn.jsdelivr.net/npm/mermaid@10.6.1/dist/mermaid.min.js';
       s.onload = () => {
-        mermaid.initialize({ startOnLoad: false, theme: 'dark', securityLevel: 'loose' });
+        mermaid.initialize({ startOnLoad: false, theme: 'dark', securityLevel: 'strict' });
         resolve();
       };
       s.onerror = () => reject(new Error('No se pudo cargar Mermaid'));
@@ -1820,6 +1820,12 @@
       const res = await fetch('/api/flow/diagram');
       const data = await res.json().catch(() => ({}));
       const def = data.mermaid || 'flowchart TD\n  E[sin datos]';
+      // FASE 3: el diagrama deriva de etiquetas editables en Settings.
+      // Solo se aceptan diagramas flowchart/graph sin HTML ni manejadores.
+      if (!/^\s*(flowchart|graph)\b/.test(def) || /[<>"']|on\w+\s*=|javascript:/i.test(def)) {
+        host.innerHTML = '<p class="artifact-muted">Diagrama rechazado (contenido no permitido).</p>';
+        return;
+      }
       const id = 'mmd-flow-' + Date.now();
       const { svg } = await mermaid.render(id, def);
       host.innerHTML = svg;
@@ -2284,7 +2290,7 @@
     item.className = 'artifact-item';
     item.innerHTML = `
       <span class="artifact-icon">${icon}</span>
-      <span class="artifact-name">${name}</span>
+      <span class="artifact-name">${escHtml(name)}</span>
       <span class="artifact-new">NEW</span>
     `;
     item.onclick = () => showArtifact(data);
@@ -2473,8 +2479,8 @@
           ${sprints.filter(s => s.status === status).map(s => `
             <div class="sprint-item">
               <div class="sprint-item-id">SPRINT-${s.number}</div>
-              <div class="sprint-item-title">${s.plan?.parsed?.sprint?.goal || `Sprint ${s.number}`}</div>
-              <span class="priority-badge priority-HIGH">${s.status}</span>
+              <div class="sprint-item-title">${escHtml(s.plan?.parsed?.sprint?.goal || `Sprint ${s.number}`)}</div>
+              <span class="priority-badge priority-HIGH">${escHtml(s.status)}</span>
             </div>
           `).join('')}
         </div>
@@ -2503,7 +2509,7 @@
         <div style="font-size:14px">${icon}</div>
         <div style="flex:1">
           <div style="font-size:11px; color:${isActive ? 'var(--accent)' : 'var(--text)'}">Sprint ${i+1}</div>
-          <div style="font-size:10px; color:var(--text-dim)">${sprint?.plan?.parsed?.sprint?.goal?.substring(0, 40) || '...'}</div>
+          <div style="font-size:10px; color:var(--text-dim)">${escHtml(sprint?.plan?.parsed?.sprint?.goal?.substring(0, 40) || '...')}</div>
         </div>
         ${isActive ? '<div class="spinner"></div>' : ''}
       </div>`;
@@ -2527,7 +2533,7 @@
         <div style="display:flex; align-items:center; gap:10px; width:100%; margin-bottom:8px">
           <span style="font-size:20px">${icons[a.type] || '📄'}</span>
           <div>
-            <div class="artifact-name">${formatArtifactName(a.type, a.sprint)}</div>
+            <div class="artifact-name">${escHtml(formatArtifactName(a.type, a.sprint))}</div>
             <div class="artifact-meta">${new Date(a.timestamp).toLocaleTimeString()}</div>
           </div>
         </div>
@@ -2921,7 +2927,8 @@
       .replace(/&/g, '&amp;')
       .replace(/</g, '&lt;')
       .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;');
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
   }
 
   async function populateLocalLlmProviderSelect() {
@@ -3433,7 +3440,7 @@
   }
 
   function escHtml(str) {
-    return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
   }
 
   // Close modal on overlay click

@@ -179,7 +179,7 @@ async function runPipeline(ctx) {
       ctx.emit('sprint_update', { sprint: n, phase: 'implemented' });
 
       // 3b. Checks reales (sin ok falsos: si no hay que comprobar, skipped)
-      const syntax = runNodeSyntaxCheck(appDir);
+      const syntax = runNodeSyntaxCheck(appDir, implementation.written || []);
       const npmTest = runNpmTestIfPresent(appDir);
       implementation.checks = { syntax, npmTest: npmTest.ran ? npmTest : { ran: false, skipped: true } };
       await saveArtifact(outputDir, `sprint-${n}-checks`, implementation.checks);

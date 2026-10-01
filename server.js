@@ -93,8 +93,10 @@ async function loadDashboardStateFromDisk() {
 
 /** Fusiona credenciales por plataforma sin sustituir todo el bloque (conserva password si no se envía) */
 function mergeCredentialsPatch(current, body) {
+  const { isSafeKey } = require('./server/guards');
   const out = { ...current };
   for (const [key, val] of Object.entries(body || {})) {
+    if (!isSafeKey(key)) continue; // anti prototype-pollution (__proto__/constructor/prototype)
     if (val != null && typeof val === 'object' && !Array.isArray(val)) {
       const prev = current[key] && typeof current[key] === 'object' ? current[key] : {};
       const merged = { ...prev, ...val };
@@ -141,8 +143,34 @@ function createServer() {
   const server = http.createServer(app);
   const wss = new WebSocket.Server({ server });
 
-  app.use(express.json());
+  // FASE 3: higiene HTTP. CSP desactivada (el dashboard usa scripts inline);
+  // resto de cabeceras (nosniff, referrer-policy...) activas.
+  const helmet = require('helmet');
+  const rateLimit = require('express-rate-limit');
+  app.use(helmet({ contentSecurityPolicy: false }));
+  app.use(express.json({ limit: '100kb', strict: true }));
 
+  // POST /api/start es caro (lanza un proyecto): 10/min por IP.
+  const startLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    limit: 10,
+    standardHeaders: 'draft-7',
+    legacyHeaders: false,
+    message: { error: 'Demasiadas peticiones de arranque, espera un minuto.' }
+  });
+  // Resto de escrituras: 120/min por IP. GET sin limite.
+  const writeLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    limit: 120,
+    standardHeaders: 'draft-7',
+    legacyHeaders: false,
+    message: { error: 'Demasiadas peticiones, espera un minuto.' }
+  });
+  app.use('/api/start', startLimiter);
+  app.use((req, res, next) => {
+    if (req.method === 'POST' || req.method === 'PATCH') return writeLimiter(req, res, next);
+    next();
+  });
   // IMPORTANTE: esta ruta debe ir ANTES de express.static('public').
   // Si no, GET / sirve public/index.html (vista compacta) y nunca ves el dashboard de raíz con Settings/pestañas.
   const sendDashboardRoot = (req, res) => {
@@ -720,7 +748,11 @@ function createServer() {
 // Cargar sesión anterior
   app.get('/api/sessions/:id', async (req, res) => {
   try {
-    const statePath = path.join('./outputs', req.params.id, 'state.json');
+    const { validateSessionId, safeJoin } = require('./server/guards');
+    if (!validateSessionId(req.params.id)) {
+      return res.status(400).json({ error: 'id de sesión inválido' });
+    }
+    const statePath = safeJoin('./outputs', req.params.id, 'state.json');
     const state = await fs.readJson(statePath);
     res.json(state);
   } catch (e) {
@@ -731,11 +763,12 @@ function createServer() {
   /** Marcar sesión como "última" para F5 / GET /api/state (sin reanudar el LLM). */
   app.post('/api/session/focus', async (req, res) => {
     try {
+      const { validateSessionId, safeJoin } = require('./server/guards');
       const id = (req.body && (req.body.id || req.body.folder)) || '';
-      if (typeof id !== 'string' || !id.startsWith('session-') || id.includes('..')) {
+      if (!validateSessionId(id)) {
         return res.status(400).json({ error: 'id de carpeta inválido (debe ser session-…)' });
       }
-      const statePath = path.join('./outputs', id, 'state.json');
+      const statePath = safeJoin('./outputs', id, 'state.json');
       if (!(await fs.pathExists(statePath))) {
         return res.status(404).json({ error: 'No existe state.json en esa sesión' });
       }
@@ -759,7 +792,11 @@ function createServer() {
 // Obtener artefacto específico
   app.get('/api/artifact/:session/:name', async (req, res) => {
   try {
-    const artifactPath = path.join('./outputs', req.params.session, 'artifacts', `${req.params.name}.json`);
+    const { validateSessionId, validateArtifactName, safeJoin } = require('./server/guards');
+    if (!validateSessionId(req.params.session) || !validateArtifactName(req.params.name)) {
+      return res.status(400).json({ error: 'Parámetros inválidos' });
+    }
+    const artifactPath = safeJoin('./outputs', req.params.session, 'artifacts', `${req.params.name}.json`);
     const artifact = await fs.readJson(artifactPath);
     res.json(artifact);
   } catch (e) {
@@ -769,10 +806,15 @@ function createServer() {
 
 // Descargar app final generada
   app.get('/api/download/:session', async (req, res) => {
-  const appDir = path.join('./outputs', req.params.session, 'final-app');
+  const { validateSessionId, safeJoin } = require('./server/guards');
+  if (!validateSessionId(req.params.session)) {
+    return res.status(400).json({ error: 'id de sesión inválido' });
+  }
+  const appDir = safeJoin('./outputs', req.params.session, 'final-app');
   const exists = await fs.pathExists(appDir);
   if (!exists) return res.status(404).json({ error: 'App final no encontrada' });
-  res.json({ path: appDir, message: `App disponible en: ${path.resolve(appDir)}` });
+  // No se expone la ruta absoluta (evita enumeracion del FS del servidor).
+  res.json({ session: req.params.session, message: 'App generada disponible en el directorio de la sesión.' });
   });
 
   /**
@@ -954,10 +996,10 @@ function createServer() {
   }
   }
 
-  function start(port = 3000) {
+  function start(port = 3000, host = process.env.AI_SCRUM_BIND || '127.0.0.1') {
     return new Promise((resolve, reject) => {
       server.once('error', reject);
-      server.listen(port, () => resolve(server));
+      server.listen(port, host, () => resolve(server));
     });
   }
 
@@ -1003,7 +1045,13 @@ if (require.main === module) {
   try {
     runtimeConfig = require('./config/project-config.json');
   } catch (e) {}
-  const PORT = process.env.PORT || runtimeConfig.outputs?.port || 3000;
+  // FASE 3: puerto validado como entero (evita inyeccion en el auto-open).
+  const rawPort = process.env.PORT || runtimeConfig.outputs?.port || 3000;
+  const PORT = Number.parseInt(String(rawPort), 10);
+  if (!Number.isInteger(PORT) || PORT < 1 || PORT > 65535) {
+    console.error(`[ERROR] Puerto invalido: ${String(rawPort).slice(0, 50)}`);
+    process.exit(1);
+  }
 
   const { start } = createServer();
   start(PORT)
