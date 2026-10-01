@@ -6,7 +6,6 @@
 const fs = require('fs-extra');
 const { createAdapter } = require('../llm/factory');
 const { runPipeline } = require('../orchestrator/pipeline');
-const { normalizeTeam, getEnabledRoles } = require('../agents/team-config');
 const { StateStore } = require('../orchestrator/state');
 
 function mockAgent(role, text) {
@@ -46,23 +45,28 @@ async function main() {
   console.log('3/3 Pipeline con agentes mock (1 sprint, sin motor)...');
   const outputDir = './outputs/smoke-test';
   await fs.remove(outputDir);
-  const team = normalizeTeam(config);
+  const roles = [
+    { id: 'sm', label: 'SM', mission: '', model: '', skills: [], enabled: true },
+    { id: 'dev', label: 'Dev', mission: '', model: '', skills: [], enabled: true }
+  ];
+  const flow = [
+    { role: 'sm', task: 'plan' },
+    { role: 'dev', task: 'implementar' },
+    { role: 'sm', task: 'revisar' }
+  ];
   const state = new StateStore(outputDir, 'smoke', 1).state;
   const agents = {
-    scrumMaster: mockAgent('scrumMaster', '{"sprint":{"goal":"smoke","stories":[]}}'),
-    developer: mockAgent('developer', '{"implementation":{"files":[{"path":"smoke.txt","code":"ok"}],"notes":""}}')
+    sm: mockAgent('sm', '{"sprint":{"goal":"smoke","stories":[]}}'),
+    dev: mockAgent('dev', '{"implementation":{"files":[{"path":"smoke.txt","code":"ok"}],"notes":""}}')
   };
   const logs = [];
   await runPipeline({
     config: { ...config, scrum: { maxSprints: 1 } },
-    team,
+    roles,
+    flow,
     agents,
     outputDir,
     state,
-    enabledRoles: getEnabledRoles([
-      { role: 'scrumMaster', enabled: true },
-      { role: 'developer', enabled: true }
-    ]),
     log: (m) => logs.push(m),
     emit: () => {},
     waitWhilePaused: async () => {},

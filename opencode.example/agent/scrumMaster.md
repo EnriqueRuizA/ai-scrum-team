@@ -1,5 +1,5 @@
 ---
-description: Scrum Master: planifica sprints y hace review. Responde SOLO JSON.
+description: Carlos (Scrum Master)
 mode: subagent
 ---
 

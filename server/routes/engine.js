@@ -8,6 +8,16 @@ const { buildMermaidFromConfig } = require('../../lib/flow-mermaid');
 const { verifyLlmModels } = require('../../lib/unified-local-llm');
 const { mergeLocalForOllamaTest, listModelsEndpointLabel } = require('../helpers');
 function registerEngine(app, _ctx) {
+  /** Skills descubiertas en el workspace (para el desplegable de roles). */
+  app.get('/api/skills', async (req, res) => {
+    try {
+      const { discoverSkills } = require('../../utils/skills');
+      res.json({ skills: await discoverSkills(process.cwd()) });
+    } catch (e) {
+      res.status(500).json({ error: e.message, skills: [] });
+    }
+  });
+
   /** Estado del motor opencode (UX: pill + preflight del dashboard). Sin secretos. */
   app.get('/api/engine/health', async (req, res) => {
     try {

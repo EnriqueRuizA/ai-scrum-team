@@ -61,3 +61,59 @@ describe('normalizeTeam', () => {
     expect(t.every((m) => ['productOwner', 'developer', 'qaTester', 'scrumMaster'].includes(m.role))).toBe(true);
   });
 });
+
+describe('validateProjectConfig U1 (roles/flow)', () => {
+  const base = () => ({
+    scrum: { maxSprints: 2 },
+    agents: {
+      backend: 'local',
+      team: [{ id: 'sm', role: 'scrumMaster', enabled: true }],
+      roles: [
+        { id: 'dev', label: 'Dev', mission: 'Escribe codigo de calidad', model: '', skills: ['mis-docs'], enabled: true },
+        { id: 'qa', label: 'QA', mission: 'Prueba todo lo generado', skills: [], enabled: true }
+      ],
+      flow: [
+        { role: 'dev', task: 'implementar' },
+        { role: 'qa', task: 'probar', loop: { until: 'qa.passed', max: 2, fix: { role: 'dev', task: 'implementar' } } }
+      ],
+      opencode: { mode: 'run', model: 'ollama/qwen3.5:9b' }
+    },
+    outputs: { port: 3000 }
+  });
+
+  test('roles+flow validos pasan', () => {
+    expect(validateProjectConfig(base()).ok).toBe(true);
+  });
+
+  test('detecta id duplicado, mission corta, skill invalida, loop roto', () => {
+    const c = base();
+    c.agents.roles = [
+      { id: 'dev', label: 'A', mission: 'corta', skills: ['MAL_NOMBRE'], enabled: true },
+      { id: 'dev', label: 'B', mission: 'Otra mision valida aqui', enabled: true }
+    ];
+    c.agents.flow = [
+      { role: 'dev', task: 'inventada' },
+      { role: 'fantasma', task: 'plan' },
+      { role: 'dev', task: 'probar', loop: { until: 'nunca', max: 99 } }
+    ];
+    const r = validateProjectConfig(c);
+    expect(r.ok).toBe(false);
+    const j = r.errors.join('\n');
+    for (const needle of [
+      'agents.roles[0].mission',
+      'agents.roles[0].skills',
+      'agents.roles[1].id: duplicado',
+      'agents.flow[0].task',
+      'agents.flow[1].role',
+      'agents.flow[2].loop.until',
+      'agents.flow[2].loop.max'
+    ]) {
+      expect(j).toMatch(needle);
+    }
+  });
+
+  test('roles vacios y flow vacio fallan; ausentes se toleran', () => {
+    expect(validateProjectConfig({ agents: { roles: [], flow: [] } }).ok).toBe(false);
+    expect(validateProjectConfig({ agents: {} }).ok).toBe(true);
+  });
+});

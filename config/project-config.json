@@ -37,6 +37,55 @@
         "label": "Carlos (Scrum Master)"
       }
     ],
+    "roles": [
+      {
+        "id": "scrumMaster",
+        "label": "Carlos (Scrum Master)",
+        "mission": "",
+        "model": "",
+        "skills": [],
+        "enabled": true
+      },
+      {
+        "id": "productOwner",
+        "label": "Sarah (Product Owner)",
+        "mission": "",
+        "model": "",
+        "skills": [],
+        "enabled": true
+      },
+      {
+        "id": "developer",
+        "label": "Alex (Developer)",
+        "mission": "",
+        "model": "",
+        "skills": [],
+        "enabled": true
+      },
+      {
+        "id": "qaTester",
+        "label": "María (QA)",
+        "mission": "",
+        "model": "",
+        "skills": [],
+        "enabled": true
+      }
+    ],
+    "flow": [
+      { "role": "scrumMaster", "task": "plan" },
+      { "role": "productOwner", "task": "refinar" },
+      { "role": "developer", "task": "implementar" },
+      {
+        "role": "qaTester",
+        "task": "probar",
+        "loop": {
+          "until": "qa.passed",
+          "max": 3,
+          "fix": { "role": "developer", "task": "implementar" }
+        }
+      },
+      { "role": "scrumMaster", "task": "revisar" }
+    ],
     "backend": "local",
     "opencode": {
       "mode": "run",

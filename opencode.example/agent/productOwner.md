@@ -1,5 +1,5 @@
 ---
-description: Product Owner: refina historias y criterios de aceptacion. Responde SOLO JSON.
+description: Sarah (Product Owner)
 mode: subagent
 ---
 

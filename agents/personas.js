@@ -175,5 +175,28 @@ function personaFor(role, config) {
   }
 }
 
+/**
+ * U1: persona para un rol del modelo nuevo ({id,label,mission,extra}).
+ * - Id clasico SIN mission -> builder detallado existente.
+ * - En otro caso -> plantilla con mission (+extra). La plantilla exige JSON
+ *   cuando la tarea lo pide (el pipeline parsea por tipo de tarea).
+ */
+function buildPersona(roleDef, config) {
+  const mission = String((roleDef && roleDef.mission) || '').trim();
+  if (!mission && ROLES.includes(roleDef?.id)) {
+    return personaFor(roleDef.id, config);
+  }
+  const extra = String((roleDef && roleDef.extra) || '').trim();
+  return (
+    `Eres ${roleDef?.label || roleDef?.id} en un equipo agil de desarrollo de software.\n` +
+    `MISION: ${mission || 'Ayuda al equipo en lo que se te pida.'}\n` +
+    (extra ? `\n${extra}\n` : '') +
+    `\nINSTRUCCIONES:\n` +
+    `- Responde SIEMPRE en formato JSON estructurado cuando se te pida.\n` +
+    `- Se concreto y tecnico; nada de pseudocodigo cuando se pida codigo.\n`
+  );
+}
+
 module.exports.ROLES = ROLES;
 module.exports.personaFor = personaFor;
+module.exports.buildPersona = buildPersona;

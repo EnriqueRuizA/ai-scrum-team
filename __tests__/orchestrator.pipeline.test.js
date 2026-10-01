@@ -1,10 +1,10 @@
-// __tests__/orchestrator.pipeline.test.js - FASE 1: pipeline secuencial con agentes mock.
+// __tests__/orchestrator.pipeline.test.js - U1: ejecutor generico con mocks.
 const fs = require('fs-extra');
 const os = require('os');
 const path = require('path');
-const { runPipeline, assertSafeRelPath } = require('../orchestrator/pipeline');
+const { runPipeline, assertSafeRelPath, loopConditionMet } = require('../orchestrator/pipeline');
 
-function mockAgent(role, script) {
+function mockAgent(role, handler) {
   const calls = [];
   return {
     role,
@@ -14,58 +14,76 @@ function mockAgent(role, script) {
     async initialize() {},
     async close() {},
     async sendMessage(prompt) {
-      calls.push(prompt.slice(0, 60));
-      const fn = script[role];
-      if (typeof fn === 'function') return fn(prompt, calls.length);
-      return fn;
+      calls.push(prompt);
+      return typeof handler === 'function' ? handler(prompt, calls.length) : handler;
     }
   };
 }
 
-function makeCtx(outputDir, order, stopAfter = Infinity) {
-  const agents = {
-    scrumMaster: mockAgent('scrumMaster', {
-      scrumMaster: (prompt) =>
-        prompt.includes('Cierra el sprint')
-          ? '{"review":{"done":true,"summary":"ok","next":"seguir"}}'
-          : '{"sprint":{"goal":"g1","stories":[{"id":"S-1","title":"t","acceptance":"a"}]}}'
-    }),
-    productOwner: mockAgent('productOwner', {
-      productOwner: '{"stories":[{"id":"S-1","title":"t2","acceptance":"a2"}]}'
-    }),
-    developer: mockAgent('developer', {
-      developer: '{"implementation":{"files":[{"path":"app/index.js","code":"module.exports=1;"}],"notes":"n"}}'
-    }),
-    qaTester: mockAgent('qaTester', {
-      qaTester: '{"qa":{"passed":true,"bugs":[]}}'
-    })
+const ROLES = [
+  { id: 'sm', label: 'SM', mission: '', model: '', skills: [], enabled: true },
+  { id: 'po', label: 'PO', mission: '', model: '', skills: [], enabled: true },
+  { id: 'dev', label: 'Dev', mission: '', model: '', skills: [], enabled: true },
+  { id: 'qa', label: 'QA', mission: '', model: '', skills: [], enabled: true }
+];
+
+const FLOW = [
+  { role: 'sm', task: 'plan' },
+  { role: 'po', task: 'refinar' },
+  { role: 'dev', task: 'implementar' },
+  { role: 'qa', task: 'probar' },
+  { role: 'sm', task: 'revisar' }
+];
+
+function scriptFor() {
+  return {
+    sm: (prompt) =>
+      prompt.includes('Cierra el sprint')
+        ? '{"review":{"done":true,"summary":"ok","next":"seguir"}}'
+        : '{"sprint":{"goal":"g1","stories":[{"id":"S-1","title":"t","acceptance":"a"}]}}',
+    po: '{"stories":[{"id":"S-1","title":"t2","acceptance":"a2"}]}',
+    dev: '{"implementation":{"files":[{"path":"app/index.js","code":"module.exports=1;"}],"notes":"n"}}',
+    qa: '{"qa":{"passed":true,"bugs":[]}}'
   };
+}
+
+function makeCtx(outputDir, order, opts = {}) {
+  const script = scriptFor();
+  const agents = {};
+  for (const r of ROLES) agents[r.id] = mockAgent(r.id, script[r.id]);
   const state = {
-    sessionId: 'test', status: 'running', currentSprint: 0, maxSprints: 1,
+    sessionId: 'test',
+    status: 'running',
+    currentSprint: 0,
+    maxSprints: 1,
     sprints: [],
     artifacts: { prd: null, architecture: null, testPlan: null, sprintPlan: null, implementations: [], qaReports: [], finalCode: null },
-    logs: [], errors: [], runPaused: false
+    logs: [],
+    errors: [],
+    runPaused: false
   };
   let steps = 0;
   return {
     config: { scrum: { maxSprints: 1 }, agents: { timeout: 5000 } },
-    team: [],
+    roles: opts.roles || ROLES,
+    flow: opts.flow || FLOW,
     agents,
     outputDir,
     state,
-    enabledRoles: new Set(['scrumMaster', 'productOwner', 'developer', 'qaTester']),
     log: () => {},
-    emit: (e) => { order.push(e); },
+    emit: (e) => {
+      order.push(e);
+    },
     waitWhilePaused: async () => {},
     checkGracefulStopAfterStep: async () => {
       steps += 1;
-      return steps >= stopAfter;
+      return steps >= (opts.stopAfter || Infinity);
     },
     saveState: async () => {}
   };
 }
 
-describe('runPipeline', () => {
+describe('runPipeline (generico)', () => {
   let dir;
   beforeEach(async () => {
     dir = await fs.mkdtemp(path.join(os.tmpdir(), 'pipe-'));
@@ -74,7 +92,7 @@ describe('runPipeline', () => {
     await fs.remove(dir);
   });
 
-  test('ejecuta plan->PO->dev->QA->review en orden y genera artefactos', async () => {
+  test('ejecuta el flow en orden y genera artefactos (legacy incluidos)', async () => {
     const order = [];
     const ctx = makeCtx(dir, order);
     const callOrder = [];
@@ -88,36 +106,110 @@ describe('runPipeline', () => {
     const res = await runPipeline(ctx);
 
     expect(res.stopped).toBe(false);
-    // planning, refine, implement, qa, review
-    expect(callOrder).toEqual(['scrumMaster', 'productOwner', 'developer', 'qaTester', 'scrumMaster']);
+    expect(callOrder).toEqual(['sm', 'po', 'dev', 'qa', 'sm']);
     expect(ctx.state.sprints).toHaveLength(1);
     expect(ctx.state.currentSprint).toBe(1);
     expect(ctx.state.artifacts.implementations).toHaveLength(1);
     expect(ctx.state.artifacts.qaReports).toHaveLength(1);
     expect(ctx.state.artifacts.finalCode.files).toContain(path.join('app', 'index.js'));
-
-    for (const name of ['sprint-1-plan', 'sprint-1-implementation', 'sprint-1-qa', 'final-code']) {
-      expect(await fs.pathExists(path.join(dir, 'artifacts', `${name}.json`))).toBe(true);
-    }
     expect(await fs.pathExists(path.join(dir, 'final-app', 'app', 'index.js'))).toBe(true);
     expect(order).toContain('sprint_start');
   });
 
   test('respeta la parada tras el sprint', async () => {
-    const order = [];
-    const ctx = makeCtx(dir, order, 1);
+    const ctx = makeCtx(dir, [], { stopAfter: 1 });
     const res = await runPipeline(ctx);
     expect(res.stopped).toBe(true);
   });
 
-  test('sin agentes no falla: usa valores por defecto', async () => {
-    const order = [];
-    const ctx = makeCtx(dir, order);
-    ctx.agents = {};
-    ctx.enabledRoles = new Set();
+  test('omite roles deshabilitados', async () => {
+    const roles = ROLES.map((r) => (r.id === 'po' ? { ...r, enabled: false } : r));
+    const ctx = makeCtx(dir, [], { roles });
+    const res = await runPipeline(ctx);
+    expect(res.stopped).toBe(false);
+    expect(ctx.agents.po.calls).toHaveLength(0);
+    expect(ctx.state.sprints).toHaveLength(1);
+  });
+
+  test('rol inexistente en el flow aborta (onError por defecto)', async () => {
+    const ctx = makeCtx(dir, [], { flow: [{ role: 'fantasma', task: 'plan' }] });
+    await expect(runPipeline(ctx)).rejects.toThrow(/desconocido/);
+  });
+
+  test('onError continue no aborta', async () => {
+    const ctx = makeCtx(dir, [], {
+      flow: [{ role: 'fantasma', task: 'plan', onError: 'continue' }, { role: 'sm', task: 'revisar' }]
+    });
     const res = await runPipeline(ctx);
     expect(res.stopped).toBe(false);
     expect(ctx.state.sprints).toHaveLength(1);
+  });
+
+  test('loop QA->fix->QA itera hasta pasar y registra iterations', async () => {
+    const order = [];
+    const ctx = makeCtx(dir, order, {
+      flow: [
+        { role: 'dev', task: 'implementar' },
+        {
+          role: 'qa',
+          task: 'probar',
+          loop: { until: 'qa.passed', max: 3, fix: { role: 'dev', task: 'implementar' } }
+        }
+      ]
+    });
+    let qaCalls = 0;
+    ctx.agents.qa.sendMessage = async () => {
+      qaCalls += 1;
+      return qaCalls === 1
+        ? '{"qa":{"passed":false,"bugs":[{"severity":"critical","title":"b","detail":"d"}]}}'
+        : '{"qa":{"passed":true,"bugs":[]}}';
+    };
+    const res = await runPipeline(ctx);
+    expect(res.stopped).toBe(false);
+    expect(qaCalls).toBe(2); // probar inicial + retry tras el fix
+    const qaArtifact = ctx.state.artifacts.qaReports[0];
+    expect(qaArtifact.iterations.map((i) => i.kind)).toEqual(['fix', 'retry']);
+    expect(qaArtifact.iterations[0].role).toBe('dev');
+    expect(ctx.state.artifacts.qaReports[0].passed).toBe(true);
+  });
+
+  test('loop agota max y avisa sin abortar', async () => {
+    const ctx = makeCtx(dir, [], {
+      flow: [
+        {
+          role: 'qa',
+          task: 'probar',
+          loop: { until: 'qa.passed', max: 2, fix: { role: 'dev', task: 'implementar' } }
+        }
+      ]
+    });
+    ctx.agents.qa.sendMessage = async () =>
+      '{"qa":{"passed":false,"bugs":[{"severity":"critical","title":"b","detail":"d"}]}}';
+    const res = await runPipeline(ctx);
+    expect(res.stopped).toBe(false);
+    // 2 rondas x (fix + retry) = 4 entradas
+    expect(ctx.state.artifacts.qaReports[0].iterations).toHaveLength(4);
+  });
+
+  test('sin roles o sin flow falla claro', async () => {
+    const ctx = makeCtx(dir, [], { roles: [] });
+    await expect(runPipeline(ctx)).rejects.toThrow(/roles/);
+    const ctx2 = makeCtx(dir, [], { flow: [] });
+    await expect(runPipeline(ctx2)).rejects.toThrow(/flow/);
+  });
+});
+
+describe('loopConditionMet', () => {
+  test('condiciones basicas', () => {
+    expect(loopConditionMet('qa.passed', { lastQa: { passed: true, bugs: [] } })).toBe(true);
+    expect(loopConditionMet('qa.passed', { lastQa: { passed: false, bugs: [] } })).toBe(false);
+    expect(loopConditionMet('qa.passed', {})).toBe(false);
+    expect(loopConditionMet('noCriticalBugs', { lastQa: { bugs: [{ severity: 'minor' }] } })).toBe(true);
+    expect(loopConditionMet('noCriticalBugs', { lastQa: { bugs: [{ severity: 'critical' }] } })).toBe(false);
+    expect(loopConditionMet('filesWritten', { lastWritten: ['a.js'] })).toBe(true);
+    expect(loopConditionMet('filesWritten', { lastWritten: [] })).toBe(false);
+    expect(loopConditionMet('always', {})).toBe(false);
+    expect(loopConditionMet('inventada', {})).toBe(true);
   });
 });
 

@@ -1,26 +1,34 @@
-// scripts/export-agents.js - FASE 2: genera .opencode/agent/*.md desde agents/personas.js.
+// scripts/export-agents.js - U1: genera .opencode/agent/*.md desde roles+personas.
 // Uso: node scripts/export-agents.js [destino]  (defecto: .opencode/agent)
 // El destino real del usuario (.opencode/) NO se commitea; opencode.example/ si.
+// Las skills del rol van al frontmatter (permission.skill, formato opencode).
 
 const fs = require('fs-extra');
 const path = require('path');
-const { ROLES, personaFor } = require('../agents/personas');
+const { buildPersona } = require('../agents/personas');
+const { normalizeRoles } = require('../agents/team-config');
 
-const DESCRIPTIONS = {
-  scrumMaster: 'Scrum Master: planifica sprints y hace review. Responde SOLO JSON.',
-  productOwner: 'Product Owner: refina historias y criterios de aceptacion. Responde SOLO JSON.',
-  developer: 'Developer: implementa codigo completo. Responde SOLO JSON con files[].',
-  qaTester: 'QA Tester: prueba entregas y reporta bugs. Responde SOLO JSON.'
-};
+function frontmatter(role) {
+  const lines = ['---', `description: ${(role.label || role.id).slice(0, 120)}`, 'mode: subagent'];
+  if (Array.isArray(role.skills) && role.skills.length > 0) {
+    lines.push('permission:');
+    lines.push('  skill:');
+    for (const s of role.skills) lines.push(`    "${s}": allow`);
+  }
+  lines.push('---');
+  return lines.join('\n');
+}
 
 async function main() {
   const dest = process.argv[2] || path.join('.opencode', 'agent');
   const config = await fs.readJson('./config/project-config.json').catch(() => ({}));
+  const roles = normalizeRoles(config);
   await fs.ensureDir(dest);
-  for (const role of ROLES) {
-    const body = personaFor(role, config);
-    const md = `---\ndescription: ${DESCRIPTIONS[role]}\nmode: subagent\n---\n\n${body}\n`;
-    const out = path.join(dest, `${role}.md`);
+  for (const role of roles) {
+    if (role.enabled === false) continue;
+    const body = buildPersona(role, config);
+    const md = `${frontmatter(role)}\n\n${body}\n`;
+    const out = path.join(dest, `${role.id}.md`);
     await fs.writeFile(out, md, 'utf8');
     console.log(`  ✓ ${out}`);
   }

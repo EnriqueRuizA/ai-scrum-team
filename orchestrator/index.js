@@ -8,7 +8,7 @@ const path = require('path');
 const { randomUUID: uuidv4 } = require('crypto');
 const { StateStore } = require('./state');
 const { runPipeline } = require('./pipeline');
-const { normalizeTeam, getEnabledRoles } = require('../agents/team-config');
+const { normalizeTeam, getEnabledRoles, normalizeRoles, normalizeFlow, enabledRoles } = require('../agents/team-config');
 const { createAgents, teamLabel } = require('../agents/factory');
 
 class ScrumMasterOrchestrator {
@@ -23,6 +23,11 @@ class ScrumMasterOrchestrator {
     this.sharedAgents = [];
     this.team = normalizeTeam(this.config);
     this.enabledRoles = getEnabledRoles(this.team);
+    // U1: modelo nuevo (roles + flow). Si no hay roles/flow, los normalizadores
+    // devuelven el clasico (SM/PO/Dev/QA) para compatibilidad.
+    this.roles = normalizeRoles(this.config);
+    this.flow = normalizeFlow(this.config);
+    this.enabledRoleIds = enabledRoles(this.roles);
     this.store = new StateStore(
       this.outputDir,
       this.sessionId,
@@ -103,6 +108,8 @@ class ScrumMasterOrchestrator {
   }
 
   teamLabel(role) {
+    const r = (this.roles || []).find((m) => m.id === role);
+    if (r) return r.label || role;
     return teamLabel(this.team, role);
   }
 
@@ -154,15 +161,21 @@ class ScrumMasterOrchestrator {
 
     this.team = normalizeTeam(this.config);
     this.enabledRoles = getEnabledRoles(this.team);
-    if (!this.enabledRoles.has('scrumMaster')) {
-      throw new Error('El Scrum Master debe estar habilitado en agents.team');
+    this.roles = normalizeRoles(this.config);
+    this.flow = normalizeFlow(this.config);
+    this.enabledRoleIds = enabledRoles(this.roles);
+    if (this.roles.filter((r) => r.enabled !== false).length === 0) {
+      throw new Error('Sin roles habilitados en agents.roles');
     }
 
     this.state.status = 'initializing';
     this.emit('status', this.state);
 
     const useLocalBackend = this.config.agents?.backend === 'local';
-    if (useLocalBackend) {
+    if (this.config.agents?.opencode) {
+      const oc = this.config.agents.opencode;
+      this.log(`Motor opencode (modo ${oc.mode || 'serve'}, model=${oc.model || 'ollama/llama3.2'}), roles: ${this.roles.filter((r) => r.enabled !== false).map((r) => r.id).join(', ')}`);
+    } else if (useLocalBackend) {
       const local = this.config.agents?.local || {};
       this.log(
         `Backend local: model=${local.model || 'llama3.2'} baseUrl=${local.baseUrl || 'http://localhost:11434'} rag=${local.rag?.enabled === true}`
@@ -177,6 +190,7 @@ class ScrumMasterOrchestrator {
 
     const { agents, sharedAgents } = createAgents({
       team: this.team,
+      roles: this.roles,
       config: this.config,
       credentials: this.credentials,
       sessionDir: this.sessionDir,
@@ -230,11 +244,11 @@ class ScrumMasterOrchestrator {
     try {
       const result = await runPipeline({
         config: this.config,
-        team: this.team,
+        roles: this.roles,
+        flow: this.flow,
         agents: this.agents,
         outputDir: this.outputDir,
         state: this.state,
-        enabledRoles: this.enabledRoles,
         log: (m, l, a) => this.log(m, l, a),
         emit: (e, d) => this.emit(e, d),
         waitWhilePaused: () => this.waitWhilePaused(),

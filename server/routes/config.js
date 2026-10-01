@@ -76,53 +76,6 @@ function registerConfig(app, _ctx) {
 
 
   /**
-   * Endpoint para actualizar el orden de los agentes.
-   * PATCH /api/config/order con body: { "agentsOrder": ["agentA", "agentB", ...] }
-   */
-  app.patch('/api/config/order', async (req, res) => {
-  try {
-    const { normalizeTeam, VALID_ROLES } = require('../../agents/team-config');
-    const { validateProjectConfig } = require('../../utils/config-validator');
-    const current = await fs.readJson('./config/project-config.json').catch(() => ({}));
-    const { agentsOrder } = req.body;
-
-    if (!Array.isArray(agentsOrder)) {
-      return res.status(400).json({ error: 'agentsOrder debe ser una array' });
-    }
-    const unknown = agentsOrder.filter((r) => !VALID_ROLES.includes(r));
-    if (unknown.length > 0) {
-      return res.status(400).json({ error: `Roles desconocidos: ${unknown.join(', ')}` });
-    }
-
-    // FASE 2: el orden vive en agents.team (una sola fuente). Se reordena el
-    // array poniendo primero los roles pedidos; el resto mantiene su orden.
-    const team = normalizeTeam(current);
-    const rank = new Map(agentsOrder.map((r, i) => [r, i]));
-    team.sort((a, b) => {
-      const ra = rank.has(a.role) ? rank.get(a.role) : VALID_ROLES.length;
-      const rb = rank.has(b.role) ? rank.get(b.role) : VALID_ROLES.length;
-      return ra - rb;
-    });
-
-    const updated = {
-      ...current,
-      agents: {
-        ...current.agents,
-        team
-      }
-    };
-    const v = validateProjectConfig(updated);
-    if (!v.ok) return res.status(400).json({ error: v.errors.join('; ') });
-
-    await fs.writeJson('./config/project-config.json', updated, { spaces: 2 });
-
-    res.json({ success: true, agentsOrder });
-  } catch (e) {
-    res.status(500).json({ error: e.message });
-  }
-  });
-
-  /**
    * Endpoint para obtener la lista de modelos soportados.
    * GET /api/config/models
    */
@@ -156,12 +109,12 @@ function registerConfig(app, _ctx) {
   });
 
   /**
-   * Endpoint para configurar el modelo de un agente específico.
-   * PATCH /api/config/agents/{id}/model con body: { "model": "gpt-4o" }
+   * Endpoint para configurar el modelo de un rol.
+   * PATCH /api/config/agents/{id}/model con body: { "model": "ollama/qwen3.5:9b" }
    */
   app.patch('/api/config/agents/:id/model', async (req, res) => {
   try {
-    const { normalizeTeam } = require('../../agents/team-config');
+    const { normalizeRoles, roleById } = require('../../agents/team-config');
     const { validateProjectConfig } = require('../../utils/config-validator');
     const agentId = decodeURIComponent(req.params.id);
     const { model } = req.body;
@@ -170,17 +123,17 @@ function registerConfig(app, _ctx) {
       return res.status(400).json({ error: 'model debe ser una cadena válida' });
     }
 
-    // FASE 2: el modelo por miembro vive en agents.team[].model
-    // (formato proveedor/modelo de opencode, p.ej. ollama/llama3.2).
+    // U1: el modelo por rol vive en agents.roles[].model
+    // (formato proveedor/modelo de opencode).
     const current = await fs.readJson('./config/project-config.json').catch(() => ({}));
-    const team = normalizeTeam(current);
-    const member = team.find((t) => t.id === agentId || t.role === agentId);
+    const roles = normalizeRoles(current);
+    const member = roleById(roles, agentId);
     if (!member) {
       return res.status(404).json({ error: `Agente «${agentId}» no encontrado` });
     }
     member.model = model.trim();
 
-    const updated = { ...current, agents: { ...current.agents, team } };
+    const updated = { ...current, agents: { ...current.agents, roles } };
     const v = validateProjectConfig(updated);
     if (!v.ok) return res.status(400).json({ error: v.errors.join('; ') });
 

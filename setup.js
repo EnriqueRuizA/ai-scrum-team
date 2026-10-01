@@ -84,6 +84,20 @@ async function main() {
     console.log(`  · Modelo no-Ollama (${model}): la auth vive en opencode (opencode auth list).`);
   }
 
+  // 3b. Skills referenciadas que no existen (aviso, no error) + config antigua.
+  const { missingSkills } = require('./utils/skills');
+  const v2 = validateProjectConfig(config);
+  if (!v2.ok) {
+    warn(`project-config.json con problemas: ${v2.errors.slice(0, 3).join('; ')}`);
+  }
+  const missing = await missingSkills(config, process.cwd());
+  if (missing.length > 0) {
+    warn(`Skills no encontradas en .opencode/skills: ${missing.join(', ')} (se ignoran hasta crearlas)`);
+  }
+  if (config.agents?.team && !config.agents?.roles) {
+    warn('Tu config usa agents.team antiguo (ignorado); la UI de Agentes genera agents.roles+flow al guardar.');
+  }
+
   // 4. Playwright solo si se pide el backend opcional
   if (CLAUDE_ONLY) {
     console.log('  · Instalando Chromium (backend opcional --claude)...');

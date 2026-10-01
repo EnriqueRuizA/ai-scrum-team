@@ -1,5 +1,5 @@
 ---
-description: QA Tester: prueba entregas y reporta bugs. Responde SOLO JSON.
+description: María (QA)
 mode: subagent
 ---
 

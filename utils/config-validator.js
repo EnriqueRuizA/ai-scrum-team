@@ -3,12 +3,17 @@
 // min/max, minItems). Devuelve { ok, errors[] } con path del campo.
 
 const VALID_ROLES = ['productOwner', 'developer', 'qaTester', 'scrumMaster'];
+const TASK_IDS = ['plan', 'refinar', 'implementar', 'probar', 'revisar', 'libre'];
+const LOOP_UNTIL = ['qa.passed', 'noCriticalBugs', 'filesWritten', 'always'];
+const SKILL_NAME_RE = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 
 function isObject(v) {
   return v !== null && typeof v === 'object' && !Array.isArray(v);
 }
 
 function validateTeam(team, errors) {
+  // U1: team es legacy y opcional (el modelo es roles+flow). Si existe, se valida.
+  if (team === undefined) return;
   if (!Array.isArray(team) || team.length === 0) {
     errors.push('agents.team: array no vacio requerido');
     return;
@@ -35,6 +40,100 @@ function validateTeam(team, errors) {
   if (!team.some((m) => isObject(m) && m.role === 'scrumMaster' && m.enabled !== false)) {
     errors.push('agents.team: el Scrum Master debe estar habilitado');
   }
+}
+
+/** U1: valida roles libres (id unico, mission salvo clasicos, skills validas). */
+function validateRoles(roles, errors) {
+  if (roles === undefined) return;
+  if (!Array.isArray(roles) || roles.length === 0) {
+    errors.push('agents.roles: array no vacio requerido');
+    return;
+  }
+  const seen = new Set();
+  roles.forEach((r, i) => {
+    const p = `agents.roles[${i}]`;
+    if (!isObject(r)) {
+      errors.push(`${p}: debe ser objeto`);
+      return;
+    }
+    if (typeof r.id !== 'string' || !r.id.trim()) {
+      errors.push(`${p}.id: string no vacio requerido`);
+      return;
+    }
+    if (seen.has(r.id)) errors.push(`${p}.id: duplicado (${r.id})`);
+    seen.add(r.id);
+    if (r.enabled !== undefined && typeof r.enabled !== 'boolean') {
+      errors.push(`${p}.enabled: debe ser boolean`);
+    }
+    if (r.model !== undefined && typeof r.model !== 'string') {
+      errors.push(`${p}.model: debe ser string (proveedor/modelo)`);
+    }
+    const mission = String(r.mission || '').trim();
+    if (!VALID_ROLES.includes(r.id) && mission.length < 10) {
+      errors.push(`${p}.mission: minimo 10 caracteres para roles personalizados`);
+    }
+    if (r.skills !== undefined) {
+      if (!Array.isArray(r.skills) || r.skills.some((s) => typeof s !== 'string' || !SKILL_NAME_RE.test(s))) {
+        errors.push(`${p}.skills: array de nombres validos (minusculas-guiones)`);
+      }
+    }
+    if (r.files !== undefined && (!Array.isArray(r.files) || r.files.some((f) => typeof f !== 'string'))) {
+      errors.push(`${p}.files: debe ser array de strings`);
+    }
+  });
+  if (!roles.some((r) => isObject(r) && r.enabled !== false)) {
+    errors.push('agents.roles: al menos un rol habilitado');
+  }
+}
+
+/** U1: valida flow (roles existentes, tareas conocidas, loops con max). */
+function validateFlow(flow, roles, errors) {
+  if (flow === undefined) return;
+  if (!Array.isArray(flow) || flow.length === 0) {
+    errors.push('agents.flow: array no vacio requerido');
+    return;
+  }
+  const ids = new Set((roles || []).filter(isObject).map((r) => r.id));
+  flow.forEach((s, i) => {
+    const p = `agents.flow[${i}]`;
+    if (!isObject(s)) {
+      errors.push(`${p}: debe ser objeto`);
+      return;
+    }
+    if (typeof s.role !== 'string' || !ids.has(s.role)) {
+      errors.push(`${p}.role: rol inexistente (${JSON.stringify(s.role)})`);
+    }
+    if (!TASK_IDS.includes(s.task)) {
+      errors.push(`${p}.task: desconocida (${JSON.stringify(s.task)}; validas: ${TASK_IDS.join(', ')})`);
+    }
+    if (s.onError !== undefined && !['abort', 'continue'].includes(s.onError)) {
+      errors.push(`${p}.onError: abort | continue`);
+    }
+    if (s.loop !== undefined) {
+      if (!isObject(s.loop)) {
+        errors.push(`${p}.loop: debe ser objeto`);
+        return;
+      }
+      if (!LOOP_UNTIL.includes(s.loop.until)) {
+        errors.push(`${p}.loop.until: una de ${LOOP_UNTIL.join(', ')}`);
+      }
+      if (!Number.isInteger(s.loop.max) || s.loop.max < 1 || s.loop.max > 10) {
+        errors.push(`${p}.loop.max: entero entre 1 y 10`);
+      }
+      if (s.loop.fix !== undefined) {
+        if (!isObject(s.loop.fix)) {
+          errors.push(`${p}.loop.fix: debe ser objeto`);
+        } else {
+          if (typeof s.loop.fix.role !== 'string' || !ids.has(s.loop.fix.role)) {
+            errors.push(`${p}.loop.fix.role: rol inexistente`);
+          }
+          if (!TASK_IDS.includes(s.loop.fix.task)) {
+            errors.push(`${p}.loop.fix.task: tarea desconocida`);
+          }
+        }
+      }
+    }
+  });
 }
 
 function validateOpencode(oc, errors) {
@@ -65,6 +164,8 @@ function validateProjectConfig(config) {
   if (!isObject(config)) return { ok: false, errors: ['config raiz: debe ser objeto'] };
 
   validateTeam(config.agents?.team, errors);
+  validateRoles(config.agents?.roles, errors);
+  validateFlow(config.agents?.flow, config.agents?.roles, errors);
   validateOpencode(config.agents?.opencode, errors);
 
   const ms = config.scrum?.maxSprints;

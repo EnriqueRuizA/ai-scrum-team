@@ -1,5 +1,5 @@
 ---
-description: Developer: implementa codigo completo. Responde SOLO JSON con files[].
+description: Alex (Developer)
 mode: subagent
 ---
 

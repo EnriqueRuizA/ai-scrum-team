@@ -5,37 +5,30 @@
 // En FASE 2 el interior se sustituye por el adapter de opencode sin tocar al
 // orquestador: solo esta factoria cambia.
 
-const { SCRUM_MASTER, PRODUCT_OWNER, DEVELOPER, QA_TESTER } = require('./personas');
+const { SCRUM_MASTER, PRODUCT_OWNER, DEVELOPER, QA_TESTER, buildPersona } = require('./personas');
 const { getEnabledRoles } = require('./team-config');
 const { createAdapter } = require('../llm/factory');
 
 function teamLabel(team, role) {
-  const m = team.find((t) => t.role === role);
+  const m = (team || []).find((t) => (t.role || t.id) === role);
   return (m && m.label) || role;
 }
 
-function createOpencodeAgents(team, config, outputDir) {
+/** U1: un agente por rol habilitado (ids libres, no solo los 4 clasicos). */
+function createOpencodeAgents(roles, config, outputDir) {
   const OpencodeAgent = require('./opencode-agent');
   const adapter = createAdapter(config);
   const oc = config.agents.opencode || {};
-  const enabled = getEnabledRoles(team);
   const out = {};
-  const defs = [
-    ['productOwner', PRODUCT_OWNER],
-    ['developer', DEVELOPER],
-    ['qaTester', QA_TESTER],
-    ['scrumMaster', SCRUM_MASTER]
-  ];
-  for (const [role, personaFn] of defs) {
-    if (!enabled.has(role)) continue;
-    const member = team.find((t) => t.role === role) || {};
-    out[role] = new OpencodeAgent({
-      name: teamLabel(team, role),
-      role,
-      persona: personaFn(config),
+  for (const roleDef of roles) {
+    if (!roleDef || roleDef.enabled === false) continue;
+    out[roleDef.id] = new OpencodeAgent({
+      name: roleDef.label || roleDef.id,
+      role: roleDef.id,
+      persona: buildPersona(roleDef, config),
       adapter,
-      model: member.model || oc.model,
-      files: Array.isArray(member.files) ? member.files : [],
+      model: roleDef.model || oc.model,
+      files: Array.isArray(roleDef.files) ? roleDef.files : [],
       timeoutMs: oc.timeoutMs,
       dir: outputDir || oc.dir || undefined
     });
@@ -136,11 +129,13 @@ function createClaudeAgents(team, config, credentials, sessionDir, outputDir) {
  * @returns { agents, sharedAgents } donde agents = {productOwner?, developer?,
  *   qaTester?, scrumMaster?} y sharedAgents = [agente compartido?] para init.
  */
-function createAgents({ team, config, credentials, sessionDir, outputDir }) {
-  // FASE 2: si hay bloque agents.opencode en config, el motor es opencode
-  // (modelos gratuitos). Si no, ruta legacy (local/Claude) hasta FASE 5.
+function createAgents({ team, roles, config, credentials, sessionDir, outputDir }) {
+  // U1: si hay bloque agents.opencode, el motor es opencode con roles libres.
+  // Si no, ruta legacy (local/Claude con team fijo).
   if (config.agents && config.agents.opencode) {
-    return { agents: createOpencodeAgents(team, config, outputDir), sharedAgents: [] };
+    const { normalizeRoles } = require('./team-config');
+    const effectiveRoles = Array.isArray(roles) && roles.length > 0 ? roles : normalizeRoles(config);
+    return { agents: createOpencodeAgents(effectiveRoles, config, outputDir), sharedAgents: [] };
   }
   const useLocalBackend = config.agents?.backend === 'local';
   if (useLocalBackend) {

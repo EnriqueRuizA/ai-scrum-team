@@ -1,18 +1,20 @@
-// orchestrator/pipeline.js - FASE 1: secuencia estricta del proyecto.
-// plan -> PO refine -> dev implement -> checks -> QA -> fix -> review, por sprint.
-// Todo await en cadena (nunca Promise.all entre roles). Trabaja contra la
-// interfaz normalizada de agentes (initialize/sendMessage/close + eventos).
+// orchestrator/pipeline.js - U1: EJECUTOR GENERICO de flow (roles + tareas + loops).
+// Cada paso = {role, task, loop?, onError?}. Todo await en cadena.
+// Mantiene los artefactos legacy (prd/architecture/.../sprints[]) para que el
+// dashboard actual siga funcionando, y anade steps[] genericos por sprint.
 
 const fs = require('fs-extra');
 const path = require('path');
 const { parseLlmJsonResponse } = require('../lib/parse-llm-json');
 const {
-  extractFilesFromImplementation,
   runNodeSyntaxCheck,
   runNpmTestIfPresent
 } = require('../lib/deliverable');
+const { getTask } = require('./tasks');
+const { roleById } = require('../agents/team-config');
 
 const DEFAULT_STEP_TIMEOUT_MS = 30 * 60 * 1000;
+const LOOP_MAX_HARD = 10;
 
 function withTimeout(promise, ms, label) {
   let timer = null;
@@ -25,7 +27,7 @@ function withTimeout(promise, ms, label) {
   });
 }
 
-/** Contencion minima de rutas de ficheros del LLM (FASE 3 la endurece). */
+/** Contencion minima de rutas de ficheros del LLM (endurecido en FASE 3). */
 function assertSafeRelPath(rel) {
   if (typeof rel !== 'string' || !rel.trim()) throw new Error('Ruta de fichero vacia');
   if (path.isAbsolute(rel)) throw new Error(`Ruta absoluta no permitida: ${rel}`);
@@ -41,7 +43,6 @@ async function writeFilesContained(baseDir, files) {
   for (const f of files || []) {
     const rel = assertSafeRelPath(f.path);
     const dest = path.join(baseDir, rel);
-    // Doble comprobacion: el destino resuelto debe seguir dentro de baseDir.
     const resolvedBase = path.resolve(baseDir) + path.sep;
     if (!path.resolve(dest).startsWith(resolvedBase)) {
       throw new Error(`Ruta fuera del proyecto: ${f.path}`);
@@ -54,10 +55,7 @@ async function writeFilesContained(baseDir, files) {
 }
 
 async function askAgent(agent, prompt, ctx, opts = {}) {
-  const timeoutMs =
-    (opts.timeoutMs ||
-      ctx.config.agents?.timeout ||
-      DEFAULT_STEP_TIMEOUT_MS);
+  const timeoutMs = opts.timeoutMs || ctx.config.agents?.timeout || DEFAULT_STEP_TIMEOUT_MS;
   const text = await withTimeout(
     agent.sendMessage(prompt, !!opts.isFirst),
     timeoutMs,
@@ -82,165 +80,258 @@ async function saveArtifact(outputDir, name, data) {
   return p;
 }
 
+/** Condiciones de loop evaluadas contra el contexto del sprint. */
+function loopConditionMet(until, run) {
+  switch (until) {
+    case 'qa.passed':
+      return run.lastQa != null && run.lastQa.passed !== false && (run.lastQa.bugs || []).length === 0;
+    case 'noCriticalBugs': {
+      const bugs = (run.lastQa && run.lastQa.bugs) || [];
+      return !bugs.some((b) => b.severity === 'critical');
+    }
+    case 'filesWritten':
+      return (run.lastWritten || []).length > 0;
+    case 'always':
+      return false; // itera hasta agotar max
+    default:
+      return true; // condicion desconocida = no repetir (fail-safe)
+  }
+}
+
+async function runChecks(appDir) {
+  const syntax = runNodeSyntaxCheck(appDir, []);
+  const npmTest = runNpmTestIfPresent(appDir);
+  return { syntax, npmTest: npmTest.ran ? npmTest : { ran: false, skipped: true } };
+}
+
+/**
+ * Ejecuta un paso del flow y devuelve su artefacto.
+ * exec = { ctx, outputDir, appDir, firstInSprint }
+ */
+async function runStep(step, index, run, exec) {
+  const { ctx, outputDir, appDir } = exec;
+  const role = roleById(ctx.roles, step.role);
+  if (!role) throw new Error(`Paso ${index}: rol desconocido ${JSON.stringify(step.role)}`);
+  if (role.enabled === false) {
+    ctx.log(`Paso ${index} (${role.id}): rol deshabilitado, se omite.`, 'warn', 'ScrumMaster');
+    return { step: index, role: role.id, task: step.task, skipped: true, iterations: [] };
+  }
+  const agent = ctx.agents[role.id];
+  if (!agent) throw new Error(`Paso ${index}: agente no inicializado para rol ${JSON.stringify(role.id)}`);
+  const task = getTask(step.task);
+
+  const doOnce = async (iterationCtx) => {
+    const prompt = task.buildPrompt({ step, role, run: { ...run, ...iterationCtx } });
+    const { text, parsed } = await askAgent(agent, prompt, ctx, { isFirst: exec.firstInSprint });
+    exec.firstInSprint = false;
+    const result = task.parse({ text, parsed });
+    const artifact = {
+      step: index,
+      role: role.id,
+      task: task.id,
+      data: result.data,
+      iterations: []
+    };
+    if (result.files && result.files.length > 0) {
+      const written = await writeFilesContained(appDir, result.files);
+      artifact.written = written;
+      run.lastWritten = written;
+      ctx.log(`Paso ${index} (${role.id}): ${written.length} ficheros en final-app`, 'info', 'ScrumMaster');
+    }
+    if (task.id === 'implementar') {
+      artifact.checks = await runChecks(appDir);
+      await saveArtifact(outputDir, `sprint-${run.sprintN}-checks`, artifact.checks);
+    }
+    return artifact;
+  };
+
+  const artifact = await doOnce({});
+  applyToRunContext(artifact, run);
+
+  // Loop opcional (p.ej. QA -> fix -> QA hasta pasar o agotar max).
+  // Cada iteracion: fix opcional + re-ejecucion del propio paso.
+  if (step.loop && typeof step.loop === 'object') {
+    const max = Math.min(Math.max(1, step.loop.max | 0 || 1), LOOP_MAX_HARD);
+    const fix = step.loop.fix && typeof step.loop.fix === 'object' ? step.loop.fix : null;
+    if (fix) {
+      const fixRole = roleById(ctx.roles, fix.role);
+      const fixAgent = fixRole ? ctx.agents[fixRole.id] : null;
+      const fixTask = fix ? getTask(fix.task) : null;
+      if (!fixRole || !fixAgent || !fixTask) {
+        throw new Error(`Paso ${index}: fix invalido ${JSON.stringify(fix)}`);
+      }
+    }
+    let iter = 0;
+    while (!loopConditionMet(step.loop.until, run) && iter < max) {
+      iter += 1;
+      ctx.log(`Paso ${index} (${role.id}): loop ${iter}/${max} (until=${step.loop.until})`, 'warn', 'ScrumMaster');
+      if (fix) {
+        const fixRole = roleById(ctx.roles, fix.role);
+        const fixAgent = ctx.agents[fixRole.id];
+        const fixTask = getTask(fix.task);
+        const fixPrompt =
+          (fix.brief ? `${fix.brief}\n\n` : '') +
+          fixTask.buildPrompt({ step: { ...step, ...fix }, role: fixRole, run });
+        const fres = await askAgent(fixAgent, fixPrompt, ctx, {});
+        const fresult = fixTask.parse({ text: fres.text, parsed: fres.parsed });
+        const it = { n: iter, kind: 'fix', role: fixRole.id, task: fixTask.id, data: fresult.data };
+        if (fresult.files && fresult.files.length > 0) {
+          it.written = await writeFilesContained(appDir, fresult.files);
+          run.lastWritten = it.written;
+        }
+        if (fixTask.id === 'implementar') it.checks = await runChecks(appDir);
+        artifact.iterations.push(it);
+        applyToRunContext({ ...artifact, data: fresult.data, written: it.written }, run, true);
+      }
+      const { text, parsed } = await askAgent(agent, task.buildPrompt({ step, role, run }), ctx, {});
+      const result = task.parse({ text, parsed });
+      const retry = { n: iter, kind: 'retry', role: role.id, task: task.id, data: result.data };
+      if (result.files && result.files.length > 0) {
+        retry.written = await writeFilesContained(appDir, result.files);
+        run.lastWritten = retry.written;
+      }
+      if (task.id === 'implementar') retry.checks = await runChecks(appDir);
+      artifact.iterations.push(retry);
+      artifact.data = result.data;
+      if (retry.written) artifact.written = retry.written;
+      applyToRunContext(artifact, run, true);
+    }
+    if (!loopConditionMet(step.loop.until, run)) {
+      ctx.log(`Paso ${index} (${role.id}): loop agoto max=${max} sin cumplir ${step.loop.until}`, 'warn', 'ScrumMaster');
+    }
+  }
+
+  await saveArtifact(outputDir, `sprint-${run.sprintN}-step-${index}-${role.id}-${task.id}`, artifact);
+  mapLegacyArtifacts(artifact, run, ctx, outputDir);
+  return artifact;
+}
+
+/** Actualiza el contexto vivo (stories, lastImplementation, lastQa...). */
+function applyToRunContext(artifact, run, fromIteration = false) {
+  const d = artifact.data || {};
+  if (artifact.task === 'plan' && d.sprint) {
+    if (d.sprint.goal) run.goal = d.sprint.goal;
+    if (Array.isArray(d.sprint.stories)) run.stories = d.sprint.stories;
+  }
+  if (artifact.task === 'refinar' && Array.isArray(d.stories) && d.stories.length > 0) {
+    run.stories = d.stories;
+  }
+  if (artifact.task === 'implementar' && d.implementation) {
+    run.lastImplementation = { ...d.implementation, written: artifact.written || [] };
+    if (artifact.checks) run.lastImplementation.checks = artifact.checks;
+  }
+  if (artifact.task === 'probar' && d.qa) run.lastQa = d.qa;
+  if (artifact.task === 'revisar' && d.review) run.lastReview = d.review;
+  if (!fromIteration) run.priorSteps.push({ step: artifact.step, role: artifact.role, task: artifact.task });
+}
+
+/** Compat dashboard actual: rellena prd/architecture/sprintPlan/implementations/qaReports. */
+function mapLegacyArtifacts(artifact, run, ctx, outputDir) {
+  const d = artifact.data || {};
+  const save = (name, data) => saveArtifact(outputDir, name, data).catch(() => {});
+  if (artifact.task === 'plan') {
+    if (d.sprint) {
+      ctx.state.artifacts.sprintPlan = d.sprint;
+      save(`sprint-${run.sprintN}-plan`, d.sprint);
+    }
+    if (run.sprintN === 1) {
+      if (d.prd) {
+        ctx.state.artifacts.prd = d.prd;
+        save('prd', d.prd);
+      }
+      if (d.architecture) {
+        ctx.state.artifacts.architecture = d.architecture;
+        save('architecture', d.architecture);
+      }
+      if (d.testPlan) {
+        ctx.state.artifacts.testPlan = d.testPlan;
+        save('testPlan', d.testPlan);
+      }
+    }
+  }
+  if (artifact.task === 'implementar' && d.implementation) {
+    const entry = { sprint: run.sprintN, ...d.implementation };
+    if (artifact.written) entry.written = artifact.written;
+    if (artifact.checks) entry.checks = artifact.checks;
+    if (artifact.iterations && artifact.iterations.length > 0) entry.iterations = artifact.iterations;
+    ctx.state.artifacts.implementations.push(entry);
+    save(`sprint-${run.sprintN}-implementation`, d.implementation);
+  }
+  if (artifact.task === 'probar' && d.qa) {
+    const entry = { sprint: run.sprintN, ...d.qa };
+    if (artifact.iterations && artifact.iterations.length > 0) entry.iterations = artifact.iterations;
+    ctx.state.artifacts.qaReports.push(entry);
+    save(`sprint-${run.sprintN}-qa`, d.qa);
+    ctx.emit('sprint_update', { sprint: run.sprintN, phase: 'tested', passed: d.qa.passed !== false });
+  }
+  if (artifact.task === 'revisar' && d.review) {
+    ctx.emit('sprint_update', { sprint: run.sprintN, phase: 'reviewed', review: d.review });
+  }
+}
+
 /**
  * Ejecuta el proyecto completo.
- * ctx = { config, team, agents, outputDir, log(msg, level?, agent?),
- *         emit(event, data), waitWhilePaused(), checkGracefulStopAfterStep(msg),
- *         saveState(), enabledRoles:Set }
+ * ctx = { config, roles, flow, agents (por id), outputDir, state,
+ *         log, emit, waitWhilePaused, checkGracefulStopAfterStep, saveState }
  */
 async function runPipeline(ctx) {
-  const { config, agents, outputDir } = ctx;
+  const { config, outputDir } = ctx;
+  const roles = ctx.roles && ctx.roles.length > 0 ? ctx.roles : [];
+  const flow = ctx.flow && ctx.flow.length > 0 ? ctx.flow : [];
+  if (roles.length === 0) throw new Error('Sin roles configurados (agents.roles)');
+  if (flow.length === 0) throw new Error('Sin flow configurado (agents.flow)');
   const { dir, appDir } = artifactPaths(outputDir);
   await fs.ensureDir(dir);
   await fs.ensureDir(appDir);
 
   const maxSprints = config.scrum?.maxSprints || 3;
-  const enabled = ctx.enabledRoles;
-  const has = (r) => enabled.has(r);
-  const get = (r) => agents[r] || null;
-
-  const mustHave = (r) => {
-    const a = get(r);
-    if (!a) throw new Error(`Agente requerido no disponible: ${r}`);
-    return a;
-  };
+  const exec = { ctx, outputDir, appDir, firstInSprint: true };
 
   for (let n = 1; n <= maxSprints; n++) {
     await ctx.waitWhilePaused();
     ctx.log(`=== Sprint ${n}/${maxSprints} ===`, 'info', 'ScrumMaster');
     ctx.emit('sprint_start', { sprint: n, maxSprints });
+    exec.firstInSprint = true;
 
-    // 1. Sprint planning (Scrum Master; por defecto un plan minimo)
-    let plan = { goal: `Sprint ${n}`, stories: [] };
-    if (has('scrumMaster')) {
-      const sm = mustHave('scrumMaster');
-      const prev = n > 1 ? ` Contexto del sprint anterior: ${JSON.stringify(ctx.state.sprints[n - 2] || null)}. ` : ' Es el primer sprint. ';
-      const { parsed } = await askAgent(
-        sm,
-        `Planifica el sprint ${n}/${maxSprints}.${prev}Responde SOLO con JSON: {"sprint":{"goal":"...","stories":[{"id":"S-1","title":"...","acceptance":"..."}]}}`,
-        ctx,
-        { isFirst: n === 1 }
-      );
-      if (parsed?.sprint) plan = parsed.sprint;
-      if (n === 1 && parsed && (parsed.prd || parsed.architecture || parsed.testPlan)) {
-        if (parsed.prd) {
-          ctx.state.artifacts.prd = parsed.prd;
-          await saveArtifact(outputDir, 'prd', parsed.prd);
-        }
-        if (parsed.architecture) {
-          ctx.state.artifacts.architecture = parsed.architecture;
-          await saveArtifact(outputDir, 'architecture', parsed.architecture);
-        }
-        if (parsed.testPlan) {
-          ctx.state.artifacts.testPlan = parsed.testPlan;
-          await saveArtifact(outputDir, 'testPlan', parsed.testPlan);
-        }
-      }
-    }
-    ctx.state.artifacts.sprintPlan = plan;
-    await saveArtifact(outputDir, `sprint-${n}-plan`, plan);
-    ctx.emit('sprint_update', { sprint: n, phase: 'planned', plan });
+    const run = {
+      sprintN: n,
+      maxSprints,
+      goal: `Sprint ${n}`,
+      stories: [],
+      lastImplementation: null,
+      lastQa: null,
+      lastWritten: [],
+      lastReview: null,
+      priorSteps: n > 1 ? [{ sprint: n - 1, summary: ctx.state.sprints[n - 2] || null }] : []
+    };
 
-    // 2. Refinado (Product Owner)
-    let stories = plan.stories || [];
-    if (has('productOwner')) {
-      const po = mustHave('productOwner');
-      const { parsed } = await askAgent(
-        po,
-        `Refina estas historias para el sprint ${n}: ${JSON.stringify(stories)}. Responde SOLO con JSON: {"stories":[{"id":"...","title":"...","acceptance":"..."}]}`,
-        ctx
-      );
-      if (Array.isArray(parsed?.stories) && parsed.stories.length > 0) stories = parsed.stories;
-    }
-
-    // 3. Implementacion (Developer)
-    let implementation = { files: [], notes: '' };
-    if (has('developer')) {
-      const dev = mustHave('developer');
-      const { parsed, text } = await askAgent(
-        dev,
-        `Implementa el sprint ${n} con estas historias: ${JSON.stringify(stories)}. Responde SOLO con JSON: {"implementation":{"files":[{"path":"...","code":"..."}],"notes":"..."}}`,
-        ctx
-      );
-      if (parsed?.implementation) {
-        implementation = parsed.implementation;
-      } else if (text) {
-        ctx.log('El desarrollador no devolvio JSON valido; se guarda la respuesta en bruto.', 'warn', 'ScrumMaster');
-        implementation = { files: [], notes: text.slice(0, 2000), raw: true };
-      }
-      const files = extractFilesFromImplementation({ implementation });
-      if (files.length > 0) {
-        const written = await writeFilesContained(appDir, files);
-        ctx.log(`Sprint ${n}: ${written.length} ficheros escritos en final-app`, 'info', 'ScrumMaster');
-        implementation.written = written;
-      }
-      ctx.state.artifacts.implementations.push({ sprint: n, ...implementation });
-      await saveArtifact(outputDir, `sprint-${n}-implementation`, implementation);
-      ctx.emit('sprint_update', { sprint: n, phase: 'implemented' });
-
-      // 3b. Checks reales (sin ok falsos: si no hay que comprobar, skipped)
-      const syntax = runNodeSyntaxCheck(appDir, implementation.written || []);
-      const npmTest = runNpmTestIfPresent(appDir);
-      implementation.checks = { syntax, npmTest: npmTest.ran ? npmTest : { ran: false, skipped: true } };
-      await saveArtifact(outputDir, `sprint-${n}-checks`, implementation.checks);
-    }
-
-    // 4. QA (QA tester)
-    let qa = { passed: true, bugs: [] };
-    if (has('qaTester')) {
-      const qaAgent = mustHave('qaTester');
-      const { parsed } = await askAgent(
-        qaAgent,
-        `Prueba el resultado del sprint ${n}. Ficheros: ${JSON.stringify(implementation.written || [])}. Checks: ${JSON.stringify(implementation.checks || null)}. Responde SOLO con JSON: {"qa":{"passed":true,"bugs":[{"severity":"critical|major|minor","title":"...","detail":"..."}]}}`,
-        ctx
-      );
-      if (parsed?.qa) qa = parsed.qa;
-      ctx.state.artifacts.qaReports.push({ sprint: n, ...qa });
-      await saveArtifact(outputDir, `sprint-${n}-qa`, qa);
-      ctx.emit('sprint_update', { sprint: n, phase: 'tested', passed: qa.passed !== false });
-
-      // 5. Fix de bugs criticos (una ronda)
-      const critical = (qa.bugs || []).filter((b) => b.severity === 'critical');
-      if (critical.length > 0 && has('developer')) {
-        ctx.log(`Sprint ${n}: ${critical.length} bug(s) criticos, ronda de fix`, 'warn', 'ScrumMaster');
-        const dev = mustHave('developer');
-        const { parsed: fixParsed } = await askAgent(
-          dev,
-          `Corrige estos bugs criticos del sprint ${n}: ${JSON.stringify(critical)}. Responde SOLO con JSON: {"implementation":{"files":[{"path":"...","code":"..."}],"notes":"..."}}`,
-          ctx
-        );
-        if (fixParsed?.implementation) {
-          const files = extractFilesFromImplementation({ implementation: fixParsed.implementation });
-          if (files.length > 0) {
-            const written = await writeFilesContained(appDir, files);
-            ctx.log(`Sprint ${n}: fix aplicado (${written.length} ficheros)`, 'info', 'ScrumMaster');
-          }
-        }
+    for (let i = 0; i < flow.length; i++) {
+      await ctx.waitWhilePaused();
+      const step = flow[i];
+      try {
+        await runStep(step, i, run, exec);
+        ctx.emit('sprint_update', { sprint: n, phase: `step-${i}`, step });
+      } catch (e) {
+        const onError = step.onError || 'abort';
+        ctx.log(`Paso ${i} (${step.role}/${step.task}) fallo: ${e.message}`, 'error', 'ScrumMaster');
+        if (onError !== 'continue') throw e;
       }
     }
 
-    // 6. Review (Scrum Master o cierre automatico)
-    let review = { done: true, next: '' };
-    if (has('scrumMaster')) {
-      const sm = mustHave('scrumMaster');
-      const { parsed } = await askAgent(
-        sm,
-        `Cierra el sprint ${n}. Plan: ${JSON.stringify(plan)}. QA: ${JSON.stringify(qa)}. Responde SOLO con JSON: {"review":{"done":true,"summary":"...","next":"..."}}`,
-        ctx
-      );
-      if (parsed?.review) review = parsed.review;
-    }
-    ctx.state.sprints.push({ n, plan: { goal: plan.goal, stories }, qa: { passed: qa.passed }, review });
+    ctx.state.sprints.push({
+      n,
+      plan: { goal: run.goal, stories: run.stories },
+      qa: run.lastQa ? { passed: run.lastQa.passed } : null,
+      review: run.lastReview || null
+    });
     ctx.state.currentSprint = n;
     await ctx.saveState();
-    ctx.emit('sprint_update', { sprint: n, phase: 'reviewed', review });
 
     if (await ctx.checkGracefulStopAfterStep(`Parada solicitada: detenido tras el sprint ${n}.`)) {
       return { stopped: true, sprint: n };
     }
   }
 
-  // Cierre: artefacto final = listado de la app generada.
   const finalFiles = [];
   try {
     const walk = async (d) => {
@@ -260,4 +351,4 @@ async function runPipeline(ctx) {
   return { stopped: false, sprints: maxSprints };
 }
 
-module.exports = { runPipeline, withTimeout, assertSafeRelPath, writeFilesContained };
+module.exports = { runPipeline, withTimeout, assertSafeRelPath, writeFilesContained, loopConditionMet };
