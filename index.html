@@ -1358,8 +1358,14 @@
           <div style="display:flex; gap:8px; align-items:center">
             <button type="button" class="btn btn-secondary" onclick="addModelRow()" style="padding:4px 10px;font-size:10px" data-tip="Añade un id de modelo (formato proveedor/modelo, p. ej. opencode/mimo-v2.6-flash-free)">+ Añadir modelo</button>
             <button type="button" class="btn btn-secondary" onclick="importOllamaModels()" style="padding:4px 10px;font-size:10px" data-tip="Lee ollama list e importa tus modelos instalados al registro (sin duplicados)">↻ Cargar de Ollama</button>
+            <button type="button" class="btn btn-secondary" onclick="importCloudModels()" style="padding:4px 10px;font-size:10px" data-tip="Importa los modelos gratuitos de la nube de opencode (proveedor opencode). Algunos pueden pedir login: opencode auth login">☁ Cargar nube opencode</button>
             <span id="ollama_import_result" style="font-size:10px;color:var(--text-dim)"></span>
           </div>
+          <p style="font-size:9px;color:var(--text-dim);margin:6px 0 0;line-height:1.45">
+            Ollama Cloud: haz login con <code>opencode auth login</code> (proveedor Ollama Cloud),
+            trae el modelo con <code>ollama pull &lt;modelo&gt;-cloud</code> y añádelo como
+            <code>ollama-cloud/&lt;modelo&gt;</code>.
+          </p>
         </div>
         <div class="form-group" style="margin-bottom:8px">
           <label class="form-label" data-tip="Solo se usa en modo serve. Debe coincidir con el puerto de opencode serve">URL de opencode serve (solo modo serve)</label>
@@ -1602,6 +1608,44 @@
     host.appendChild(modelRowEl({ id: '', label: '' }));
   }
 
+  /** Importa modelos cloud gratuitos de opencode (proveedor `opencode`). */
+  async function importCloudModels() {
+    const el = document.getElementById('ollama_import_result');
+    if (el) el.textContent = 'Leyendo catálogo opencode…';
+    try {
+      const res = await fetch('/api/engine/opencode-models');
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'HTTP ' + res.status);
+      const found = (Array.isArray(data.models) ? data.models : []).filter((m) =>
+        String(m.id || '').startsWith('opencode/')
+      );
+      if (found.length === 0) {
+        if (el) el.textContent = data.hint || 'Sin modelos cloud.';
+        if (data.hint) notify(data.hint, 'warning');
+        return;
+      }
+      const have = new Set(readModelsFromEditor().map((m) => m.id));
+      let added = 0;
+      for (const m of found) {
+        if (!m.id || have.has(m.id)) continue;
+        const host = document.getElementById('modelsEditor');
+        if (host) host.appendChild(modelRowEl({ id: m.id, label: m.label || '' }));
+        have.add(m.id);
+        added += 1;
+      }
+      syncModelsToSelects();
+      if (el) el.textContent = added > 0 ? `✓ ${added} modelo(s) cloud` : 'Ya estaban todos.';
+      notify(
+        added > 0
+          ? `${added} modelo(s) cloud importados. Guarda ajustes para persistir.`
+          : 'Sin modelos cloud nuevos.',
+        'success'
+      );
+    } catch (e) {
+      if (el) el.textContent = 'Error';
+      notify('No se pudo leer el catálogo: ' + e.message, 'error');
+    }
+  }
   /** Importa `ollama list` al registro (sin duplicados). */
   async function importOllamaModels() {
     const el = document.getElementById('ollama_import_result');

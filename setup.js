@@ -85,7 +85,20 @@ async function main() {
   }
 
   // 3b. Skills referenciadas que no existen (aviso, no error) + config antigua.
+  // Modelos cloud: solo recordatorio de auth (no se prueban aquí).
   const { missingSkills } = require('./utils/skills');
+  const usedModels = new Set();
+  if (oc.model) usedModels.add(oc.model);
+  for (const r of config.agents?.roles || []) {
+    if (r && r.enabled !== false && r.model) usedModels.add(r.model);
+  }
+  const cloudInUse = [...usedModels].filter(
+    (m) => m.startsWith('opencode/') || m.startsWith('ollama-cloud/')
+  );
+  if (cloudInUse.length > 0) {
+    console.log(`  · Modelos cloud en uso: ${cloudInUse.join(', ')}`);
+    console.log('    Si alguno pide login: `opencode auth login`. Ollama Cloud además exige `ollama pull <modelo>-cloud`.');
+  }
   const v2 = validateProjectConfig(config);
   if (!v2.ok) {
     warn(`project-config.json con problemas: ${v2.errors.slice(0, 3).join('; ')}`);

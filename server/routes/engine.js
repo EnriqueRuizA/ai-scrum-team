@@ -7,6 +7,35 @@ const { listPresetsForApi, resolveHttpAdapterFromLocal } = require('../../lib/ll
 const { verifyLlmModels } = require('../../lib/unified-local-llm');
 const { mergeLocalForOllamaTest, listModelsEndpointLabel } = require('../helpers');
 function registerEngine(app, _ctx) {
+  /** Catalogo de modelos de opencode (`opencode models`: locales + cloud). */
+  app.get('/api/engine/opencode-models', async (req, res) => {
+    try {
+      const { OpencodeAdapter } = require('../../llm/opencode-adapter');
+      const { spawnSafe } = require('../../utils/exec-safe');
+      const adapter = new OpencodeAdapter({ mode: 'run' });
+      let bin;
+      try {
+        bin = await adapter.resolveBinary();
+      } catch (e) {
+        return res.json({ models: [], hint: 'opencode no instalado.' });
+      }
+      const r = await spawnSafe(bin, ['models'], { timeoutMs: 30000 });
+      if (r.code !== 0) return res.json({ models: [], hint: (r.stderr || '').trim().slice(0, 200) });
+      const models = r.stdout
+        .split('\n')
+        .map((l) => l.trim())
+        .filter((l) => l && l.includes('/') && !l.startsWith('#'))
+        .map((id) => {
+          const provider = id.split('/')[0];
+          const kind = provider === 'ollama' ? 'Ollama local' : provider === 'opencode' ? 'opencode cloud' : provider;
+          return { id, label: `${id} (${kind})` };
+        });
+      res.json({ models });
+    } catch (e) {
+      res.json({ models: [], hint: e.message });
+    }
+  });
+
   /** Modelos instalados en Ollama local (`ollama list`) para importar al registro. */
   app.get('/api/engine/ollama-models', async (req, res) => {
     try {

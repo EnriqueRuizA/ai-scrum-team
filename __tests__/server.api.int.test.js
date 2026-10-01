@@ -229,6 +229,14 @@ describe('server API (integration)', () => {
     expect(res.body.url).toBe('http://127.0.0.1:4096');
   });
 
+  test('GET /api/engine/opencode-models devuelve catalogo (haya opencode o no)', async () => {
+    fs.readJson.mockResolvedValue({});
+    const { app } = createServer();
+    const res = await request(app).get('/api/engine/opencode-models');
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body.models)).toBe(true);
+  });
+
   test('GET /api/engine/ollama-models devuelve array (haya Ollama o no)', async () => {
     fs.readJson.mockResolvedValue({});
     const { app } = createServer();

@@ -103,6 +103,10 @@
       {
         "id": "ollama/gpt-oss:20b",
         "label": "GPT-OSS 20B (Ollama local)"
+      },
+      {
+        "id": "opencode/muse-spark-1.3-contributor-free",
+        "label": "Muse Spark (opencode cloud, gratis)"
       }
     ],
     "rag": {
