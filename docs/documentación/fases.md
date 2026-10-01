@@ -19,7 +19,8 @@ Estado del `docs/PLAN-REESTRUCTURACION.txt` (v2). Cada fase = commits `phase-N`.
 - **UX intermedio** (commit `a76f068`) — pill, preflight, Settings opencode, validación POST config.
 - **U0** (commit `246ad6c`) — START.bat llega al servidor (paréntesis en echoes).
 - **U1** (commit `cd0e820`) — roles+flow+loops, skills, validador, endpoints.
-- **U2** (en curso) — UI 3 pestañas, sin legacy, endpoint flow borrado.
+- **U2** (commit `dcbeb0e`) — UI 3 pestañas, sin legacy, endpoint flow borrado.
+- **UX tooltips** (en curso) — sistema CSS `[data-tip]` (~50), sin duplicados (57 IDs únicos).
 
 ## Pendientes
 

@@ -1018,6 +1018,65 @@
     font-size: 10px;
     text-transform: uppercase;
   }
+  /* Tooltips contextuales (UX): cualquier elemento con data-tip muestra ayuda al hover/foco. */
+  [data-tip] {
+    position: relative;
+  }
+  [data-tip]:hover::after,
+  [data-tip]:focus-visible::after {
+    content: attr(data-tip);
+    position: absolute;
+    bottom: calc(100% + 8px);
+    left: 50%;
+    transform: translateX(-50%);
+    max-width: 260px;
+    width: max-content;
+    padding: 7px 10px;
+    font-size: 10px;
+    font-weight: 400;
+    line-height: 1.45;
+    letter-spacing: normal;
+    color: var(--text-bright);
+    background: #101828;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.5);
+    white-space: normal;
+    z-index: 200;
+    pointer-events: none;
+  }
+  [data-tip]:hover::before,
+  [data-tip]:focus-visible::before {
+    content: '';
+    position: absolute;
+    bottom: calc(100% + 3px);
+    left: 50%;
+    transform: translateX(-50%);
+    border: 5px solid transparent;
+    border-top-color: var(--border);
+    z-index: 200;
+    pointer-events: none;
+  }
+  /* Los tips de la última fila no se cortan: se muestran debajo */
+  .tip-below[data-tip]:hover::after,
+  .tip-below[data-tip]:focus-visible::after {
+    bottom: auto;
+    top: calc(100% + 8px);
+  }
+  .tip-below[data-tip]:hover::before,
+  .tip-below[data-tip]:focus-visible::before {
+    bottom: auto;
+    top: calc(100% + 3px);
+    border-top-color: transparent;
+    border-bottom-color: var(--border);
+  }
+  button:focus-visible,
+  input:focus-visible,
+  select:focus-visible,
+  textarea:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+  }
 </style>
 </head>
 <body>
@@ -1055,9 +1114,9 @@
 <div id="llmRequestLabel" class="llm-request-label" role="status" aria-live="polite"></div>
 
 <div class="nav-tabs">
-  <button type="button" class="nav-tab active" data-tab="dashboard" onclick="showTab('dashboard', this)">⬡ Proyecto</button>
-  <button type="button" class="nav-tab" data-tab="agents" onclick="showTab('agents', this)">👥 Agentes</button>
-  <button type="button" class="nav-tab" data-tab="settings" onclick="showTab('settings', this)">⚙ Ajustes</button>
+  <button type="button" class="nav-tab active" data-tab="dashboard" data-tip="Vista única: estado, sprints, artefactos y logs del proyecto" onclick="showTab('dashboard', this)">⬡ Proyecto</button>
+  <button type="button" class="nav-tab" data-tab="agents" data-tip="Define roles (misión, modelo, skills) y el flujo con loops. Hay que Guardar para aplicar" onclick="showTab('agents', this)">👥 Agentes</button>
+  <button type="button" class="nav-tab" data-tab="settings" data-tip="Nombre, sprints y motor de IA. Los agentes se configuran en su pestaña" onclick="showTab('settings', this)">⚙ Ajustes</button>
 </div>
 
 <!-- TAB: DASHBOARD (Proyecto) -->
@@ -1102,9 +1161,9 @@
           <em>No reanuda</em> llamadas a Ollama/Claude: para eso inicia un proyecto nuevo.
         </p>
         <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-          <select id="savedSessionsSelect" class="form-input" style="flex:1;min-width:220px;font-size:11px;padding:8px"></select>
-          <button type="button" class="btn btn-secondary" onclick="refreshSessionsList()" style="padding:8px 12px;font-size:10px">↻ Listar</button>
-          <button type="button" class="btn btn-primary" onclick="loadSelectedSessionIntoDashboard()" style="padding:8px 12px;font-size:10px">Cargar en panel</button>
+          <select id="savedSessionsSelect" class="form-input" style="flex:1;min-width:220px;font-size:11px;padding:8px" data-tip="Sesiones anteriores guardadas en disco. Cargar solo restaura la vista, no reanuda el trabajo"></select>
+          <button type="button" class="btn btn-secondary" onclick="refreshSessionsList()" style="padding:8px 12px;font-size:10px" data-tip="Vuelve a leer la carpeta outputs por si hay sesiones nuevas">↻ Listar</button>
+          <button type="button" class="btn btn-primary" onclick="loadSelectedSessionIntoDashboard()" style="padding:8px 12px;font-size:10px" data-tip="Muestra logs y artefactos de esa sesión. No continúa su ejecución">Cargar en panel</button>
         </div>
       </div>
 
@@ -1135,7 +1194,7 @@
       <div class="card">
         <div class="card-header">
           <div class="card-title">Últimos Artefactos</div>
-          <button type="button" class="btn btn-secondary" onclick="document.getElementById('projectArtifacts').scrollIntoView({behavior:'smooth'})" style="padding:4px 10px; font-size:10px">Ver todos</button>
+          <button type="button" class="btn btn-secondary" onclick="document.getElementById('projectArtifacts').scrollIntoView({behavior:'smooth'})" style="padding:4px 10px; font-size:10px" data-tip="Baja a la parrilla completa de artefactos de esta misma vista">Ver todos</button>
         </div>
         <div id="recentArtifacts" class="artifact-list">
           <div style="color:var(--text-dim); font-size:11px; padding:8px">
@@ -1170,10 +1229,10 @@
         <div class="card-header">
           <div class="card-title">Logs Completos</div>
           <div style="display:flex; gap:8px">
-            <select id="logFilter" class="form-input" style="width:160px; padding:6px 10px" onchange="filterLogs()">
+            <select id="logFilter" class="form-input" style="width:160px; padding:6px 10px" onchange="filterLogs()" data-tip="Muestra solo las líneas de ese rol. No borra nada">
               <option value="">Todos los agentes</option>
             </select>
-            <button class="btn btn-secondary" onclick="clearLogs()">Limpiar</button>
+            <button class="btn btn-secondary" onclick="clearLogs()" data-tip="Vacía la vista y la memoria de logs. Lo guardado en outputs/session-… se conserva">Limpiar</button>
           </div>
         </div>
         <div class="terminal" style="height: 420px">
@@ -1187,7 +1246,7 @@
     <div class="panel-side scrollbar-custom">
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px">
         <div style="font-family:'Syne',sans-serif; font-weight:600; font-size:12px; color:var(--text-bright)">Activity Feed</div>
-        <button class="btn btn-secondary" id="startBtn" onclick="startProject()" style="padding:8px 16px; font-size:10px">
+        <button class="btn btn-secondary" id="startBtn" onclick="startProject()" style="padding:8px 16px; font-size:10px" data-tip="Lanza el proyecto con los roles y el flujo guardados. Antes comprueba el motor automáticamente">
           ▶ Iniciar
         </button>
       </div>
@@ -1195,9 +1254,9 @@
       <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid var(--border)">
         <div style="font-size:10px;color:var(--text-dim);letter-spacing:1px">CONTROL DE EJECUCIÓN</div>
         <div style="display:flex;flex-wrap:wrap;gap:6px">
-          <button type="button" class="btn btn-secondary" id="btnPauseRun" onclick="pauseRun()" style="padding:6px 10px;font-size:9px">⏸ Pausa</button>
-          <button type="button" class="btn btn-secondary" id="btnResumeRun" onclick="resumeRun()" style="padding:6px 10px;font-size:9px">▶ Reanudar</button>
-          <button type="button" class="btn btn-danger" id="btnStopAfterStep" onclick="stopAfterStep()" style="padding:6px 10px;font-size:9px">⏹ Stop tras sprint</button>
+          <button type="button" class="btn btn-secondary" id="btnPauseRun" onclick="pauseRun()" style="padding:6px 10px;font-size:9px" data-tip="Pausa entre pasos. No interrumpe una respuesta del modelo ya en curso">⏸ Pausa</button>
+          <button type="button" class="btn btn-secondary" id="btnResumeRun" onclick="resumeRun()" style="padding:6px 10px;font-size:9px" data-tip="Continúa una ejecución pausada donde se quedó">▶ Reanudar</button>
+          <button type="button" class="btn btn-danger" id="btnStopAfterStep" onclick="stopAfterStep()" style="padding:6px 10px;font-size:9px" data-tip="Termina el sprint actual, guarda todo y se detiene. Puedes lanzar otro después">⏹ Stop tras sprint</button>
         </div>
         <p id="runControlHint" style="font-size:9px;color:var(--text-dim);line-height:1.45;margin:0">
           <strong>Pausa</strong>: el flujo espera entre pasos (no corta una respuesta del modelo ya en curso).
@@ -1241,17 +1300,17 @@
   <div style="padding: 24px; max-width: 1000px">
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px">
       <div style="font-family:'Syne',sans-serif; font-size:20px; font-weight:800; color:var(--text-bright)">Agentes</div>
-      <button type="button" class="btn btn-primary" onclick="saveAgents()" style="padding:8px 16px;font-size:11px">💾 Guardar equipo y flujo</button>
+      <button type="button" class="btn btn-primary" onclick="saveAgents()" style="padding:8px 16px;font-size:11px" data-tip="Valida y guarda roles y flujo en config/project-config.json. Sin guardar, Iniciar usa lo anterior">💾 Guardar equipo y flujo</button>
     </div>
     <div style="color:var(--text-dim); font-size:11px; margin-bottom:20px">Cada rol tiene una misión. El flujo se ejecuta en orden, de arriba abajo, con los loops que configures.</div>
 
     <div style="font-family:'Syne',sans-serif; font-size:14px; font-weight:700; color:var(--text-bright); margin-bottom:10px">Roles</div>
     <div id="rolesEditor" style="display:flex; flex-direction:column; gap:10px; margin-bottom:16px"></div>
-    <button type="button" class="btn btn-secondary" onclick="addRoleCard()" style="padding:6px 12px;font-size:10px; margin-bottom:28px">+ Nuevo rol</button>
+    <button type="button" class="btn btn-secondary" onclick="addRoleCard()" style="padding:6px 12px;font-size:10px; margin-bottom:28px" data-tip="Crea un rol vacío: ponle id, nombre y misión (obligatoria si no es clásico)">+ Nuevo rol</button>
 
     <div style="font-family:'Syne',sans-serif; font-size:14px; font-weight:700; color:var(--text-bright); margin-bottom:10px">Flujo</div>
     <div id="flowEditor" style="display:flex; flex-direction:column; gap:8px; margin-bottom:16px"></div>
-    <button type="button" class="btn btn-secondary" onclick="addFlowStep()" style="padding:6px 12px;font-size:10px">+ Añadir paso</button>
+    <button type="button" class="btn btn-secondary" onclick="addFlowStep()" style="padding:6px 12px;font-size:10px" data-tip="Añade un paso al final: elige rol y tarea, y opcionalmente un loop">+ Añadir paso</button>
     <p style="font-size:10px; color:var(--text-dim); margin-top:12px; line-height:1.5">
       Tareas: <code>plan</code>, <code>refinar</code>, <code>implementar</code>, <code>probar</code>,
       <code>revisar</code>, <code>libre</code>. Loop: repite el paso (con fix opcional) hasta cumplir
@@ -1272,7 +1331,7 @@
         <div style="display:flex; align-items:center; gap:10px; margin-bottom:8px">
           <strong style="font-size:12px">Motor opencode (gratuito)</strong>
           <span id="engine_health_pill" style="font-size:10px;color:var(--text-dim)">comprobando…</span>
-          <button type="button" class="btn btn-secondary" onclick="refreshEngineHealth()" style="padding:4px 10px;font-size:9px;margin-left:auto">↻ Comprobar</button>
+          <button type="button" class="btn btn-secondary" onclick="refreshEngineHealth()" style="padding:4px 10px;font-size:9px;margin-left:auto" data-tip="Pregunta al motor si está listo (opencode + modelo). No lanza nada">↻ Comprobar</button>
         </div>
         <div style="font-size:10px; color:var(--text-dim); margin-bottom:12px; line-height:1.45">
           El proyecto ejecuta los agentes con <strong>opencode</strong> (modelos gratuitos: Ollama local
@@ -1282,19 +1341,19 @@
         </div>
         <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:12px">
           <div class="form-group">
-            <label class="form-label">Modo del motor</label>
+            <label class="form-label" data-tip="run funciona sin nada en marcha; serve es más rápido pero exige opencode serve">Modo del motor</label>
             <select class="form-input" id="oc_mode">
               <option value="run">run — por llamada (simple)</option>
               <option value="serve">serve — persistente (rápido)</option>
             </select>
           </div>
           <div class="form-group">
-            <label class="form-label">Modelo (proveedor/modelo)</label>
+            <label class="form-label" data-tip="Formato proveedor/modelo. Local gratis: ollama/nombre. De opencode: opencode/…-free. Verificable con opencode models">Modelo (proveedor/modelo)</label>
             <input class="form-input" type="text" id="oc_model" placeholder="ollama/qwen3.5:9b" autocomplete="off" />
           </div>
         </div>
         <div class="form-group" style="margin-bottom:8px">
-          <label class="form-label">URL de opencode serve (solo modo serve)</label>
+          <label class="form-label" data-tip="Solo se usa en modo serve. Debe coincidir con el puerto de opencode serve">URL de opencode serve (solo modo serve)</label>
           <input class="form-input" type="text" id="oc_url" placeholder="http://127.0.0.1:4096" autocomplete="off" />
         </div>
         <p id="engine_health_hint" style="font-size:10px;color:var(--warning);margin:0;line-height:1.45"></p>
@@ -1312,24 +1371,24 @@
       <div class="form-section-title">⚙ Proyecto</div>
       <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px">
         <div class="form-group">
-          <label class="form-label">Nombre del Proyecto</label>
+          <label class="form-label" data-tip="Nombre interno del proyecto. Solo etiqueta, no afecta a la ejecución">Nombre del Proyecto</label>
           <input class="form-input" type="text" id="proj_name" value="JobTracker Pro">
         </div>
         <div class="form-group">
-          <label class="form-label">Nº Máx. Sprints</label>
+          <label class="form-label" data-tip="Cuántas veces se repite el flujo completo. Más sprints = más tiempo y más coste">Nº Máx. Sprints</label>
           <input class="form-input" type="number" id="proj_sprints" value="5" min="1" max="10">
         </div>
         <div class="form-group" style="grid-column: span 2">
-          <label class="form-label">Descripción del Proyecto</label>
+          <label class="form-label" data-tip="Qué debe construir el equipo. Los agentes la leen en cada tarea">Descripción del Proyecto</label>
           <textarea class="form-input" id="proj_description" rows="3" style="resize:vertical">Aplicación web para seguimiento de procesos de selección activos mediante integración con email y plataformas de empleo</textarea>
         </div>
       </div>
     </div>
 
     <div style="display:flex; flex-wrap:wrap; gap:12px; align-items:center">
-      <button type="button" class="btn btn-primary" onclick="saveSettings()">💾 Guardar ajustes</button>
-      <button type="button" class="btn btn-secondary" onclick="loadSettings()">↺ Recargar desde servidor</button>
-      <button type="button" class="btn btn-secondary" onclick="testServerConnection()">🔌 Probar conexión API</button>
+      <button type="button" class="btn btn-primary" onclick="saveSettings()" data-tip="Guarda proyecto y motor. Los roles se guardan en la pestaña Agentes">💾 Guardar ajustes</button>
+      <button type="button" class="btn btn-secondary" onclick="loadSettings()" data-tip="Descarta cambios y recarga lo guardado en disco">↺ Recargar desde servidor</button>
+      <button type="button" class="btn btn-secondary" onclick="testServerConnection()" data-tip="Comprueba que la API responde. No lanza ni cambia nada">🔌 Probar conexión API</button>
     </div>
   </div>
 </div>
@@ -1339,13 +1398,13 @@
   <div class="modal">
     <div class="modal-header">
       <div class="modal-title" id="modalTitle">Artefacto</div>
-      <button class="modal-close" onclick="closeModal()">✕</button>
+        <button class="modal-close" onclick="closeModal()" data-tip="Cerrar (también clic fuera)">✕</button>
     </div>
     <div class="modal-body scrollbar-custom">
       <div class="artifact-view-tabs" role="tablist">
-        <button type="button" class="artifact-tab active" data-artifact-tab="readable" onclick="switchArtifactTab('readable', this)">📖 Lectura</button>
-        <button type="button" class="artifact-tab" data-artifact-tab="json" onclick="switchArtifactTab('json', this)">{ } JSON</button>
-        <button type="button" class="artifact-tab" data-artifact-tab="raw" onclick="switchArtifactTab('raw', this)">📄 Texto bruto</button>
+          <button type="button" class="artifact-tab active" data-artifact-tab="readable" data-tip="Vista legible del artefacto" onclick="switchArtifactTab('readable', this)">📖 Lectura</button>
+          <button type="button" class="artifact-tab" data-artifact-tab="json" data-tip="El JSON tal cual se guardó en disco" onclick="switchArtifactTab('json', this)">{ } JSON</button>
+          <button type="button" class="artifact-tab" data-artifact-tab="raw" data-tip="Respuesta bruta del modelo, sin procesar" onclick="switchArtifactTab('raw', this)">📄 Texto bruto</button>
       </div>
       <div id="modalViewReadable" class="artifact-view-pane active"></div>
       <pre id="modalViewJson" class="code-block artifact-view-pane" style="margin:0; max-height:55vh"></pre>
@@ -1504,27 +1563,27 @@
     const isClassic = ['scrumMaster', 'productOwner', 'developer', 'qaTester'].includes(r.id);
     d.innerHTML = `
       <div style="display:grid; grid-template-columns:1fr 1fr auto; gap:10px; align-items:end; margin-bottom:10px">
-        <div class="form-group" style="margin:0"><label class="form-label">ID</label>
+        <div class="form-group" style="margin:0"><label class="form-label" data-tip="Identificador único. Los clásicos no se renombran; los nuevos úsalo en el flow">ID</label>
           <input class="form-input role-id" value="${escHtml(r.id || '')}" ${isClassic ? 'disabled' : ''} placeholder="mi-rol" /></div>
-        <div class="form-group" style="margin:0"><label class="form-label">Nombre</label>
+        <div class="form-group" style="margin:0"><label class="form-label" data-tip="Nombre visible en cards y logs">Nombre</label>
           <input class="form-input role-label" value="${escHtml(r.label || '')}" placeholder="Nombre visible" /></div>
-        <label style="font-size:11px;display:flex;gap:6px;align-items:center;white-space:nowrap">
+        <label data-tip="Desactivado = se omite en el flow sin borrarlo" style="font-size:11px;display:flex;gap:6px;align-items:center;white-space:nowrap">
           <input type="checkbox" class="role-enabled" ${r.enabled === false ? '' : 'checked'} /> Activo</label>
       </div>
-      <div class="form-group" style="margin-bottom:10px"><label class="form-label">Misión${isClassic ? ' (vacío = persona clásica)' : ''}</label>
+      <div class="form-group" style="margin-bottom:10px"><label class="form-label" data-tip="Qué hace este rol en 1-2 líneas. Obligatoria en roles nuevos; los clásicos usan su persona detallada si se deja vacía">Misión${isClassic ? ' (vacío = persona clásica)' : ''}</label>
         <textarea class="form-input role-mission" rows="2" placeholder="Qué hace este rol en 1-2 líneas…">${escHtml(r.mission || '')}</textarea></div>
       <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:10px">
-        <div class="form-group" style="margin:0"><label class="form-label">Modelo (vacío = el del motor)</label>
+        <div class="form-group" style="margin:0"><label class="form-label" data-tip="Modelo solo para este rol. Vacío = el del motor">Modelo (vacío = el del motor)</label>
           <input class="form-input role-model" value="${escHtml(r.model || '')}" placeholder="ollama/qwen3.5:9b" /></div>
-        <div class="form-group" style="margin:0"><label class="form-label">Skills (separadas por comas)</label>
+        <div class="form-group" style="margin:0"><label class="form-label" data-tip="Skills de opencode que este rol puede cargar, separadas por comas. Deben existir en .opencode/skills">Skills (separadas por comas)</label>
           <input class="form-input role-skills" value="${escHtml((r.skills || []).join(', '))}" placeholder="mis-docs, git-release" /></div>
       </div>
       <details style="font-size:11px;margin-bottom:10px"><summary style="cursor:pointer;color:var(--text-dim)">Instrucciones extra</summary>
         <textarea class="form-input role-extra" rows="2" style="margin-top:6px" placeholder="Opcional: matices para este rol…">${escHtml(r.extra || '')}</textarea></details>
       <div style="display:flex;gap:6px">
-        <button type="button" class="btn btn-secondary role-up" style="padding:4px 10px;font-size:10px">↑</button>
-        <button type="button" class="btn btn-secondary role-down" style="padding:4px 10px;font-size:10px">↓</button>
-        <button type="button" class="btn btn-secondary role-del" style="padding:4px 10px;font-size:10px">✕ Quitar</button>
+        <button type="button" class="btn btn-secondary role-up" data-tip="Subir este rol en la lista" style="padding:4px 10px;font-size:10px">↑</button>
+        <button type="button" class="btn btn-secondary role-down" data-tip="Bajar este rol en la lista" style="padding:4px 10px;font-size:10px">↓</button>
+        <button type="button" class="btn btn-secondary role-del" data-tip="Quitar este rol. Los pasos del flow que lo usen fallarán al guardar" style="padding:4px 10px;font-size:10px">✕ Quitar</button>
       </div>`;
     d.querySelector('.role-up').onclick = () => {
       if (d.previousElementSibling) d.parentNode.insertBefore(d, d.previousElementSibling);
@@ -1571,26 +1630,26 @@
     const hasLoop = !!s.loop;
     d.innerHTML = `
       <div style="display:grid; grid-template-columns:1fr 1fr auto; gap:10px; align-items:end">
-        <div class="form-group" style="margin:0"><label class="form-label">Rol</label>
+        <div class="form-group" style="margin:0"><label class="form-label" data-tip="Qué rol ejecuta este paso. Debe existir y estar activo">Rol</label>
           <select class="form-input flow-role">${roleOpts}</select></div>
-        <div class="form-group" style="margin:0"><label class="form-label">Tarea</label>
+        <div class="form-group" style="margin:0"><label class="form-label" data-tip="Qué hace: plan, refinar, implementar, probar, revisar o libre (texto sin parsear)">Tarea</label>
           <select class="form-input flow-task">${taskOpts}</select></div>
         <div style="display:flex;gap:6px">
-          <button type="button" class="btn btn-secondary flow-up" style="padding:4px 10px;font-size:10px">↑</button>
-          <button type="button" class="btn btn-secondary flow-down" style="padding:4px 10px;font-size:10px">↓</button>
-          <button type="button" class="btn btn-secondary flow-del" style="padding:4px 10px;font-size:10px">✕</button>
+          <button type="button" class="btn btn-secondary flow-up" data-tip="Subir este paso en la secuencia" style="padding:4px 10px;font-size:10px">↑</button>
+          <button type="button" class="btn btn-secondary flow-down" data-tip="Bajar este paso en la secuencia" style="padding:4px 10px;font-size:10px">↓</button>
+          <button type="button" class="btn btn-secondary flow-del" data-tip="Quitar este paso del flujo" style="padding:4px 10px;font-size:10px">✕</button>
         </div>
       </div>
       <div style="display:flex;gap:14px;margin-top:8px;font-size:11px;align-items:center;flex-wrap:wrap">
-        <label style="display:flex;gap:6px;align-items:center"><input type="checkbox" class="flow-loop" ${hasLoop ? 'checked' : ''} /> Loop</label>
-        <label style="display:flex;gap:6px;align-items:center">hasta
+        <label data-tip="Repite este paso hasta cumplir la condición o agotar el máximo" style="display:flex;gap:6px;align-items:center"><input type="checkbox" class="flow-loop" ${hasLoop ? 'checked' : ''} /> Loop</label>
+        <label data-tip="Cuándo se considera superado el paso" style="display:flex;gap:6px;align-items:center">hasta
           <select class="form-input flow-until" style="padding:4px 8px;font-size:10px">${untilOpts}</select></label>
-        <label style="display:flex;gap:6px;align-items:center">máx
+        <label data-tip="Máximo de repeticiones por sprint (tope 10, anti-bucle infinito)" style="display:flex;gap:6px;align-items:center">máx
           <input type="number" class="form-input flow-max" min="1" max="10" style="width:64px;padding:4px 8px;font-size:10px" /></label>
-        <label style="display:flex;gap:6px;align-items:center">fix con
+        <label data-tip="Quién intenta arreglarlo antes de reintentar. Vacío = repite el mismo paso" style="display:flex;gap:6px;align-items:center">fix con
           <select class="form-input flow-fix-role" style="padding:4px 8px;font-size:10px"><option value="">—</option>${roleOpts}</select></label>
-        <select class="form-input flow-fix-task" style="padding:4px 8px;font-size:10px"><option value="">—</option>${taskOpts}</select>
-        <label style="display:flex;gap:6px;align-items:center" title="Si el paso falla, seguir con el siguiente en vez de abortar">
+        <select class="form-input flow-fix-task" data-tip="Tarea del fix" style="padding:4px 8px;font-size:10px"><option value="">—</option>${taskOpts}</select>
+        <label data-tip="Si el paso falla, seguir con el siguiente en vez de abortar el sprint" style="display:flex;gap:6px;align-items:center" title="Si el paso falla, seguir con el siguiente en vez de abortar">
           <input type="checkbox" class="flow-onerror" /> seguir si falla</label>
       </div>`;
     d.querySelector('.flow-role').value = s.role || '';

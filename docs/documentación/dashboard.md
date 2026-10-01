@@ -21,11 +21,21 @@ src: index.html
 - `clearLogs()` vacía vista Y memoria (antes solo un panel).
 - `filterLogs()` solo oculta (`display:none`), no borra.
 
-## Seguridad render (FASE 3)
+## Seguridad render (FASE 3, U2 suma)
 
 - `escHtml`/`escapeHtml` cubren `&<>"'`; `sprint.goal`, estados y nombres de
   artefacto escapados; `showArtifact` usa `textContent`.
-- Mermaid: `securityLevel:'strict'` + allowlist `flowchart|graph` sin HTML/handlers.
+- U2: Mermaid eliminado (sin diagramas en la UI).
+
+## Ayuda contextual (UX tooltips)
+
+- Sistema CSS puro: `[data-tip]` muestra bocadillo en hover Y foco (teclado),
+  con variante `.tip-below`; `:focus-visible` con outline para teclado.
+- ~50 `data-tip` en nav, botones, labels de campos y plantillas dinámicas
+  (roles/flow). Patrón: tip en el `label`, no duplicado en el `input`.
+- Auditoría: 57 IDs sin duplicados; sin duplicados funcionales (los dos
+  Guardar tienen ámbitos distintos y etiquetas distintas; los ↻ apuntan a
+  destinos distintos).
 
 ## Tiempo real
 
