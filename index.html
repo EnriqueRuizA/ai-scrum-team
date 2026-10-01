@@ -1679,6 +1679,8 @@
   // === WEBSOCKET ===
   let ws = null;
   let reconnectTimer = null;
+  // FASE 6: tope de logs en memoria del cliente (el servidor topa a 500 por defecto).
+  const MAX_CLIENT_LOGS = 2000;
   const allLogs = [];
   const allArtifacts = [];
   let projectState = { status: 'idle', currentSprint: 0, maxSprints: 5, sprints: [], runPaused: false };
@@ -1987,6 +1989,8 @@
 
   function handleLog(data) {
     allLogs.push(data);
+    // FASE 6: tope en memoria (el DOM ya se poda a 500 por panel).
+    if (allLogs.length > MAX_CLIENT_LOGS) allLogs.splice(0, allLogs.length - MAX_CLIENT_LOGS);
     addTerminalLine(data, 'terminalBody');
     addTerminalLine(data, 'fullLogBody');
     updateStats();
@@ -2407,7 +2411,7 @@
   function hydrateArtifactsAndLogsFromState(fullState) {
     allLogs.length = 0;
     if (Array.isArray(fullState.logs)) {
-      allLogs.push(...fullState.logs);
+      allLogs.push(...fullState.logs.slice(-MAX_CLIENT_LOGS));
     }
     renderAllLogsToDom();
 
@@ -3436,7 +3440,12 @@
   }
 
   function clearLogs() {
-    document.getElementById('fullLogBody').innerHTML = '';
+    // FASE 6: limpia vista Y memoria (antes solo vaciaba un panel).
+    allLogs.length = 0;
+    const full = document.getElementById('fullLogBody');
+    if (full) full.innerHTML = '';
+    const term = document.getElementById('terminalBody');
+    if (term) term.innerHTML = '';
   }
 
   function escHtml(str) {
@@ -3455,7 +3464,7 @@
     connectWS();
     loadSettings();
     refreshSessionsList();
-    fetch('/api/state')
+    fetch('/api/state?logs=500')
       .then((r) => r.json())
       .then((data) => {
         if (

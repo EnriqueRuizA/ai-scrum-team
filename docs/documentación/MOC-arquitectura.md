@@ -25,7 +25,9 @@ orquesta y visualiza.
 ## Servidor y seguridad
 
 - [[guards|Guards]] — `server/guards.js`, `server/state-store.js`
+- [[dashboard|Dashboard]] — `index.html`, topes de logs, XSS, tiempo real
 - Seguridad (nota clásica): `docs/SECURITY.md` (threat model, reglas 1-8)
+- ADR: `docs/adr/0001-ws-sin-auth-localhost.md` (por qué sin auth en local)
 
 ## Config y scripts
 

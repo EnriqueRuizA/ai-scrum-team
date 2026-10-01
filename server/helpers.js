@@ -124,6 +124,36 @@ function sanitizeProjectConfigForClient(config) {
   return c;
 }
 
+const DEFAULT_STATE_LOGS = 500;
+const MAX_STATE_LOGS = 5000;
+
+/**
+ * Recorta los logs de un state para respuestas HTTP (FASE 6).
+ * - logs: numero maximo (defecto 500, 0 = todos, tope 5000).
+ * - since: ISO timestamp; solo logs >= since.
+ * Devuelve copia con `_logsTotal` (original) y `_logsLimited` (bool).
+ */
+function limitStateLogs(state, query = {}) {
+  if (!state || typeof state !== 'object') return state;
+  const all = Array.isArray(state.logs) ? state.logs : [];
+  let n = DEFAULT_STATE_LOGS;
+  if (query.logs !== undefined) {
+    const parsed = Number.parseInt(String(query.logs), 10);
+    if (Number.isInteger(parsed) && parsed >= 0) n = Math.min(parsed, MAX_STATE_LOGS);
+  }
+  let kept = all;
+  if (typeof query.since === 'string' && query.since) {
+    kept = kept.filter((e) => e && typeof e.timestamp === 'string' && e.timestamp >= query.since);
+  }
+  const limited = n === 0 ? kept : kept.slice(-n);
+  return {
+    ...state,
+    logs: limited,
+    _logsTotal: all.length,
+    _logsLimited: limited.length !== all.length
+  };
+}
+
 
 module.exports = {
   listModelsEndpointLabel,
@@ -131,5 +161,8 @@ module.exports = {
   loadDashboardStateFromDisk,
   mergeCredentialsPatch,
   mergeLocalForOllamaTest,
-  sanitizeProjectConfigForClient
+  sanitizeProjectConfigForClient,
+  limitStateLogs,
+  DEFAULT_STATE_LOGS,
+  MAX_STATE_LOGS
 };

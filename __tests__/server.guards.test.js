@@ -8,6 +8,7 @@ const {
   sanitizeKeys,
   escHtml
 } = require('../server/guards');
+const { limitStateLogs, DEFAULT_STATE_LOGS, MAX_STATE_LOGS } = require('../server/helpers');
 
 describe('validateSessionId', () => {
   test('acepta ids validos', () => {
@@ -74,5 +75,48 @@ describe('anti prototype-pollution', () => {
 describe('escHtml', () => {
   test('escapa &<>"\'', () => {
     expect(escHtml('<img src=x onerror="a\'b">')).toBe('&lt;img src=x onerror=&quot;a&#39;b&quot;&gt;');
+  });
+});
+
+describe('limitStateLogs (FASE 6)', () => {
+  const mk = (n) =>
+    Array.from({ length: n }, (_, i) => ({
+      timestamp: `2026-01-01T00:00:${String(i).padStart(2, '0')}Z`,
+      agent: 't',
+      level: 'info',
+      message: `m${i}`
+    }));
+
+  test('defecto: ultimos 500 con metadatos', () => {
+    const out = limitStateLogs({ logs: mk(700) }, {});
+    expect(out.logs).toHaveLength(DEFAULT_STATE_LOGS);
+    expect(out.logs[0].message).toBe('m200');
+    expect(out._logsTotal).toBe(700);
+    expect(out._logsLimited).toBe(true);
+  });
+
+  test('logs=0 devuelve todos; tope en 5000', () => {
+    expect(limitStateLogs({ logs: mk(10) }, { logs: '0' }).logs).toHaveLength(10);
+    expect(limitStateLogs({ logs: mk(10) }, { logs: '999999' }).logs).toHaveLength(10);
+    expect(limitStateLogs({ logs: mk(10) }, { logs: '3' }).logs.map((e) => e.message)).toEqual(['m7', 'm8', 'm9']);
+  });
+
+  test('since filtra por timestamp', () => {
+    const out = limitStateLogs({ logs: mk(10) }, { logs: '0', since: '2026-01-01T00:00:05Z' });
+    expect(out.logs.map((e) => e.message)).toEqual(['m5', 'm6', 'm7', 'm8', 'm9']);
+    expect(out._logsLimited).toBe(true);
+  });
+
+  test('valores invalidos no rompen (usan defecto)', () => {
+    expect(limitStateLogs({ logs: mk(600) }, { logs: 'abc' }).logs).toHaveLength(500);
+    expect(limitStateLogs({ logs: mk(600) }, { logs: '-5' }).logs).toHaveLength(500);
+    expect(limitStateLogs(null, {})).toBeNull();
+    expect(limitStateLogs({ nologs: true }, {})).toEqual(
+      expect.objectContaining({ _logsTotal: 0, _logsLimited: false })
+    );
+  });
+
+  test('MAX_STATE_LOGS es 5000', () => {
+    expect(MAX_STATE_LOGS).toBe(5000);
   });
 });

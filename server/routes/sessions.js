@@ -1,20 +1,21 @@
 // server/routes/sessions.js - FASE 5: rutas (extraido de server.js, sin cambios de comportamiento).
 const fs = require('fs-extra');
 const path = require('path');
-const { loadDashboardStateFromDisk } = require('../helpers');
+const { loadDashboardStateFromDisk, limitStateLogs } = require('../helpers');
 function registerSessions(app, ctx) {
   const { state } = ctx;
-// Estado del dashboard: orquestador en vivo o última sesión en disco (outputs/…/state.json)
+// Estado del dashboard: orquestador en vivo o última sesión en disco.
+// FASE 6: ?logs=N (defecto 500, 0=todos, tope 5000) y ?since=ISO (deltas).
   app.get('/api/state', async (req, res) => {
   try {
     if (state.orchestrator) {
-      return res.json({ ...state.orchestrator.getState(), _activeRun: true });
+      return res.json(limitStateLogs({ ...state.orchestrator.getState(), _activeRun: true }, req.query));
     }
     const restored = await loadDashboardStateFromDisk();
     if (restored) {
-      return res.json(restored);
+      return res.json(limitStateLogs(restored, req.query));
     }
-    return res.json({
+    return res.json(limitStateLogs({
       status: 'idle',
       sessionId: null,
       currentSprint: 0,
@@ -34,7 +35,7 @@ function registerSessions(app, ctx) {
       errors: [],
       _restoredFromDisk: false,
       _activeRun: false
-    });
+    }, req.query));
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
