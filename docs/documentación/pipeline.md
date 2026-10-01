@@ -36,5 +36,7 @@ src: orchestrator/pipeline.js
 
 ## Dónde mirar / cambiar
 
-- Prompts de cada paso → aquí (strings inline; ver [[personas]] como fuente de system prompts)
+- `askAgent` devuelve `{text, parsed, ms}`; cada llamada emite `exchange`
+  (prompt+respuesta+ms, recorte 200K) y guarda `exchange` en el artefacto.
+- Prompts de cada paso → `orchestrator/tasks/*.js` (ver [[personas]] como fuente de system prompts)
 - Añadir un paso (p.ej. `npm install`) → entre implement y checks, con `skipped` si no aplica

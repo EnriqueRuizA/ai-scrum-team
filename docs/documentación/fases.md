@@ -23,8 +23,10 @@ Estado del `docs/PLAN-REESTRUCTURACION.txt` (v2). Cada fase = commits `phase-N`.
 - **UX tooltips** (commit `bf48c5b`) — sistema CSS `[data-tip]` (~50), sin duplicados (57 IDs únicos).
 - **UX modelos** (commit `ff494f4`) — registro `agents.models`, sin orden en roles, selects por rol/motor, `GET /api/engine/ollama-models`.
 - **UX cloud+variant** (commit `e537be4`) — `GET /api/engine/opencode-models` (muse-spark verificado sin login).
-- **UX conversaciones** (en curso) — evento WS `exchange`, `GET /api/steps/:session`, vista Conversación, `variant` global/por rol.
-- Nota: un sprint real en modo `run` tarda >15 min (cold-boot por paso); para verificación viva usar `serve` o flujos mínimos.
+- **UX conversaciones** (commit `c25e0c0`) — evento WS `exchange`, `GET /api/steps/:session`, vista Conversación, `variant` global/por rol.
+- **UX variantes** (commit `27658a9`) — catálogo con modificadores por modelo, datalists en UI.
+- **U3** (en curso) — verificación viva real OK (2 llamadas, 6 artefactos), sin endpoints huérfanos, ADR-0002.
+- Nota: un sprint completo en modo `run` tarda >15 min (cold-boot por paso + loops); para verificación viva usar flujos mínimos o `serve`.
 
 ## Pendientes
 
