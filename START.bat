@@ -29,14 +29,16 @@ if %errorlevel%==0 (
 )
 
 REM Si el puerto no está en uso, preflight + iniciar el servidor
+REM (OPENCODE_SKIP_SETUP=1 salta la pausa de abajo, no el preflight)
 echo Comprobando motor (opencode/ollama)...
 node setup.js
-if not "%OPENCODE_SKIP_SETUP%"=="1" if %errorlevel% neq 0 (
-  echo.
-  echo [AVISO] El preflight devolvio aviso/error. Puedes continuar igualmente
-  echo o pulsar Ctrl+C para revisar (ollama serve / opencode serve).
-  pause
-)
+if "%OPENCODE_SKIP_SETUP%"=="1" goto :skipSetupPause
+if %errorlevel%==0 goto :skipSetupPause
+echo.
+echo [AVISO] El preflight devolvio aviso o error. Puedes continuar igualmente
+echo o pulsa Ctrl+C para revisar: ollama serve u opencode serve.
+pause
+:skipSetupPause
 REM Si el modo es serve y opencode serve no escucha, levantarlo en otra ventana
 for /f "tokens=1,2 delims=|" %%a in ('powershell -NoProfile -Command "try { $c=Get-Content config/project-config.json -Raw | ConvertFrom-Json; $m=$c.agents.opencode.mode; if(-not $m){$m='run'}; $u=$c.agents.opencode.url; if(-not $u){$u='http://127.0.0.1:4096'}; $p=([uri]$u).Port; Write-Host ($m.ToLower()+'|'+$p) } catch { Write-Host 'run|4096' }"') do (
   set "OC_MODE=%%a"
@@ -47,7 +49,7 @@ if /i "%OC_MODE%"=="serve" (
   if %errorlevel%==0 (
     echo [OK] opencode serve ya escucha en el puerto %OC_PORT%.
   ) else (
-    echo Levantando opencode serve en el puerto %OC_PORT% (nueva ventana)...
+    echo Levantando opencode serve en el puerto %OC_PORT% - nueva ventana...
     start "opencode serve" opencode serve --port %OC_PORT%
     timeout /t 4 /nobreak >nul
   )
