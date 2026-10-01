@@ -9,10 +9,10 @@
     "smoke": "node scripts/smoke-opencode.js",
     "export-agents": "node scripts/export-agents.js",
     "dev": "node server.js --dev --inspect=9229",
-    "test": "node tests/run-all-tests.js",
-    "test:unit": "node tests/test-agent-order.js",
-    "test:integration": "node tests/test-agent-orchestrator.js",
-    "test:watch": "node tests/test-agent-order.js",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "lint": "eslint .",
     "check:secrets": "node scripts/check-secrets.js"
   },
   "dependencies": {

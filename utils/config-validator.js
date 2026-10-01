@@ -8,19 +8,6 @@ function isObject(v) {
   return v !== null && typeof v === 'object' && !Array.isArray(v);
 }
 
-function checkType(value, type, path, errors) {
-  const ok =
-    type === 'array'
-      ? Array.isArray(value)
-      : type === 'integer'
-        ? Number.isInteger(value)
-        : type === 'number'
-          ? typeof value === 'number'
-          : typeof value === type;
-  if (!ok) errors.push(`${path}: se esperaba ${type}, llego ${Array.isArray(value) ? 'array' : typeof value}`);
-  return ok;
-}
-
 function validateTeam(team, errors) {
   if (!Array.isArray(team) || team.length === 0) {
     errors.push('agents.team: array no vacio requerido');

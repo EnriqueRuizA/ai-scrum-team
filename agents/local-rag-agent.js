@@ -5,7 +5,6 @@ const { generate } = require('../lib/unified-local-llm');
 const { buildLlmConnectionInfo, formatLlmRequestOneLiner } = require('../lib/llm-connection-info');
 const { resolveHttpAdapterFromLocal } = require('../lib/llm-provider-presets');
 const { buildIndex, addChunksToIndex, retrieve, formatRetrieved } = require('../lib/rag');
-const path = require('path');
 const fs = require('fs-extra');
 
 class LocalRAGAgent {

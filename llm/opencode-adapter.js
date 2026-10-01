@@ -119,7 +119,8 @@ class OpencodeAdapter {
         if (w.code === 0) {
           const lines = w.stdout.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
           // .exe primero (ejecutable directo); .cmd/.ps1 no sirven sin shell.
-          lines.sort((a, b) => (a.toLowerCase().endsWith('.exe') ? -1 : 1));
+          const isExe = (p) => (p.toLowerCase().endsWith('.exe') ? 1 : 0);
+          lines.sort((a, b) => isExe(b) - isExe(a));
           candidates.push(...lines);
         }
       } catch (e) {}

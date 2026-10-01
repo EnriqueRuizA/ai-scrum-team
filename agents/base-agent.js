@@ -1,5 +1,7 @@
 // agents/base-agent.js
 // Automatiza Claude.ai web usando Playwright
+// (LEGACY FASE 5: backend opcional; document/navigator solo existen dentro de page.evaluate)
+/* eslint-env browser */
 
 const { chromium } = require('playwright');
 const fs = require('fs-extra');
