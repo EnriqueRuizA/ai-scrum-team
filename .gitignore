@@ -1,12 +1,26 @@
-credentials.json
-.aider*
-/outputs/
-
+# Dependencias y build
 node_modules/
 dist/
-.aider*
+
+# Runtime del orquestador (se crean al ejecutar, nunca se commitean)
+outputs/
+sessions/
+logs/
+*.log
+temp-*
+
+# Secretos (nunca en git; la auth de proveedores vive en opencode)
+.env
+**/credentials.json
+credentials.json
+
+# Mapas y artefactos legacy (cubiertos por el grafo de Obsidian)
+architecture.html
 GRAPH_MAP.md
+
+# Config local de herramientas
 opencode.json
-docs/PLAN-EDITING_FLOW.md
+.cursor/
+.aider*
 Modelfile
-config/credentials.json
+docs/PLAN-EDITING_FLOW.md

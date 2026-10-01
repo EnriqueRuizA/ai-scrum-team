@@ -10,7 +10,8 @@
     "test": "node tests/run-all-tests.js",
     "test:unit": "node tests/test-agent-order.js",
     "test:integration": "node tests/test-agent-orchestrator.js",
-    "test:watch": "node tests/test-agent-order.js"
+    "test:watch": "node tests/test-agent-order.js",
+    "check:secrets": "node scripts/check-secrets.js"
   },
   "dependencies": {
     "chalk": "^4.1.2",
@@ -28,6 +29,6 @@
     "supertest": "^7.1.4"
   },
   "engines": {
-    "node": "18.x"
+    "node": ">=20 <25"
   }
 }

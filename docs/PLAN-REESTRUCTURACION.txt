@@ -1,455 +1,438 @@
 ===============================================================================
- PLAN DE REESTRUCTURACION Y CORRECCION - ai-scrum-team
+ PLAN DE REESTRUCTURACION Y CORRECCION - ai-scrum-team  (v2, DEFINITIVO)
  Fecha: 2026-09-30
- Estado: APROBADO POR EL USUARIO - pendiente de ejecucion
+ Estado: REDACTADO - listo para ejecutar fase a fase
  Objetivo: Corregir hallazgos de la auditoria, simplificar y modularizar el
-           proyecto, y convertirlo en un generador de flujos agenticos
-           basado en modelos GRATUITOS (Ollama local + modelos free de
-           opencode), eliminando la dependencia de APIs de OpenAI y Claude.
+           proyecto, y convertirlo en un generador de flujos agenticos basado
+           en los MODELOS GRATUITOS DE OPENCODE (motor opencode + proveedor
+           local Ollama como llama3.2). Sin dependencia de APIs de pago de
+           OpenAI ni de Claude (se mantienen como proveedores OPCIONALES
+           configurables dentro de opencode).
 ===============================================================================
 
 INDICE
-  0. Contexto y alcance
+  0. Decisiones cerradas y contexto
   1. Principios rectores del nuevo diseno
   2. Arquitectura objetivo (arbol de directorios)
   3. FASE 0 - Higiene del repositorio (P0, bloqueante)
-  4. FASE 1 - Un solo orquestador (P0)
-  5. FASE 2 - Capa LLM unificada solo-Ollama (P0)
+  4. FASE 1 - Un solo orquestador, delgado (P0)
+  5. FASE 2 - Motor opencode: adapter unico + agentes por rol (P0)
   6. FASE 3 - Seguridad (P0)
-  7. FASE 4 - Sistemas de pruebas (P0/P1)
+  7. FASE 4 - Pruebas (P0/P1)
   8. FASE 5 - Modularizacion y simplificacion (P1)
   9. FASE 6 - Frontend / Dashboard (P1)
  10. FASE 7 - Documentacion (P2)
  11. Problemas emergentes previstos y mitigaciones
- 12. Criterios de aceptacion / checklist final
+ 12. Checklist de aceptacion (Definition of Done)
  13. Estimacion de esfuerzo y orden de ejecucion
  14. Riesgos y rollback
 
 -------------------------------------------------------------------------------
-0. CONTEXTO Y ALCANCE
+0. DECISIONES CERRADAS Y CONTEXTO
 -------------------------------------------------------------------------------
-Hallazgos de la auditoria (2026-09-30) que este plan corrige:
+Respuestas del usuario (2026-09-30):
+  D1. Motor principal = MODELOS GRATUITOS DE OPENCODE. El proyecto usa opencode
+      como motor agentico; dentro de opencode se configura el proveedor gratis
+      (Ollama local: ollama/llama3.2 para chat, mas embeddings si se necesitan)
+      y/o proveedores free (NVIDIA build, Cerebras, OpenRouter free, etc.).
+  D2. El repo NO tiene remoto publico -> se DESCARTA reescribir historial y
+      force-push. Basta con des-trackear secretos y commitear la limpieza.
+  D3. Integraciones Claude/OpenAI se MANTIENEN como OPCIONALES, pero como
+      simples proveedores configurables dentro de opencode, sin codigo acoplado
+      en el proyecto.
+  D4. generar_mapa.py SE BORRA (el grafo de Obsidian lo cubre).
+  D5. project_schema.json SE BORRA (el grafo de Obsidian lo cubre). Tambien se
+      borran GRAPH_MAP.md y architecture.html por el mismo motivo.
 
-  C1 [CRITICO] orchestrator.js:269-270 truncado ("// ... resto del codigo
-      sin cambios ...") pero server.js:9 lo require -> POST /api/start lanza
-      TypeError (faltan runFullProject/getState/saveState/initAgent/cleanup).
-  C2 [CRITICO] config/credentials.json commiteado con secretos reales
-      (git ls-files lo lista; commits a096207, 84e9756). .gitignore:12 no
-      des-trackea lo ya commiteado.
-  C3 [CRITICO] Path traversal en server.js:713-721 (/api/sessions/:id),
-      752-760 (/api/artifact/:session/:name), 763-768 (/api/download/:session)
-      + prototype pollution en mergeProjectConfigPatch/mergeCredentialsPatch
-      (server.js:27-63, 94-109) + API sin auth/helmet/rate-limit.
-  C4 [CRITICO] Inyeccion de comandos: src/file/validator.js:8
-      (execSync con input del LLM), src/file/editor.js:17-28,41-50 (write/delete
-      sin contencion a baseDir), lib/deliverable.js:19-21 (escritura ../../),
-      server.js:1026-1037 (exec(start "" "${url}") con outputs.port escribible
-      via API).
-  C5 [CRITICO] src/agent/local.js:18,63 y src/llm/ollama.js:10-13 nunca
-      funcionaron (config.local inexistente, agentModel indefinida, /api/generate
-      con payload de /api/chat, fetch(...,{timeout}) ignorado).
-  A1 [ALTO] Doble arquitectura: src/orchestrator/orchestrator.js (185 lineas)
-      muerto; doble pila LLM lib/* vs src/llm/*.
-  A2 [ALTO] Tests: package.json:10 apunta a tests/run-all-tests.js (NO existe);
-      jest.config.js:3 ignora los 12 suites reales de __tests__/.
-  A3 [ALTO] XSS residual: index.html:2469-2479 (sprint.goal en innerHTML),
-      index.html:1801,1825 (Mermaid securityLevel:'loose'),
-      public/dashboard-local.html:58 (+ require() en navegador en :48,76,81).
-  A4 [ALTO] logs sin cota (orchestrator.js:112-118 saveState por cada linea,
-      allLogs infinito en index.html:1982); RAG sin purga
-      (agents/local-rag-agent.js:87-117).
-  A5 [ALTO] docs desactualizadas (README.md, README-LOCAL.md con endpoints
-      inexistentes).
+Decisiones tecnicas por defecto (recomendadas, configurables):
+  T1. Integracion con opencode: MODO PRIMARIO = `opencode serve` persistente
+      (el orquestador habla con el servidor local, sin cold-boot por paso).
+      MODO FALLBACK = `opencode run --format json` por turno (simple, util para
+      smoke tests y entornos sin servidor persistente). Se selecciona por config
+      (opencode.mode: "serve" | "run"). El modo ACP queda como evolucion futura.
+  T2. Roles (PO, Dev, QA, SM) definidos como AGENTES DE OPENCODE en
+      .opencode/agent/ (visibles y editables), con un ejemplo versionado en
+      el repo (opencode.example/ o docs/). El orquestador los invoca por nombre.
 
-Alcance funcional nuevo (decision del usuario):
-  - PRINCIPAL: flujos agenticos con modelos GRATUITOS.
-      * Ollama local: llama3.2 (chat) + nomic-embed-text (embeddings RAG).
-      * Modelos free de opencode (opcional, via adaptador openai_compatible).
-  - OpenAI/Claude: se MANTIENEN como adaptadores opcionales, pero el proyecto
-    debe arrancar y funcionar al 100% sin sus API keys ni credentials.json.
-  - Eliminar el backend Claude/Playwright como requisito (no se borra el codigo
-    de agents/base-agent.js en FASE 5, solo se desacopla).
+Hallazgos de la auditoria que este plan corrige (resumen):
+  C1 orchestrator.js:269-270 truncado pero requerido por server.js:9.
+  C2 config/credentials.json commiteado con secretos reales.
+  C3 Path traversal (server.js:713-721, 752-760, 763-768) + prototype pollution
+     (server.js:27-63, 94-109) + API sin helmet/rate-limit/bind abierto.
+  C4 Inyeccion: src/file/validator.js:8, src/file/editor.js:17-50,
+     lib/deliverable.js:19-21, server.js:1026-1037.
+  C5 src/agent/local.js y src/llm/ollama.js nunca funcionaron.
+  A1 Doble orquestador y doble pila LLM (lib/* vs src/llm/*).
+  A2 Tests: package.json:10 apunta a fichero inexistente; jest.config.js:3
+     ignora los 12 suites reales de __tests__/.
+  A3 XSS residual (index.html:2469-2479, 1801/1825; dashboard-local roto).
+  A4 Logs y RAG sin cota; saveState sin await por cada linea.
+  A5 Docs desactualizadas.
 
 -------------------------------------------------------------------------------
 1. PRINCIPIOS RECTORES DEL NUEVO DISENO
 -------------------------------------------------------------------------------
- P1. Un solo orquestador. Nunca mas dos clases ScrumMasterOrchestrator.
- P2. Backend por defecto = "local" (Ollama). Claude/OpenAI pasan a
-     "adapters opcionales" detras de la misma interfaz LLMAdapter.
- P3. Sin credenciales en disco ni en git. apiKey solo por variables de
-     entorno (OLLAMA_BASE_URL, AI_SCRUM_LOCAL_API_KEY, OPENAI_API_KEY...).
- P4. Todo input no confiable (LLM, query params, body) se sanea antes de
-     tocar FS, DOM o exec.
- P5. Sin I/O sincrona en bucles; sin estado en closures de servidor.
- P6. Modos de prueba: todo lo que no sea red real debe ser testeable con
-     Jest sin Playwright ni Ollama.
- P7. Cero archivos temporales commiteados (temp-*, debug-*.log, *.html sueltos).
+ P1. OPENCODE ES EL MOTOR. El proyecto NO implementa llamadas LLM, ni RAG
+     propio, ni scraping con Playwright: solo ORQUESTA (quien actua, con que
+     contexto, en que orden) y VISUALIZA (dashboard en tiempo real).
+ P2. Un solo orquestador. Nunca mas dos clases ScrumMasterOrchestrator.
+ P3. Cero secretos en el proyecto. Ni credentials.json ni apiKey en config:
+     la autenticacion de proveedores vive en opencode (~/.local/share/opencode/
+     auth.json o variables de entorno de la maquina del usuario).
+ P4. Todo input no confiable (LLM, query params, body, artefactos) se sanea
+     antes de tocar FS, DOM o procesos. El spawn a opencode usa SIEMPRE
+     argumentos validados (nunca interpolacion en shell).
+ P5. Sin I/O sincrona en bucles; escrituras de estado ATOMICAS (tmp + rename);
+     sin estado compartido en closures del servidor.
+ P6. Todo testeable sin motor real: el adapter de opencode se mockea; el smoke
+     con motor real es un script aparte.
+ P7. Cero archivos de mapas/temporales commiteados (ver FASE 0).
+ P8. Cada fase = commits pequenos reversibles con mensaje "phase-N: ...".
 
 -------------------------------------------------------------------------------
 2. ARQUITECTURA OBJETIVO
 -------------------------------------------------------------------------------
 ai-scrum-team/
-|-- package.json                # scripts: start, dev, test, lint, check:secrets
+|-- package.json                # start, dev, test, lint, smoke, check:secrets
 |-- jest.config.js              # testMatch: __tests__/**/*.test.js
-|-- .eslintrc.cjs / .prettierrc
 |-- .gitignore                  # ampliado (ver FASE 0)
-|-- .env.example                # OLLAMA_BASE_URL, OLLAMA_MODEL, EMBED_MODEL...
-|-- docker/
-|   `-- Dockerfile              # opcional: node:20-alpine + npm ci
+|-- .env.example                # OPENCODE_URL, OPENCODE_MODEL, BIND, PORT...
+|-- opencode.example/           # ejemplo versionado de .opencode del proyecto
+|   |-- agent/product-owner.md
+|   |-- agent/developer.md
+|   |-- agent/qa-tester.md
+|   `-- agent/scrum-master.md
 |-- config/
 |   |-- project-config.json     # UNICA fuente de configuracion runtime
-|   `-- README.md               # esquema JSON documentado
+|   |-- schema.json             # JSON Schema validado al arrancar (FASE 2)
+|   `-- README.md
 |-- orchestrator/
-|   |-- index.js                # clase ScrumMasterOrchestrator COMPLETA
-|   |-- pipeline.js             # secuencia sprint (plan->PO->dev->QA->review)
-|   `-- state.js                # guardar/cargar state.json con limites
+|   |-- index.js                # ScrumMasterOrchestrator COMPLETO y delgado
+|   |-- pipeline.js             # plan->PO->dev->QA->review (await estricto)
+|   `-- state.js                # save/load atomico + rotacion de logs
 |-- agents/
-|   |-- base-agent.js           # emisor de eventos + plantilla runTask()
-|   |-- local-agent.js          # agente Ollama (reemplaza local-rag-agent)
-|   |-- claude-web-agent.js     # OPCIONAL: Playwright->claude.ai
 |   |-- team-config.js          # normalizeTeam/getEnabledRoles (1 sola vez)
-|   `-- personas.js             # prompts/ (se mueve de prompts/)
+|   `-- personas.js             # system prompts (fuente de los .md de opencode)
 |-- llm/
-|   |-- adapter.js              # interfaz: generate(), embed(), listModels()
-|   |-- ollama-adapter.js       # /api/generate + /api/chat + /api/tags
-|   |-- openai-compat-adapter.js# OPCIONAL: /v1/chat/completions (opencode, etc.)
-|   |-- cursor-cloud-adapter.js # OPCIONAL (solo test de clave)
-|   |-- factory.js              # createAdapter(config) segun backend/preset
-|   `-- rag.js                  # index + retrieve + cache con purga LRU
+|   |-- opencode-adapter.js     # UNICO adapter: run --format json | serve HTTP
+|   |-- factory.js              # createAdapter(config) segun opencode.mode
+|   `-- prompts.js              # construccion de prompts por rol (testeable)
 |-- server/
-|   |-- app.js                  # express app + rutas
-|   |-- ws.js                   # broadcast con backpressure
-|   |-- routes/                 # config, sessions, artifacts, ollama, run
-|   `-- guards.js               # validateSessionId(), safeJoin(), sanitize()
+|   |-- app.js                  # express app + rutas (server.js adelgazado)
+|   |-- ws.js                   # broadcast con tope y backpressure
+|   |-- routes/                 # config, sessions, artifacts, run
+|   |-- guards.js               # validateSessionId(), safeJoin(), sanitize()
+|   `-- state-store.js          # lock explicito de ejecucion (fin del race)
 |-- utils/
 |   |-- escape-html.js          # escHtml() unico (escapa & < > " ')
-|   |-- fs-safe.js              # safeJoin(baseDir, rel) con path containment
-|   `-- exec-safe.js            # spawn sin shell, timeouts, args validados
+|   |-- fs-safe.js              # safeJoin() con path containment
+|   |-- exec-safe.js            # spawn sin shell, timeouts, args validados
+|   `-- config-validator.js     # valida project-config.json contra schema.json
 |-- public/
-|   |-- index.html              # dashboard (raiz servido por '/')
+|   |-- index.html              # dashboard unico (se decide dashboard-local)
 |   `-- js/                     # ws-reconnector.js, render-log.js...
-|-- __tests__/                  # Jest (los 12 suites existentes + nuevos)
+|-- __tests__/                  # Jest (12 suites existentes + nuevos)
+|-- scripts/
+|   |-- smoke-opencode.sh       # sprint minimo real contra opencode+Ollama
+|   `-- export-agents.sh        # genera .opencode/agent desde agents/personas
+|-- docker/
+|   `-- Dockerfile              # opcional: node:20-alpine + npm ci
 |-- docs/
 |   |-- GUIA-USO.md
-|   `-- PLAN-REESTRUCTURACION.txt  # este documento
+|   |-- TROUBLESHOOTING.md      # (nuevo, FASE 7)
+|   |-- SECURITY.md             # (nuevo, FASE 3)
+|   |-- PLAN-REESTRUCTURACION.txt  # este documento
+|   `-- adr/0001-opencode-motor.md # (nuevo, FASE 7)
 `-- outputs/, sessions/, logs/  # gitignored, creados en runtime
 
-Migracion de codigo existente:
+Migracion / eliminaciones:
   orchestrator.js (raiz, truncado)  -> orchestrator/index.js + pipeline.js
   src/orchestrator/orchestrator.js  -> ELIMINADO (codigo muerto)
-  src/agent/local.js                -> agents/local-agent.js (reescrito)
-  src/llm/* (ollama.js, ragi.js)    -> ELIMINADOS (reemplazados por llm/)
-  src/file/{editor,validator}.js    -> utils/exec-safe.js + llm/file-tools.js
-  lib/*.js                          -> llm/ y utils/ (renombrados, sin dupes)
-  agents/local-rag-agent.js         -> agents/local-agent.js
-  prompts/index.js                  -> agents/personas.js
+  src/agent/local.js                -> ELIMINADO (lo sustituye opencode)
+  src/llm/* (ollama.js, ragi.js)    -> ELIMINADOS (nunca funcionaron)
+  src/file/{editor,validator}.js    -> utils/exec-safe.js (solo si se necesita)
+  lib/*.js (6 ficheros LLM/RAG)     -> ELIMINADOS (motor = opencode)
+  agents/base-agent.js              -> ELIMINADO (Playwright/Claude a medida)
+  agents/local-rag-agent.js         -> ELIMINADO (contexto = opencode --file)
+  agents/local-agents.js            -> revisar y ELIMINAR si es legacy
+  agents/product-owner.js,
+  agents/developer-qa.js            -> ELIMINADOS (roles = agentes opencode)
+  prompts/index.js                  -> agents/personas.js (fuente de .md)
+  config/agents-config.json         -> FUSIONADO en project-config.json y BORRADO
+  config/credentials.json           -> BORRADO del repo y del disco (D2: sin rewrite)
+  credentials.json (raiz)           -> BORRADO del disco
+  generar_mapa.py                   -> BORRADO (D4)
+  project_schema.json               -> BORRADO (D5)
+  GRAPH_MAP.md, architecture.html   -> BORRADOS si trackeados (D5)
+  temp-*, debug-*.log               -> BORRADOS / gitignored
+  public/dashboard-local.html       -> BORRAR o arreglar (decision en FASE 6;
+                                      hoy esta roto: usa require() en navegador)
+  tests/test-agent-*.js (humo)      -> convertidos a __tests__ o BORRADOS
+  setup.js                          -> REESCRITO (health-check, sin credenciales)
 
 -------------------------------------------------------------------------------
 3. FASE 0 - HIGIENE DEL REPOSITORIO (P0, dia 1)
 -------------------------------------------------------------------------------
-0.1 Secretos (C2) - OBLIGATORIO ANTES DE CUALQUIER OTRO COMMIT:
+0.1 Secretos (C2) - ANTES DE CUALQUIER OTRO COMMIT:
     a) git rm --cached config/credentials.json
-    b) git rm --cached architecture.html debug-e5432a.log
-       .cursor/debug-47a5f2.log .cursor/debug-e5432a.log GRAPH_MAP.md
+    b) git rm --cached architecture.html debug-e5432a.log GRAPH_MAP.md
+       opencode.json (solo si estan trackeados; verificar con git ls-files).
+       Nota: .cursor/ completo: git rm -r --cached .cursor + anadir .cursor/
+       a .gitignore (no solo los 2 logs).
     c) Borrar del disco: credentials.json (raiz), temp-index-backup.txt,
-       temp-index-full.html, temp-server-content.txt (si aun existen).
+       temp-index-full.html, temp-server-content.txt (si existen).
     d) ROTAR TODAS LAS CLAVES expuestas (Gmail App Password, LinkedIn,
-       Indeed, InfoJobs, clave de Claude si la hay). Nunca reutilizar.
-    e) Si el repo se subio a un remoto publico: reescribir historial con
-       git filter-repo --path config/credentials.json --invert-paths
-       y force-push coordinado (avisar a todos los clones).
-0.2 .gitignore - reemplazar por:
+       Indeed, InfoJobs). Nunca reutilizar.
+    e) D2: SIN remoto publico -> NO se reescribe historial. Solo commitear
+       la limpieza ("phase-0: remove secrets and maps").
+0.2 Borrado de mapas (D4/D5): git rm generar_mapa.py project_schema.json
+    GRAPH_MAP.md architecture.html (si existen/trackeados).
+0.3 .gitignore - reemplazar por:
        node_modules/
        outputs/
        sessions/
        logs/
        *.log
        temp-*
+       .cursor/
+       .aider*
        architecture.html
        GRAPH_MAP.md
        opencode.json
        Modelfile
-       .aider*
        .env
        **/credentials.json
-    Quitar duplicados (.aider* aparece 2 veces) y verificar con:
-       git check-ignore -v <fichero> para cada caso.
-0.3 Limpiar raiz: generar_mapa.py -> tools/ (o borrar), Modelfile y
-    project_schema.json revisar si siguen vigentes (project_schema.json
-    apunta a rutas inexistentes -> corregir o eliminar).
-0.4 Anadir script npm "check:secrets" que falle si detecta
-    passwords/emails en tracked files (grep simple).
-
-Entregable FASE 0: git ls-files | grep -Ei "credential|temp-|debug|\.log"
-                    -> vacio.
+    Quitar duplicados (.aider* aparece 2 veces hoy).
+0.4 Anadir script npm "check:secrets" (grep de emails/passwords en tracked).
+0.5 Anadir .nvmrc (20 o 22) y engines ">=20 <25" en package.json.
+0.6 Anadir LICENSE (MIT sugerida) y CONTRIBUTING.md basico si no existen.
+Entregable: git ls-files | grep -Ei "credential|temp-|debug|\.log|mapa|schema"
+            -> vacio (salvo package-lock).
 
 -------------------------------------------------------------------------------
-4. FASE 1 - UN SOLO ORQUESTADOR (P0, dia 1-2)
+4. FASE 1 - UN SOLO ORQUESTADOR, DELGADO (P0, dia 1-2)
 -------------------------------------------------------------------------------
-C1: Reescribir orchestrator/index.js COMPLETO a partir de:
-    - orchestrator.js raiz (lineas 1-268, la parte buena) +
-      reconstruir los metodos que faltan:
-        normalizeTeam(config)            -> agents/team-config.js
-        getEnabledRoles(team)            -> agents/team-config.js
-        initAgent(key)                   -> init con try/catch y evento
-        runFullProject()                 -> orchestrator/pipeline.js
-        getState()                       -> devuelve copia saneada de state
-        saveState()                      -> debounced (max 1 cada 500 ms),
-                                            await, con try/catch
-        cleanup()                        -> cierra browsers/paginas y agentes
-    - pipeline.js: secuencia estricta (await en cadena, NO Promise.all
-      sobre PO/Dev/QA):
-        for (sprint of 1..maxSprints):
-          await waitWhilePaused()
-          sm.plan() -> po.refine() -> dev.implement() -> qa.test()
-          -> (si bugs) dev.fix() -> sm.review() -> await checkGracefulStop
-    - Eliminar el comentario "// ... resto del codigo sin cambios ...".
-    - Eliminar src/orchestrator/orchestrator.js y tests que lo referencien.
-A4: En log():
-    - this.state.logs con tope MAX_LOGS = 5000 (slice por cola).
-    - emit('log') + saveState() debounced (ya no 1 escritura por linea).
-    - Anadir rotacion: si > 5000, guardar overflow en
-      outputs/session-XXX/logs-overflow.jsonl.
-Test: __tests__/orchestrator.pipeline.test.js (mock de agentes, verifica
-      orden secuencial y guardado de estado).
+C1: Reescribir orchestrator/index.js COMPLETO a partir de la parte buena de
+    orchestrator.js raiz (lineas 1-268) + reconstruir lo que falta:
+      normalizeTeam/getEnabledRoles   -> agents/team-config.js (1 sola vez)
+      initAgent(key)                  -> init con try/catch + evento
+      runFullProject()                -> orchestrator/pipeline.js
+      getState()                      -> copia saneada (sin secretos, logs topados)
+      saveState()                     -> ATOMICO (tmp + rename, fsync),
+                                         con COLA interna (un solo vuelo),
+                                         await real (fin del unhandledRejection
+                                         de orchestrator.js:117), max 1 cada
+                                         500 ms; backup state.json.bak rotado
+      cleanup()                       -> cierra adapter/sesiones, guarda estado
+    Eliminar el comentario "// ... resto del codigo sin cambios ...".
+    Eliminar src/orchestrator/orchestrator.js y sus referencias en tests.
+pipeline.js: secuencia estricta con await en cadena (NO Promise.all sobre
+    PO/Dev/QA): sm.plan -> po.refine -> dev.implement -> qa.test ->
+    (si bugs) dev.fix -> sm.review -> checkGracefulStop. Chequeo de pausa/stop
+    en cada frontera de agente + AbortController propagado a cada runTask.
+Logs: MAX_LOGS = 5000 en RAM (slice por cola); overflow a
+    outputs/session-XXX/logs-overflow.jsonl; saveState debounced.
+Arranque unico por proceso: server/state-store.js con lock explicito
+    (POST /api/start concurrente -> 409 con Location del run activo).
+SIGINT/SIGTERM/SIGKILL-safe: guardar estado atomico al cerrar; sin el flag
+    estatico _shutdownRegistered (server.js:980-998) que fuga entre tests.
+Tests: __tests__/orchestrator.pipeline.test.js (orden secuencial con adapter
+    mock), __tests__/orchestrator.atomic-state.test.js (kill durante escritura
+    -> state.json siempre valido).
 
 -------------------------------------------------------------------------------
-5. FASE 2 - CAPA LLM UNIFICADA SOLO-OLLAMA (P0, dia 2-4)
+5. FASE 2 - MOTOR OPENCODE: ADAPTER UNICO + AGENTES POR ROL (P0, dia 2-4)
 -------------------------------------------------------------------------------
-C5/A1: Crear llm/ con interfaz unica:
-    adapter.js:
-      interface LLMAdapter {
-        generate(prompt, opts): Promise<{text, usage}>
-        embed(text): Promise<number[]>
-        listModels(): Promise<string[]>
-        health(): Promise<{ok, models}>
-      }
-    ollama-adapter.js (PRINCIPAL, gratis):
-      - POST {base}/api/chat  (NO /api/generate) con {model, messages, stream:false}
-      - POST {base}/api/embeddings {model, prompt}
-      - GET  {base}/api/tags
-      - AbortController con timeout (NO fetch {timeout}, que no existe)
-      - Reintentos exponenciales (2 intentos) + error con hint accionable
-        ("ollama serve", "ollama pull llama3.2")
-    openai-compat-adapter.js (OPCIONAL, para modelos free de opencode
-      y cualquier proveedor compatible):
-      - POST {base}/v1/chat/completions con Bearer de env (API key vacia
-        permitida si el endpoint local no la exige)
-      - GET  {base}/v1/models
-    factory.js:
-      - backend "local" + httpAdapter "ollama"       -> OllamaAdapter
-      - backend "local" + httpAdapter "openai_compat"-> OpenAICompatAdapter
-      - backend "claude"                             -> ClaudeWebAgent (legacy)
-      - backend "openai"                             -> OpenAIAdapter (legacy)
-    Eliminar: src/llm/ollama.js, src/llm/ragi.js (nunca funcionaron),
-              lib/cursor-cloud-llm.js (o mover a llm/ como opcional),
-              duplicados entre lib/local-llm.js y lib/unified-local-llm.js
-              -> UNIFICAR en llm/ollama-adapter.js + llm/http-helpers.js.
-RAG (llm/rag.js):
-    - Indexa solo rutas config local.rag.indexPaths (QUITAR "." de la config
-      actual: indexar la raiz entera incluye outputs/ y es O(n^2)).
-    - Cache con purga LRU (max 2000 chunks) y hash de mtime para no
-      reindexar ficheros no modificados.
-    - generate() acepta AbortSignal -> la pausa/stop del orquestador
-      cancela llamadas al LLM en curso (hoy no se puede parar).
-Config por defecto (config/project-config.json):
-    "agents": { "backend": "local",
-      "local": { "httpAdapter": "ollama",
-                 "baseUrl": "http://localhost:11434",
-                 "model": "llama3.2",
-                 "embedModel": "nomic-embed-text",
-                 "rag": { "indexPaths": ["./prompts", "./agents", "./docs"],
-                          "topK": 5 } } }
-    QUITAR de config: llmConnectionLabel "CURSOR-API" (confuso/incoherente),
-    "apiKey": "" (solo env), rutas duplicadas de rag bajo agents.rag.
+D1/T1/T2: opencode es el unico motor de IA del proyecto.
+  llm/opencode-adapter.js - interfaz unica:
+      generate({agent, prompt, files, signal, timeoutMs})
+      health()  -> {ok, version, models}
+    Modo "run" (fallback/simple):
+      spawn('opencode', ['run', '--format','json', '--agent', agent,
+             '--model', model, '--dir', dir, ...files, prompt],
+            {shell:false, timeout})  // utils/exec-safe.js, NUNCA shell:true
+      parsea eventos JSON de stdout; timeout por AbortController; reintento x1
+      con hint accionable ("opencode no instalado", "modelo no disponible:
+      revisa `opencode models`").
+    Modo "serve" (primario, T1):
+      el proyecto espera opencode serve local (puerto en .env.example:
+      OPENCODE_URL=http://127.0.0.1:4096); las llamadas van por HTTP con
+      la misma interfaz generate(); si el servidor no responde, error claro
+      con el comando para levantarlo. (El modo ACP queda como evolucion.)
+  llm/factory.js: createAdapter(config) segun agents.opencode.mode
+      ("serve" por defecto, "run" como fallback).
+  ELIMINAR toda la capa anterior: lib/local-llm.js, lib/unified-local-llm.js,
+      lib/openai-compatible-llm.js, lib/cursor-cloud-llm.js,
+      lib/llm-provider-presets.js, lib/llm-auth-hints.js, lib/rag.js,
+      src/llm/*, agents/*-agent.js legacy.
+  RAG propio: ELIMINADO. El contexto lo aporta opencode (workspace + --file).
+      QUITAR "." de indexPaths en la config actual (indexaba la raiz entera).
+Roles = agentes de opencode (T2):
+  agents/personas.js (migrado de prompts/index.js: SCRUM_MASTER,
+      PRODUCT_OWNER, DEVELOPER, QA_TESTER) es la fuente; scripts/export-agents.sh
+      genera .opencode/agent/*.md versionables (opencode.example/ como ejemplo
+      en el repo; el .opencode/ real del usuario NO se commitea).
+  agents/team-config.js: unico normalizeTeam/getEnabledRoles; orden de equipo
+      en UN solo sitio (sustituye las 3 implementaciones actuales).
+Config (config/project-config.json) - reescribir seccion agents:
+      "agents": { "team": [ ...4 roles con id/role/enabled/label... ],
+        "opencode": { "mode": "serve", "url": "http://127.0.0.1:4096",
+          "model": "ollama/llama3.2", "timeoutMs": 600000, "auto": false },
+        "backend": "local", "sessionDir": "./sessions" }
+  Fusionar config/agents-config.json AQUI (defaultModel -> agents.opencode.model;
+      agentsOrder -> agents.team; per-agent model -> campo "model" por miembro)
+      y BORRAR agents-config.json.
+  config/schema.json (NUEVO) + utils/config-validator.js: valida al arrancar
+      y en POST /api/config (400 con path del campo, sin stack). Test dedicado.
+  setup.js REESCRITO: crea outputs/, sessions/, logs/; comprueba
+      `opencode --version` y opencode serve / Ollama segun modo; emite hints
+      (`ollama pull llama3.2`, `opencode models`) en vez de pedir credenciales.
+      Playwright SOLO si se pasa --claude (D3 opcional).
+Test: __tests__/opencode-adapter.test.js (spawn/HTTP mockeados: args exactos,
+      timeout por AbortController, parseo de --format json),
+      __tests__/config.validator.test.js, __tests__/team-config.test.js.
 
 -------------------------------------------------------------------------------
 6. FASE 3 - SEGURIDAD (P0, dia 3-5)
 -------------------------------------------------------------------------------
-6.1 Path traversal (C3): en server/guards.js:
-      validateSessionId(id)  -> /^(session-[A-Za-z0-9-]{1,64})$/
-      safeJoin(base, ...parts) -> resuelve y exige path.startsWith(base + sep)
-    Aplicar en: GET /api/sessions/:id (server.js:713),
-                GET /api/artifact/:session/:name (752),
-                GET /api/download/:session (763),
-                POST /api/session/focus (727, ya parcialmente validado).
-6.2 Prototype pollution (C3): en mergeProjectConfigPatch y
-    mergeCredentialsPatch, filtrar keys "__proto__", "constructor", "prototype"
-    (usar Object.create(null) o hasOwnProperty seguro).
-6.3 Higiene express: helmet(), express.json({limit:"100kb"}),
-    rate-limit en POST /api/* (ej. 60 req/min), no exponer errores
-    con stack en respuestas (solo en modo dev).
-6.4 Ejecucion de comandos (C4):
-    - utils/exec-safe.js: spawn(cmd, args, {shell:false, timeout})
-      validando que file este dentro de baseDir antes de eslint/node --check.
-    - lib/deliverable.js:19-21 -> safeJoin(baseDir, file.path).
-    - runNodeSyntaxCheck -> pasar SIEMPRE el fichero (hoy llama
-      "node --check" sin argumentos -> ok:true inutil).
-    - runRealProjectChecks -> dejar de devolver {ok:true} hardcodeado;
-      si no hay checks, devolver {ok:null, skipped:true}.
-    - server.js:1026-1037: validar PORT con Number.isInteger(port, 1..65535)
-      ANTES de interpolar en exec; mejor: usar child_process.spawn con args
-      o libreria "open" (sin shell).
-6.5 XSS (A3):
-    - index.html:2469-2479 y 2506 -> envolver sprint.goal/status en escHtml().
-    - escHtml (index.html:3435) -> escapar tambien " y ' (hoy solo &<>).
-    - index.html:1801: securityLevel:'strict' + sanitizar data.mermaid
-      (validar que empieza por "flowchart|graph" y no contiene
-      <, >, onerror, javascript:).
-    - public/dashboard-local.html:58 -> escHtml(m.name) y eliminar el codigo
-      con require() en navegador (:48,76,81) - ese fichero esta roto:
-      decidir: borrarlo o arreglarlo.
-6.6 Exposicion de secretos en API:
-    - GET /api/config ya sanea apiKey; verificar que NO devuelve
-      apiKeyEnv ni valores de env.
-    - POST /api/config NO debe poder escribir "apiKey" (ignorarlo;
-      solo env). Documentar.
+6.1 Path traversal (C3): server/guards.js con validateSessionId(id) =
+    /^(session-[A-Za-z0-9-]{1,64})$/ y safeJoin(base,...parts) que exige
+    containment. Aplicar en GET /api/sessions/:id, GET /api/artifact/...,
+    GET /api/download/..., POST /api/session/focus.
+6.2 Prototype pollution: filtrar "__proto__", "constructor", "prototype" en
+    los merges de /api/config y /api/credentials (+ strict:true en el parser).
+6.3 Higiene express: helmet() con CSP, express.json({limit:"100kb"}),
+    express-rate-limit (10/min en POST /api/start, 120/min resto de POST),
+    sin stack en respuestas (solo dev), bind por defecto 127.0.0.1
+    (AI_SCRUM_BIND solo si se pide 0.0.0.0). Nuevas deps: helmet,
+    express-rate-limit.
+6.4 Ejecucion (C4 + T1): utils/exec-safe.js con spawn(shell:false, timeout);
+    validar que todo fichero este dentro de baseDir; el prompt a opencode
+    viaja como ARGUMENTO, nunca interpolado en shell; validar PORT entero
+    1..65535 antes de cualquier uso (server.js:1026-1037).
+    lib/deliverable.js: runNodeSyntaxCheck debe pasar el fichero (hoy llama
+    "node --check" sin args -> ok falso); runRealProjectChecks no devuelve
+    {ok:true} hardcodeado (usa {ok:null, skipped:true}).
+6.5 XSS (A3): index.html:2469-2479 y 2506 con escHtml() en goal/status;
+    escHtml escapa tambien " y ' ; Mermaid securityLevel:'strict' +
+    sanitizar (debe empezar por flowchart|graph, sin < > onerror javascript:).
+6.6 docs/SECURITY.md (NUEVO): threat model simplificado (localhost por
+    defecto, sin auth en WS, que NUNCA commitear, como rotar claves).
 
 -------------------------------------------------------------------------------
 7. FASE 4 - PRUEBAS (P0/P1, dia 4-6)
 -------------------------------------------------------------------------------
-7.1 jest.config.js:
-      testMatch: ['**/__tests__/**/*.test.js']
-    (los 12 suites de __tests__/ pasan a ejecutarse; verificar que los 2
-     ficheros de tests/ no-jest NO entren: renombrar/mover a scripts/dev/).
+7.1 jest.config.js: testMatch: ['**/__tests__/**/*.test.js'] (los 12 suites
+    reales pasan a ejecutarse).
 7.2 package.json scripts:
-      "test": "jest",
-      "test:watch": "jest --watch",
-      "test:coverage": "jest --coverage",
-      "lint": "eslint .",
-      "start": "node server/app.js",
-    ELIMINAR: "test": "node tests/run-all-tests.js" (no existe),
-              test:unit/test:integration apuntando a scripts humo.
-7.3 Eliminar o convertir tests/*.js humo (console.log sin expect):
-      tests/test-agent-order.js -> __tests__/agent-order.test.js con expects.
-      tests/test-agent-orchestrator.js -> borrar (apunta al orquestador
-      muerto de src/) y reescribir contra orchestrator/ real.
-7.4 Tests nuevos obligatorios:
-      - guards.test.js (traversal, session id invalido)
-      - exec-safe.test.js (contencion de paths)
-      - ollama-adapter.test.js (mock fetch: payload /api/chat correcto,
-        timeout por AbortController)
-      - pipeline.test.js (orden secuencial de agentes)
-      - escHtml.test.js (casos de atributo y texto)
-7.5 CI minima (opcional): GitHub Actions con node 20 y 22:
-      npm ci && npm run lint && npm test.
+      "test": "jest", "test:watch": "jest --watch",
+      "test:coverage": "jest --coverage", "lint": "eslint .",
+      "start": "node server/app.js", "smoke": "bash scripts/smoke-opencode.sh",
+      "check:secrets": "...", "setup": "node setup.js"
+    ELIMINAR: test->run-all-tests.js (inexistente), test:unit/integration humo.
+7.3 Convertir tests/*.js humo a __tests__ con expects reales o BORRARLOS
+    (test-agent-orchestrator apunta al orquestador muerto de src/).
+7.4 Tests nuevos obligatorios: guards, exec-safe, opencode-adapter (mock),
+    pipeline (orden), escHtml, config-validator, team-config, atomic-state.
+    Cobertura minima 70% (istanbul) exigida; husky pre-commit con test+lint.
+7.5 CI minima (opcional): GitHub Actions node 20 y 22:
+    npm ci && npm run lint && npm test (+ npm audit --audit-level=high = 0).
+7.6 scripts/smoke-opencode.sh: sprint minimo real (maxSprints=1) contra
+    opencode + Ollama y verificacion de artefactos en disco.
 
 -------------------------------------------------------------------------------
-8. FASE 5 - SIMPLIFICACION Y MODULARIZACION (P1, semana 2)
+8. FASE 5 - MODULARIZACION Y SIMPLIFICACION (P1, semana 2)
 -------------------------------------------------------------------------------
-8.1 Fusionar duplicados de lib/:
-    lib/local-llm.js + lib/unified-local-llm.js + lib/openai-compatible-llm.js
-    + lib/cursor-cloud-llm.js + lib/llm-provider-presets.js + lib/llm-auth-hints.js
-    -> llm/ollama-adapter.js + llm/openai-compat-adapter.js + llm/factory.js
-    + llm/http-helpers.js (hints de error integrados).
-8.2 Mover prompts/index.js -> agents/personas.js (o dejar la ruta y crear
-    un barrel). Las 4 personas (SCRUM_MASTER, PRODUCT_OWNER, DEVELOPER,
-    QA_TESTER) son funciones de config -> mantener signatures.
-8.3 Unificar orden de agentes: HOY hay 3 implementaciones
-    (server.js:774-832 PATCH /api/config/order, src/orchestrator:13-82,
-    tests/test-agent-order.js). Dejar UNA en agents/team-config.js
-    y que server.js la invoque. Borrar la de src/.
-8.4 Frontend: eliminar public/dashboard-local.html si no se arregla;
-    servir solo index.html raiz (hoy hay 3 vistas: raiz, /simple, fallback).
-8.5 server.js pasa de 1052 lineas a <300: extraer routes/ y guards/.
-    Estado global (orchestrator, isRunning) -> modulo server/state-store.js
-    con un lock explicito (evita el race de isRunning sin mutex).
-    SIGINT/SIGTERM -> registrar handlers dentro de createServer() sin el
-    flag estatico _shutdownRegistered (cierra el leak de tests).
-8.6 agents/base-agent.js: cerrar browser en finally si init() falla a
-    medias; selector ":near(...)" (no existe en Playwright) -> corregir;
-    dialog.accept() -> aceptar solo con confirmacion del config.
-8.7 Node engines: cambiar "18.x" -> ">=18" o "20.x || 22.x" (real es Node 24).
+8.1 server.js (1052 lineas) -> server/app.js (<300) + routes/ + guards.js +
+    ws.js + state-store.js. Sin closures con estado ni flags estaticos.
+8.2 Barrel files llm/index.js y agents/index.js para imports estables.
+8.3 Frontend: decidir public/dashboard-local.html (BORRAR recomendado: roto,
+    require() en navegador) y servir un solo dashboard; fallback de
+    server.js:149 simplificado.
+8.4 Dependencias (verificado sin imports en el repo):
+    BORRAR node-cron y chalk de dependencies; uuid -> crypto.randomUUID();
+    playwright -> optionalDependencies (solo D3); revisar supertest en
+    devDependencies (fuera si ningun test lo usa). Anadir helmet y
+    express-rate-limit.
+8.5 engines ">=20 <25" + .nvmrc (real del entorno: Node 24; CI en 20 y 22).
+8.6 prompts/ -> agents/personas.js con barrel; START.bat/STOP.bat actualizados
+    a los nuevos entrypoints (node server/app.js).
 
 -------------------------------------------------------------------------------
 9. FASE 6 - FRONTEND / DASHBOARD (P1)
 -------------------------------------------------------------------------------
-9.1 Cota de logs en cliente: allLogs tope 2000 (slice), no solo poda del DOM.
-9.2 Paginacion del estado: GET /api/state acepta ?limit=&since= (o WS manda
-    delta de logs, no el array completo).
-9.3 Reconexion WS: ya existe (index.html:1884) -> mantener + ping/pong.
-9.4 Documentar que el WS no tiene auth (solo localhost por defecto);
-    anadir bind a 127.0.0.1 por defecto en server.listen (hoy escucha
-    en 0.0.0.0 -> red local expone API sin auth).
+9.1 allLogs con tope 2000 (slice, no solo poda DOM); GET /api/state con
+    ?limit=&since= o deltas por WS (no reenviar MBs).
+9.2 Reconexion WS existente (index.html:1884) se mantiene + ping/pong.
+9.3 getState() saneado: sin apiKey/env, logs topados, tamano acotado.
+9.4 Test de dashboard: sprint.goal malicioso se muestra escapado.
+9.5 docs/adr/0001-ws-sin-auth-localhost.md (justificar WS sin token).
 
 -------------------------------------------------------------------------------
 10. FASE 7 - DOCUMENTACION (P2)
 -------------------------------------------------------------------------------
-10.1 README.md: diagrama actualizado con backend local Ollama como
-     PRINCIPAL; Claude/OpenAI como "adapters opcionales"; estructura de
-     carpetas nueva; tabla de comandos npm reales; advertencia de
-     credenciales (git rm + rotacion) documentada como leccion.
-10.2 README-LOCAL.md: eliminar endpoints que NO existen
-     (PATCH /api/config/order, GET /api/config/models,
-     PATCH /api/config/agents/{id}/model) o implementarlos de verdad
-     (decision: implementarlos -> son utiles para el dashboard).
-10.3 docs/GUIA-USO.md: actualizar tests ("npm test" -> Jest real).
-10.4 Anadir docs/INFORME-AUDITORIA-2026-09-30.md (informe previo).
-10.5 Generar/actualizar project_schema.json con rutas reales o borrarlo.
+10.1 README.md reescrito: motor opencode + modelos gratis (Ollama local),
+    requisitos (opencode CLI + ollama serve + pull de modelos), quickstart,
+    Claude/OpenAI marcados OPCIONALES (proveedores en opencode), tabla npm
+    real, advertencia de secretos.
+10.2 README-LOCAL.md: actualizar o fusionar en README (endpoints reales).
+10.3 docs/GUIA-USO.md: tests reales, nueva arquitectura, nuevos endpoints.
+10.4 docs/TROUBLESHOOTING.md (opencode no instalado, serve caido, modelo no
+    pull, puerto ocupado, RAG/contexto, permisos --auto).
+10.5 docs/adr/0001-opencode-motor.md (por que opencode y no capa propia).
+10.6 CHANGELOG.md inicial + bump a 0.2.0 al cerrar la fase.
 
 -------------------------------------------------------------------------------
 11. PROBLEMAS EMERGENTES PREVISTOS
 -------------------------------------------------------------------------------
-E1. Parte del codigo Playwright/Claude deja de "compilar" al renombrar
-    modulos -> mantener los archivos legacy hasta FASE 5 y correr tests
-    tras cada rename (git mv + barra de imports).
-E2. Los 12 suites de __tests__ pasan a ejecutarse y revelaran fallos
-    previos ocultos -> presupuestar tiempo para arreglarlos; no usar
-    .skip como solucion definitiva.
-E3. Ollama real puede no estar corriendo en CI -> los tests deben mockear
-    fetch; anadir un script "npm run smoke" manual para probar contra
-    Ollama de verdad (localhost).
-E4. Cambiar config.model a "llama3.2" puede no existir en la maquina
-    del usuario -> al arrancar, verificar con /api/tags y emitir hint
-    "ollama pull llama3.2" en el dashboard (ya existe logica similar).
-E5. Reescribir historial (Fase 0.1.e) rompe clones existentes -> avisar
-    y documentar en CHANGELOG.
-E6. rate-limit/helmet pueden romper el dashboard si el dashboard hace
-    llamadas rapidas -> whitelist para GET, limite solo en POST.
-E7. El RAG indexando "." hoy arrastra outputs/ y node_modules/ -> si la
-    purge LRU no entra, el primer run sera muy lento; indexPaths por defecto
-    restringidos (prompts, agents, docs) y documentar como anadir mas.
-E8. Port 3000 fijado en config y dashboard -> soportar PORT env sin
-    interpolar en exec (Fase 6.4).
+E1. Renombres rompen imports -> git mv + barrels + tests tras cada rename;
+    mantener legacy hasta FASE 4 con cobertura.
+E2. Los 12 suites ocultos revelaran fallos -> presupuestar arreglo; no .skip
+    definitivo.
+E3. Sin motor real en CI -> todo mockeado; smoke-opencode.sh solo manual/local.
+E4. Modelo opencode/ollama ausente en la maquina -> health() al arrancar con
+    hint (`opencode models`, `ollama pull llama3.2`).
+E5. (D2: sin remoto) sin riesgo de force-push; aun asi, tag pre-phase-0 local.
+E6. rate-limit/helmet vs dashboard -> whitelist GET, limite solo en POST.
+E7. Contexto/RAG ahora lo gestiona opencode; si un sprint arrastra outputs/
+    gigantes, acotar --file/indexPaths en la config de agentes.
+E8. PORT en config + dashboard -> soportar PORT env validado, sin exec shell.
+E9. `opencode run` por turno (modo fallback) hace cold-boot por paso: para
+    pipelines largos preferir mode "serve"; documentado en TROUBLESHOOTING.
+E10. Permisos de herramientas de opencode (--auto): por defecto auto=false
+    (seguro); auto=true solo en local documentado.
 
 -------------------------------------------------------------------------------
 12. CHECKLIST DE ACEPTACION (Definition of Done)
 -------------------------------------------------------------------------------
-[ ] git ls-files NO contiene: credentials.json, temp-*, debug*.log,
-    architecture.html, GRAPH_MAP.md.
-[ ] npm test -> ejecuta todos los __tests__/*.test.js y pasa.
-[ ] npm start -> dashboard en http://127.0.0.1:3000 con backend local;
-    sin credentials.json, sin API keys, sin Claude/OpenAI.
-[ ] Con Ollama corriendo + llama3.2 + nomic-embed-text: un sprint completo
-    (plan -> PO -> dev -> QA -> review) genera artefactos en outputs/session-*/
-    y state.json se guarda/restaura tras F5 y tras reiniciar el server.
-[ ] Pausa y Stop interrumpen/cancelan llamadas al LLM en curso.
-[ ] Pruebas de seguridad:
-    GET /api/sessions/..%2F..%2Fconfig%2Fcredentials -> 400/404.
-    GET /api/artifact/../../etc/passwd -> 404.
-    POST /api/config {"__proto__":{"x":1}} -> no contamina.
-    Un artifact con sprint.goal = "<img src=x onerror=alert(1)>"
-    se muestra escapado en el dashboard.
-[ ] node --check y npm test de deliverable devuelven skipped, no ok falso.
-[ ] El servidor escucha en 127.0.0.1 por defecto (0.0.0.0 solo si
-    AI_SCRUM_BIND=0.0.0.0).
-[ ] README describe el flujo solo-Ollama y marca Claude/OpenAI como
-    opcionales; ninguna doc apunta a ficheros inexistentes.
-[ ] Docker (opcional): docker build && docker run -> dashboard responde.
-[ ] El repo arranca en Node 20 y 22 sin warnings de engines.
+[ ] git ls-files sin: credentials.json, temp-*, debug*.log, architecture.html,
+    GRAPH_MAP.md, generar_mapa.py, project_schema.json, agents-config.json.
+[ ] npm test -> todos los __tests__/*.test.js en verde, sin motor real.
+[ ] npm run smoke -> sprint minimo real via opencode + modelo gratis con
+    artefactos en outputs/session-*/.
+[ ] npm start -> dashboard en http://127.0.0.1:3000 sin credentials.json,
+    sin API keys en el proyecto; curl desde otra LAN -> connection refused.
+[ ] Pausa/stop cancela la llamada al motor en curso (AbortController).
+[ ] Seguridad: traversal -> 400/404; __proto__ no contamina; 429 ante
+    rafaga en POST /api/start; goal malicioso escapado en dashboard.
+[ ] deliverable sin ok falsos (skipped explicito cuando no hay checks).
+[ ] npm run lint -> 0 warnings; npm audit high -> 0 criticos.
+[ ] README/GUIA describen flujo opencode+gratis; nada apunta a inexistentes.
+[ ] Docker opcional: build && run -> dashboard responde.
+[ ] Node 20 y 22 sin warnings de engines.
 
 -------------------------------------------------------------------------------
 13. ORDEN DE EJECUCION Y ESFUERZO ESTIMADO
 -------------------------------------------------------------------------------
-  FASE 0  Higiene git/secretos          0.5 dia   (bloqueante)
-  FASE 1  Orquestador unico             1-2 dias  (bloqueante)
-  FASE 2  Capa LLM Ollama               2-3 dias
-  FASE 3  Seguridad                     1.5-2 dias
-  FASE 4  Pruebas                       1-2 dias  (paralelizable con FASE 3)
-  FASE 5  Modularizacion / limpieza     2-3 dias
-  FASE 6  Frontend                      1 dia
-  FASE 7  Documentacion                 0.5-1 dia
-  TOTAL                                  ~10-14 dias de esfuerzo
+  FASE 0  Higiene git/secretos/mapss       0.5 dia   (bloqueante)
+  FASE 1  Orquestador unico delgado        1-2 dias  (bloqueante)
+  FASE 2  Motor opencode + agentes         2-3 dias
+  FASE 3  Seguridad                        1.5-2 dias
+  FASE 4  Pruebas                          1-2 dias  (paralelo con FASE 3)
+  FASE 5  Modularizacion / limpieza        2 dias
+  FASE 6  Frontend                         1 dia
+  FASE 7  Documentacion                    0.5-1 dia
+  TOTAL                                     ~10-13 dias de esfuerzo
 
   Orden obligatorio: 0 -> 1 -> 2 -> 3 -> 4 -> (5,6,7 en paralelo).
   Cada fase termina con: npm test + npm run lint + smoke manual.
@@ -457,15 +440,16 @@ E8. Port 3000 fijado en config y dashboard -> soportar PORT env sin
 -------------------------------------------------------------------------------
 14. RIESGOS Y ROLLBACK
 -------------------------------------------------------------------------------
- - Cada fase = 1 commit (o serie de commits pequenos) con mensaje
-   "phase-N: ..." para poder git revert de forma selectiva.
- - FASE 0.1.e (reescribir historial) es IRREVERSIBLE -> hacerla en una
-   ventana dedicada y avisar a todos los clones.
- - No borrar src/ ni agents/base-agent.js hasta que FASE 4 tenga
-   cobertura: si algo falla, git checkout <fase-anterior>.
- - Mantener el adaptador Claude/Playwright intacto (solo desacoplado)
-   durante al menos 2 releases por si se quiere reactivar.
+ - Cada fase = commits "phase-N: ..." para git revert selectivo.
+ - Tag local pre-phase-0 antes de borrar ficheros (D2: sin remoto, el riesgo
+   es solo local, pero el tag permite volver atras).
+ - No borrar src/ ni agents/* legacy hasta tener cobertura en FASE 4.
+ - Backend Claude/Playwright (D3): se elimina el codigo a medida, pero su
+   capacidad se conserva como proveedor opcional dentro de opencode durante
+   al menos 2 releases (documentado en adr/0001).
+ - Si `opencode serve` no encaja en algun entorno, el modo "run" es el
+   fallback soportado (misma interfaz, solo cambia factory + config).
 
 ===============================================================================
- FIN DEL PLAN
+ FIN DEL PLAN v2
 ===============================================================================
