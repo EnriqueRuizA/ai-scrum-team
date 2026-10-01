@@ -226,5 +226,36 @@ describe('server API (integration)', () => {
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ success: true, message: 'Proyecto iniciado' });
   });
+
+  test('GET /api/engine/health devuelve forma sin secretos (motor real opcional)', async () => {
+    fs.readJson.mockResolvedValue({
+      agents: { opencode: { mode: 'run', model: 'ollama/test-model', url: 'http://127.0.0.1:4096' } }
+    });
+    const { app } = createServer();
+    const res = await request(app).get('/api/engine/health');
+    expect(res.status).toBe(200);
+    expect(typeof res.body.ok).toBe('boolean');
+    expect(res.body.mode).toBe('run');
+    expect(res.body.model).toBe('ollama/test-model');
+    expect(res.body.url).toBe('http://127.0.0.1:4096');
+  });
+
+  test('POST /api/config valida y rechaza maxSprints absurdo', async () => {
+    fs.readJson.mockResolvedValue({
+      scrum: { maxSprints: 3 },
+      agents: {
+        backend: 'local',
+        team: [
+          { id: 'po', role: 'productOwner', enabled: true },
+          { id: 'sm', role: 'scrumMaster', enabled: true }
+        ]
+      }
+    });
+    fs.writeJson.mockResolvedValue(undefined);
+    const { app } = createServer();
+    const res = await request(app).post('/api/config').send({ scrum: { maxSprints: 99 } });
+    expect(res.status).toBe(400);
+    expect(String(res.body.error)).toMatch(/maxSprints/);
+  });
 });
 

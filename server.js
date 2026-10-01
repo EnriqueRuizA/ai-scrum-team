@@ -23,9 +23,9 @@ if (require.main === module) {
 ║                                               ║
 ║  Dashboard: http://localhost:${PORT}              ║
 ║                                               ║
-║  1. Configura credenciales en Settings        ║
+║  1. Comprueba el pill "Motor" (Settings si falla)║
 ║  2. Ajusta el proyecto si necesitas           ║
-║  3. Pulsa «Iniciar proyecto» en el dashboard  ║
+║  3. Pulsa «Iniciar» en el dashboard            ║
 ╚═══════════════════════════════════════════════╝
   `);
 

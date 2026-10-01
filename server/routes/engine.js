@@ -8,6 +8,27 @@ const { buildMermaidFromConfig } = require('../../lib/flow-mermaid');
 const { verifyLlmModels } = require('../../lib/unified-local-llm');
 const { mergeLocalForOllamaTest, listModelsEndpointLabel } = require('../helpers');
 function registerEngine(app, _ctx) {
+  /** Estado del motor opencode (UX: pill + preflight del dashboard). Sin secretos. */
+  app.get('/api/engine/health', async (req, res) => {
+    try {
+      const config = await fs.readJson('./config/project-config.json').catch(() => ({}));
+      const oc = (config.agents && config.agents.opencode) || {};
+      const { createAdapter } = require('../../llm/factory');
+      const h = await createAdapter(config).health();
+      res.json({
+        ok: h.ok === true,
+        mode: oc.mode || 'serve',
+        model: oc.model || 'ollama/llama3.2',
+        url: oc.url || 'http://127.0.0.1:4096',
+        version: h.version || null,
+        error: h.error || null,
+        hint: h.hint || null
+      });
+    } catch (e) {
+      res.status(500).json({ ok: false, error: e.message });
+    }
+  });
+
   /** Diagrama Mermaid del flujo (según agents.team y scrum.maxSprints). */
   app.get('/api/flow/diagram', async (req, res) => {
     try {

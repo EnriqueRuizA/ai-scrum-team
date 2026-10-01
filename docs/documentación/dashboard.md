@@ -29,6 +29,15 @@ src: index.html
 - Reconexión con backoff (`connectWS` + `ping` 30 s); `updateFromState` hidrata tras F5.
 - Vistas: `/` (completa), `/simple` (compacta `public/index.html`).
 
+## Motor en la UI (UX)
+
+- `GET /api/engine/health` → `{ok, mode, model, url, version?, error?, hint?}` (sin secretos).
+- Pill lateral (`#enginePill`) + pill en Settings (`#engine_health_pill` + `#engine_health_hint`).
+- `startProject()` hace preflight: si el motor falla, toast largo (9 s) con hint y salto a Settings.
+- Settings edita `agents.opencode` (`#oc_mode/#oc_model/#oc_url`); el resto de campos se preservan (`window._opencodeExtra`).
+- `POST /api/config` valida y devuelve errores de campo (400) en vez de guardar basura.
+- `notify(msg, type, ms)` con duración (errores 8-9 s).
+
 ## Relaciones
 
 ### Depende de

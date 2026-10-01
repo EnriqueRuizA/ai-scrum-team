@@ -54,12 +54,19 @@ function registerConfig(app, _ctx) {
   }
   });
 
-// Actualizar configuración del proyecto
+// Actualizar configuración del proyecto (UX: valida y devuelve errores de campo)
   app.post('/api/config', async (req, res) => {
   try {
+    const { normalizeTeam } = require('../../agents/team-config');
+    const { validateProjectConfig } = require('../../utils/config-validator');
     await fs.ensureDir('./config');
     const current = await fs.readJson('./config/project-config.json').catch(() => ({}));
     const updated = mergeProjectConfigPatch(current, req.body);
+    // Autocompleta el equipo (defecto) antes de validar: el dashboard envia
+    // parciales y el fichero heredado puede no tener team.
+    if (updated.agents) updated.agents.team = normalizeTeam(updated);
+    const v = validateProjectConfig(updated);
+    if (!v.ok) return res.status(400).json({ error: v.errors.join('; ') });
     await fs.writeJson('./config/project-config.json', updated, { spaces: 2 });
     res.json({ success: true });
   } catch (e) {

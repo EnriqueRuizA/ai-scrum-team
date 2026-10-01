@@ -1212,6 +1212,7 @@
           ▶ Iniciar
         </button>
       </div>
+      <div id="enginePill" style="font-size:10px;color:var(--text-dim);margin-bottom:10px">Motor: comprobando…</div>
       <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid var(--border)">
         <div style="font-size:10px;color:var(--text-dim);letter-spacing:1px">CONTROL DE EJECUCIÓN</div>
         <div style="display:flex;flex-wrap:wrap;gap:6px">
@@ -1377,6 +1378,37 @@
 
     <div class="form-section">
       <div class="form-section-title">🦙 IA local — Ollama u OpenAI-compatible</div>
+      <div style="border:1px solid var(--border); border-radius:8px; padding:12px; margin-bottom:14px">
+        <div style="display:flex; align-items:center; gap:10px; margin-bottom:8px">
+          <strong style="font-size:12px">Motor opencode (gratuito)</strong>
+          <span id="engine_health_pill" style="font-size:10px;color:var(--text-dim)">comprobando…</span>
+          <button type="button" class="btn btn-secondary" onclick="refreshEngineHealth()" style="padding:4px 10px;font-size:9px;margin-left:auto">↻ Comprobar</button>
+        </div>
+        <div style="font-size:10px; color:var(--text-dim); margin-bottom:12px; line-height:1.45">
+          El proyecto ejecuta los agentes con <strong>opencode</strong> (modelos gratuitos: Ollama local
+          como <code>ollama/qwen3.5:9b</code> o modelos <code>opencode/*-free</code>).
+          <code>run</code> no necesita proceso previo; <code>serve</code> es más rápido pero exige
+          <code>opencode serve</code> en marcha (<code>START.bat</code> lo levanta solo).
+        </div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:12px">
+          <div class="form-group">
+            <label class="form-label">Modo del motor</label>
+            <select class="form-input" id="oc_mode">
+              <option value="run">run — por llamada (simple)</option>
+              <option value="serve">serve — persistente (rápido)</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Modelo (proveedor/modelo)</label>
+            <input class="form-input" type="text" id="oc_model" placeholder="ollama/qwen3.5:9b" autocomplete="off" />
+          </div>
+        </div>
+        <div class="form-group" style="margin-bottom:8px">
+          <label class="form-label">URL de opencode serve (solo modo serve)</label>
+          <input class="form-input" type="text" id="oc_url" placeholder="http://127.0.0.1:4096" autocomplete="off" />
+        </div>
+        <p id="engine_health_hint" style="font-size:10px;color:var(--warning);margin:0;line-height:1.45"></p>
+      </div>
       <div style="font-size:10px; color:var(--text-dim); margin-bottom:12px; line-height:1.45">
         Solo cuando el backend de agentes es <strong>local</strong>. Puedes usar <strong>Ollama</strong> (API <code>/api/generate</code>) o proveedores <strong>tipo OpenAI</strong> (ChatGPT, DeepSeek, Cursor proxy, Groq, Mistral… → <code>/v1/chat/completions</code>).
         <strong>Claude.ai en el navegador</strong> no usa esta sección: elige <em>Backend → Claude</em> arriba.
@@ -3107,6 +3139,23 @@
       const backend = config.agents?.backend === 'claude' ? 'claude' : 'local';
       const ab = document.getElementById('agent_backend');
       if (ab) ab.value = backend;
+
+      // UX: motor opencode (guarda el resto de campos para no perderlos al guardar).
+      const oc = config.agents?.opencode || {};
+      window._opencodeExtra = {
+        timeoutMs: oc.timeoutMs,
+        auto: oc.auto,
+        dir: oc.dir,
+        command: oc.command,
+        note: oc.note
+      };
+      const ocMode = document.getElementById('oc_mode');
+      if (ocMode) ocMode.value = oc.mode === 'serve' ? 'serve' : 'run';
+      const ocModel = document.getElementById('oc_model');
+      if (ocModel) ocModel.value = oc.model || 'ollama/qwen3.5:9b';
+      const ocUrl = document.getElementById('oc_url');
+      if (ocUrl) ocUrl.value = oc.url || 'http://127.0.0.1:4096';
+      refreshEngineHealth();
       const bu = document.getElementById('local_ollama_baseurl');
       if (bu) bu.value = config.agents?.local?.baseUrl || 'http://localhost:11434';
 
@@ -3338,6 +3387,18 @@
 
     await populateLocalLlmProviderSelect();
 
+    // UX: bloque opencode completo (los campos extra se preservan).
+    const extra = window._opencodeExtra || {};
+    const opencode = {
+      mode: document.getElementById('oc_mode')?.value === 'serve' ? 'serve' : 'run',
+      model: document.getElementById('oc_model')?.value.trim() || 'ollama/qwen3.5:9b',
+      url: document.getElementById('oc_url')?.value.trim() || 'http://127.0.0.1:4096'
+    };
+    if (extra.timeoutMs !== undefined) opencode.timeoutMs = extra.timeoutMs;
+    if (extra.auto !== undefined) opencode.auto = extra.auto;
+    if (extra.dir !== undefined) opencode.dir = extra.dir;
+    if (extra.command !== undefined) opencode.command = extra.command;
+
     const config = {
       project: {
         name: document.getElementById('proj_name').value,
@@ -3349,6 +3410,7 @@
         shareSession: document.getElementById('share_session').checked,
         backend: document.getElementById('agent_backend')?.value || 'local',
         team,
+        opencode,
         local: readLocalOllamaSettingsFromForm()
       },
       outputs: {
@@ -3384,6 +3446,7 @@
       if (!resP.ok) throw new Error(errP.error || 'Proyecto HTTP ' + resP.status);
 
       notify('Configuración guardada en disco ✓', 'success');
+      refreshEngineHealth();
     } catch (e) {
       notify('Error guardando: ' + e.message, 'error');
     }
@@ -3394,16 +3457,50 @@
       notify(MSG_DEBES_ABRIR_LOCALHOST, 'error');
       return;
     }
+    // UX: preflight del motor antes de lanzar (evita el 400 a ciegas).
+    try {
+      const h = await fetch('/api/engine/health').then((r) => r.json()).catch(() => null);
+      if (h && h.ok !== true) {
+        notify('Motor no disponible: ' + (h.error || 'desconocido') + '. ' + (h.hint || ''), 'error', 9000);
+        showTab('settings');
+        return;
+      }
+    } catch (e) {}
     try {
       const res = await fetch('/api/start', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        notify(data.error || 'Error HTTP ' + res.status, 'error');
+        notify(data.error || 'Error HTTP ' + res.status, 'error', 9000);
         return;
       }
-      notify('Proyecto iniciado. Revisa logs y el navegador si usas Claude.', 'success');
+      notify('Proyecto iniciado. Sigue el progreso en logs y sprints.', 'success');
     } catch (e) {
-      notify('Error iniciando proyecto: ' + e.message, 'error');
+      notify('Error iniciando proyecto: ' + e.message, 'error', 8000);
+    }
+  }
+
+  /** UX: estado del motor (pill en lateral + Settings). Devuelve el health o null. */
+  async function refreshEngineHealth() {
+    const pillSide = document.getElementById('enginePill');
+    const pillCfg = document.getElementById('engine_health_pill');
+    const hint = document.getElementById('engine_health_hint');
+    const paint = (html, color) => {
+      if (pillSide) { pillSide.innerHTML = html; pillSide.style.color = color; }
+      if (pillCfg) { pillCfg.innerHTML = html; pillCfg.style.color = color; }
+    };
+    try {
+      const h = await fetch('/api/engine/health').then((r) => r.json());
+      if (h && h.ok) {
+        paint(`Motor OK · ${escHtml(h.mode)} · ${escHtml(h.model)}`, 'var(--success)');
+        if (hint) hint.textContent = '';
+      } else {
+        paint('Motor NO disponible', 'var(--error)');
+        if (hint) hint.textContent = (h && h.error ? h.error + '. ' : '') + ((h && h.hint) || '');
+      }
+      return h;
+    } catch (e) {
+      paint('Motor: sin conexión con el servidor', 'var(--error)');
+      return null;
     }
   }
 
@@ -3421,11 +3518,12 @@
     }
   }
 
-  function notify(msg, type = 'info') {
+  function notify(msg, type = 'info', ms = 4000) {
     const el = document.getElementById('notification');
     el.textContent = msg;
     el.className = `notification show ${type}`;
-    setTimeout(() => el.classList.remove('show'), 4000);
+    clearTimeout(notify._t);
+    notify._t = setTimeout(() => el.classList.remove('show'), ms);
   }
 
   function filterLogs() {
