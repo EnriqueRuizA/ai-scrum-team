@@ -20,6 +20,11 @@ Pestaña **Agentes** (U2) + modelo `agents.roles[]`/`agents.flow[]` (U1).
   Ollama Cloud: `opencode auth login` + `ollama pull <modelo>-cloud`,
   id `ollama-cloud/<modelo>`; selects por rol y motor; el validador
   rechaza ids fuera del registro.
+- **Variantes por modelo** (`llm/opencode-models.js` + `GET
+  /api/engine/opencode-models?verbose=1` con caché 5 min): parsea
+  `opencode models --verbose` (origen: models.dev vía opencode); la clave
+  literal `none`/{} = sin variantes. UI con datalists por modelo
+  (sugerencia sin bloquear texto libre); `xhigh` verificado en muse-spark.
 - Flow: filas rol + tarea + loop (`until`, `max` 1–10, fix rol/tarea) + `onError`,
   ↑↓, ✕, "+ Añadir paso". Tira viva = el flow tal cual se ejecutará.
 - Un solo Guardar → `POST /api/config {agents:{roles, flow}}` (validado, 400

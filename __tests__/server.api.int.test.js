@@ -237,6 +237,17 @@ describe('server API (integration)', () => {
     expect(Array.isArray(res.body.models)).toBe(true);
   });
 
+  test('GET /api/engine/opencode-models?verbose=1 incluye variants[]', async () => {
+    fs.readJson.mockResolvedValue({});
+    const { app } = createServer();
+    const res = await request(app).get('/api/engine/opencode-models?verbose=1');
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body.models)).toBe(true);
+    for (const m of res.body.models) {
+      expect(Array.isArray(m.variants)).toBe(true);
+    }
+  });
+
   test('GET /api/steps/:session rechaza traversal', async () => {
     const { app } = createServer();
     const res = await request(app).get('/api/steps/..%2Fconfig');

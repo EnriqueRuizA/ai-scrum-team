@@ -7,9 +7,22 @@ const { listPresetsForApi, resolveHttpAdapterFromLocal } = require('../../lib/ll
 const { verifyLlmModels } = require('../../lib/unified-local-llm');
 const { mergeLocalForOllamaTest, listModelsEndpointLabel } = require('../helpers');
 function registerEngine(app, _ctx) {
-  /** Catalogo de modelos de opencode (`opencode models`: locales + cloud). */
+  /** Catalogo de modelos de opencode (`opencode models`: locales + cloud).
+   * ?verbose=1 anade `variants[]` por modelo (con cache de 5 min). */
   app.get('/api/engine/opencode-models', async (req, res) => {
     try {
+      const detailed = req.query.verbose === '1' || req.query.verbose === 'true';
+      if (detailed) {
+        const { listCatalog } = require('../../llm/opencode-models');
+        const models = await listCatalog();
+        return res.json({
+          models: models.map((m) => ({
+            id: m.id,
+            label: `${m.id} (${m.provider === 'ollama' ? 'Ollama local' : m.provider === 'opencode' ? 'opencode cloud' : m.provider})`,
+            variants: m.variants
+          }))
+        });
+      }
       const { OpencodeAdapter } = require('../../llm/opencode-adapter');
       const { spawnSafe } = require('../../utils/exec-safe');
       const adapter = new OpencodeAdapter({ mode: 'run' });
@@ -19,7 +32,7 @@ function registerEngine(app, _ctx) {
       } catch (e) {
         return res.json({ models: [], hint: 'opencode no instalado.' });
       }
-      const r = await spawnSafe(bin, ['models'], { timeoutMs: 30000 });
+      const r = await spawnSafe(bin, ['models'], { timeoutMs: 30000, stdin: 'ignore' });
       if (r.code !== 0) return res.json({ models: [], hint: (r.stderr || '').trim().slice(0, 200) });
       const models = r.stdout
         .split('\n')
@@ -28,7 +41,7 @@ function registerEngine(app, _ctx) {
         .map((id) => {
           const provider = id.split('/')[0];
           const kind = provider === 'ollama' ? 'Ollama local' : provider === 'opencode' ? 'opencode cloud' : provider;
-          return { id, label: `${id} (${kind})` };
+          return { id, label: `${id} (${kind})`, variants: [] };
         });
       res.json({ models });
     } catch (e) {
@@ -40,7 +53,7 @@ function registerEngine(app, _ctx) {
   app.get('/api/engine/ollama-models', async (req, res) => {
     try {
       const { spawnSafe } = require('../../utils/exec-safe');
-      const r = await spawnSafe('ollama', ['list'], { timeoutMs: 20000 });
+      const r = await spawnSafe('ollama', ['list'], { timeoutMs: 20000, stdin: 'ignore' });
       if (r.code !== 0) {
         return res.json({
           models: [],

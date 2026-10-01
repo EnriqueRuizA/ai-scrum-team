@@ -1408,8 +1408,9 @@
           </p>
         </div>
         <div class="form-group" style="margin-bottom:8px">
-          <label class="form-label" data-tip="Esfuerzo/variante del modelo en opencode (p. ej. xhigh en muse-spark). Vacío = defecto del proveedor">Variante (p. ej. xhigh, opcional)</label>
-          <input class="form-input" type="text" id="oc_variant" placeholder="xhigh" autocomplete="off" />
+          <label class="form-label" data-tip="Esfuerzo/variante del modelo en opencode (p. ej. xhigh en muse-spark). Vacío = defecto del proveedor. Escribe o elige de la lista del modelo">Variante (p. ej. xhigh, opcional)</label>
+          <input class="form-input" type="text" id="oc_variant" list="variants-oc" placeholder="xhigh" autocomplete="off" />
+          <datalist id="variants-oc"></datalist>
         </div>
         <div class="form-group" style="margin-bottom:8px">
           <label class="form-label" data-tip="Solo se usa en modo serve. Debe coincidir con el puerto de opencode serve">URL de opencode serve (solo modo serve)</label>
@@ -1733,6 +1734,37 @@
     renderModelSelects();
   }
 
+  /** Catálogo opencode (id -> variants[]) para los datalists. Una sola carga. */
+  async function ensureCatalog() {
+    if (window._opencodeCatalog) return window._opencodeCatalog;
+    const cat = {};
+    try {
+      const res = await fetch('/api/engine/opencode-models?verbose=1');
+      const data = await res.json().catch(() => ({}));
+      for (const m of (data && data.models) || []) {
+        if (m && m.id) cat[m.id] = Array.isArray(m.variants) ? m.variants : [];
+      }
+    } catch (e) {}
+    window._opencodeCatalog = cat;
+    return cat;
+  }
+
+  function variantsFor(modelId) {
+    const cat = window._opencodeCatalog || {};
+    return cat[modelId] || [];
+  }
+
+  function fillVariantList(datalistId, modelId) {
+    const dl = document.getElementById(datalistId);
+    if (!dl) return;
+    dl.innerHTML = '';
+    variantsFor(modelId).forEach((v) => {
+      const o = document.createElement('option');
+      o.value = v;
+      dl.appendChild(o);
+    });
+  }
+
   /** Lee roles del editor (pestaña Agentes). */
   function readRolesFromEditor() {
     const host = document.getElementById('rolesEditor');
@@ -1794,7 +1826,7 @@
       <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; margin-bottom:10px">
         <div class="form-group" style="margin:0"><label class="form-label" data-tip="Modelo solo para este rol. Vacío = el del motor">Modelo (vacío = el del motor)</label>
           <select class="form-input role-model"></select></div>
-        <div class="form-group" style="margin:0"><label class="form-label" data-tip="Variante solo para este rol (p. ej. xhigh). Vacía = la del motor">Variante (vacía = motor)</label>
+        <div class="form-group" style="margin:0"><label class="form-label" data-tip="Variante solo para este rol (p. ej. xhigh). Vacía = la del motor. Elige de la lista de su modelo">Variante (vacía = motor)</label>
           <input class="form-input role-variant" placeholder="xhigh" /></div>
         <div class="form-group" style="margin:0"><label class="form-label" data-tip="Skills de opencode que este rol puede cargar, separadas por comas. Deben existir en .opencode/skills">Skills (separadas por comas)</label>
           <input class="form-input role-skills" value="${escHtml((r.skills || []).join(', '))}" placeholder="mis-docs, git-release" /></div>
@@ -1806,6 +1838,16 @@
       </div>`;
     d.querySelector('.role-model').dataset.want = r.model || '';
     d.querySelector('.role-variant').value = r.variant || '';
+    const dlId = 'variants-role-' + Math.random().toString(36).slice(2, 8);
+    const dl = document.createElement('datalist');
+    dl.id = dlId;
+    d.appendChild(dl);
+    const vInput = d.querySelector('.role-variant');
+    vInput.setAttribute('list', dlId);
+    const mSel = d.querySelector('.role-model');
+    const refill = () => fillVariantList(dlId, mSel.value || '');
+    mSel.addEventListener('change', refill);
+    refill();
     d.querySelector('.role-del').onclick = () => {
       d.remove();
       renderFlowRoleOptions();
@@ -3183,6 +3225,28 @@
       if (ocModel && oc.model) {
         ocModel.dataset.want = oc.model;
         renderModelSelects();
+      }
+      // Catálogo de variantes (una vez): rellena datalists del motor y roles.
+      ensureCatalog().then(() => {
+        const cur = document.getElementById('oc_model')?.value || '';
+        fillVariantList('variants-oc', cur);
+        document.querySelectorAll('#rolesEditor .role-card').forEach((card) => {
+          const dl = card.querySelector('datalist');
+          const model = card.querySelector('.role-model')?.value || '';
+          if (dl) {
+            dl.innerHTML = '';
+            variantsFor(model).forEach((v) => {
+              const o = document.createElement('option');
+              o.value = v;
+              dl.appendChild(o);
+            });
+          }
+        });
+      });
+      const ocModelEl = document.getElementById('oc_model');
+      if (ocModelEl && !ocModelEl.dataset.wiredVariants) {
+        ocModelEl.dataset.wiredVariants = '1';
+        ocModelEl.addEventListener('change', () => fillVariantList('variants-oc', ocModelEl.value || ''));
       }
       const ocUrl = document.getElementById('oc_url');
       if (ocUrl) ocUrl.value = oc.url || 'http://127.0.0.1:4096';
