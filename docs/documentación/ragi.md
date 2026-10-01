@@ -1,6 +1,6 @@
 ---
-tags: [funcion, llm, rag]
-src: src/llm/ragi.js
+tags: [funcion, llm, rag, legacy]
+src: src/llm/ragi.js (ELIMINADO en FASE 5, ver [[legacy-src]])
 ---
 
 # ragi

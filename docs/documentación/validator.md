@@ -1,6 +1,6 @@
 ---
-tags: [clase, ficheros]
-src: src/file/validator.js
+tags: [clase, ficheros, legacy]
+src: src/file/validator.js (ELIMINADO en FASE 5, ver [[legacy-src]])
 ---
 
 # validator

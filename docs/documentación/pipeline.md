@@ -36,5 +36,5 @@ src: orchestrator/pipeline.js
 
 ## Dónde mirar / cambiar
 
-- Prompts de cada paso → aquí (strings inline; FASE 5 los moverá a plantillas)
+- Prompts de cada paso → aquí (strings inline; ver [[personas]] como fuente de system prompts)
 - Añadir un paso (p.ej. `npm install`) → entre implement y checks, con `skipped` si no aplica

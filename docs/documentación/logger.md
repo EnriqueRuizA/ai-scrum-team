@@ -1,6 +1,6 @@
 ---
-tags: [clase, util]
-src: src/utils/logger.js
+tags: [clase, util, legacy]
+src: src/utils/logger.js (ELIMINADO en FASE 5, ver [[legacy-src]])
 ---
 
 # logger

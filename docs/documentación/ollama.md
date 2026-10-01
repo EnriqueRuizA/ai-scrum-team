@@ -1,6 +1,6 @@
 ---
-tags: [clase, llm]
-src: src/llm/ollama.js
+tags: [clase, llm, legacy]
+src: src/llm/ollama.js (ELIMINADO en FASE 5, ver [[legacy-src]] y [[motor-opencode]])
 ---
 
 # ollama

@@ -42,6 +42,9 @@ classDiagram
 
 ## Pendiente de analizar (no crear de golpe)
 
-- `prompts/index.js` — personas por rol (nota pendiente)
-- `server.js`, `orchestrator.js` (raíz), `setup.js` — entrypoints (notas pendientes)
+> FASE 5: `src/` eliminado (ver [[legacy-src]]). La arquitectura viva está en
+> [[MOC-arquitectura]]: `orchestrator/`, `agents/`, `llm/`, `server/`, `utils/`.
+
+- `prompts/index.js` — personas por rol (nota pendiente; fuente migrada a `agents/personas.js`, ver [[personas]])
+- `server.js`, `orchestrator.js` (raíz) — entrypoints (partido en `server/` + shim en FASE 5; notas pendientes)
 - `lib/*.js` — `deliverable`, `default-team`, `openai-compatible-llm`, `local-llm`, `rag`, `cursor-cloud-llm`, `llm-auth-hints`, `llm-connection-info`, `llm-provider-presets`, `flow-mermaid`, etc. (notas pendientes, una por clase según se descubran)

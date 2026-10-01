@@ -1,6 +1,6 @@
 ---
-tags: [clase, ficheros]
-src: src/file/editor.js
+tags: [clase, ficheros, legacy]
+src: src/file/editor.js (ELIMINADO en FASE 5, ver [[legacy-src]])
 ---
 
 # editor

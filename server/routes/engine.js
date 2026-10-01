@@ -1,0 +1,239 @@
+// server/routes/engine.js - FASE 5: rutas (extraido de server.js, sin cambios de comportamiento).
+const fs = require('fs-extra');
+const { authHeadersFromLocalConfig, rawApiKeyFromLocalConfig } = require('../../lib/local-llm');
+const { hintAfterListModelsFailure, misconfiguredCrsrKeyWithOpenAiCompatible } = require('../../lib/llm-auth-hints');
+const { listModels } = require('../../lib/unified-local-llm');
+const { listPresetsForApi, resolveHttpAdapterFromLocal } = require('../../lib/llm-provider-presets');
+const { buildMermaidFromConfig } = require('../../lib/flow-mermaid');
+const { verifyLlmModels } = require('../../lib/unified-local-llm');
+const { mergeLocalForOllamaTest, listModelsEndpointLabel } = require('../helpers');
+function registerEngine(app, _ctx) {
+  /** Diagrama Mermaid del flujo (según agents.team y scrum.maxSprints). */
+  app.get('/api/flow/diagram', async (req, res) => {
+    try {
+      const config = await fs.readJson('./config/project-config.json');
+      res.json({ mermaid: buildMermaidFromConfig(config) });
+    } catch (e) {
+      res.status(500).json({ error: e.message, mermaid: 'flowchart TD\n  ERR[Error cargando config]' });
+    }
+  });
+
+  /** Plantillas de proveedor (OpenAI, DeepSeek, Ollama…) para el dashboard. */
+  app.get('/api/llm/provider-presets', (req, res) => {
+    try {
+      res.json({ presets: listPresetsForApi() });
+    } catch (e) {
+      res.status(500).json({ error: e.message, presets: [] });
+    }
+  });
+
+  /** Comprueba modelo de chat y, si RAG activo, modelo de embeddings. */
+  app.get('/api/ollama/verify', async (req, res) => {
+    try {
+      const current = await fs.readJson('./config/project-config.json').catch(() => ({}));
+      const localCfg = current.agents?.local || {};
+      const fromQuery = typeof req.query.baseUrl === 'string' ? req.query.baseUrl.trim() : '';
+      const baseUrl = (fromQuery || localCfg.baseUrl || 'http://localhost:11434').replace(/\/$/, '');
+      const model = (typeof req.query.model === 'string' && req.query.model.trim()) || localCfg.model || 'llama3.2';
+      const embedModel =
+        (typeof req.query.embedModel === 'string' && req.query.embedModel.trim()) ||
+        localCfg.embedModel ||
+        localCfg.rag?.embedModel ||
+        'nomic-embed-text';
+      const ragEnabled =
+        req.query.rag === '1' ||
+        req.query.rag === 'true' ||
+        localCfg.rag?.enabled === true;
+
+      const httpAdapter = resolveHttpAdapterFromLocal(localCfg);
+      const authHeaders = authHeadersFromLocalConfig(localCfg);
+      const v = await verifyLlmModels(baseUrl, model, embedModel, { authHeaders, local: localCfg });
+      if (!v.ok) {
+        return res.status(502).json({
+          baseUrl,
+          model,
+          embedModel,
+          ragEnabled,
+          httpAdapter,
+          ok: false,
+          error: v.error,
+          hint:
+            httpAdapter === 'openai_compatible'
+              ? '¿URL base correcta (…/v1), API key y acceso a red?'
+              : '¿Está `ollama serve` en marcha y la URL correcta?'
+        });
+      }
+      res.json({
+        baseUrl,
+        model,
+        embedModel,
+        ragEnabled,
+        httpAdapter,
+        ok: true,
+        hasChat: v.hasChat,
+        hasEmbed: v.hasEmbed,
+        modelNames: v.modelNames,
+        hintChat: v.hasChat
+          ? null
+          : httpAdapter === 'openai_compatible'
+            ? `El proveedor no lista el modelo de chat «${model}». Revisa el id exacto en su documentación.`
+            : `Instala el modelo de chat: ollama pull ${model}`,
+        hintEmbed:
+          ragEnabled && !v.hasEmbed
+            ? httpAdapter === 'openai_compatible'
+              ? `RAG: no aparece el modelo de embeddings «${embedModel}» en la lista del proveedor.`
+              : `RAG activo: necesitas un modelo de embeddings (aparte del de chat). Ejecuta: ollama pull ${embedModel}`
+            : null
+      });
+    } catch (e) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  /**
+   * Prueba conexión y API key (Ollama /api/tags, OpenAI /v1/models, Cursor Cloud /v0/models).
+   * Body opcional: { local: { ... } } mezclado con project-config (apiKey vacío = no cambia la guardada).
+   */
+  app.post('/api/ollama/test-auth', async (req, res) => {
+    try {
+      const current = await fs.readJson('./config/project-config.json').catch(() => ({}));
+      const fileLocal = current.agents?.local || {};
+      const patch = req.body?.local && typeof req.body.local === 'object' ? req.body.local : {};
+      const local = mergeLocalForOllamaTest(fileLocal, patch);
+
+      let baseUrl =
+        typeof req.body?.baseUrl === 'string' && req.body.baseUrl.trim()
+          ? req.body.baseUrl.trim()
+          : (local.baseUrl || 'http://localhost:11434').trim();
+      baseUrl = baseUrl.replace(/\/$/, '');
+
+      const httpAdapter = resolveHttpAdapterFromLocal(local);
+      const crsrMix = misconfiguredCrsrKeyWithOpenAiCompatible(local);
+      if (crsrMix) {
+        const ah = authHeadersFromLocalConfig(local);
+        const names = Object.keys(ah);
+        return res.status(400).json({
+          ok: false,
+          baseUrl,
+          httpAdapter,
+          listEndpoint: listModelsEndpointLabel(httpAdapter),
+          authConfigured: names.length > 0,
+          authHeaderNames: names,
+          models: [],
+          error: crsrMix.error,
+          hint: crsrMix.hint
+        });
+      }
+
+      const authHeaders = authHeadersFromLocalConfig(local);
+      const authHeaderNames = Object.keys(authHeaders);
+      const result = await listModels(baseUrl, { authHeaders, local });
+
+      const listEndpoint = listModelsEndpointLabel(httpAdapter);
+
+      if (!result.ok) {
+        const rawKey = rawApiKeyFromLocalConfig(local);
+        const cursorOpenAiHint = hintAfterListModelsFailure(
+          result.error,
+          baseUrl,
+          rawKey,
+          httpAdapter
+        );
+        const defaultHint =
+          authHeaderNames.length === 0 &&
+          (httpAdapter === 'openai_compatible' || httpAdapter === 'cursor_cloud')
+            ? 'Las APIs cloud suelen exigir API key: rellena el campo o apiKeyEnv / OPENAI_API_KEY / CURSOR_API_KEY.'
+            : authHeaderNames.length === 0
+              ? 'No se envió API key: rellena el campo, define apiKeyEnv o variables AI_SCRUM_LOCAL_API_KEY / OLLAMA_API_KEY.'
+              : 'Revisa URL base, la clave y el modo (Bearer, Basic para Cursor API, X-API-Key o personalizada).';
+        return res.status(502).json({
+          ok: false,
+          baseUrl,
+          httpAdapter,
+          listEndpoint: listModelsEndpointLabel(httpAdapter),
+          authConfigured: authHeaderNames.length > 0,
+          authHeaderNames,
+          models: [],
+          error: result.error,
+          hint: cursorOpenAiHint || defaultHint
+        });
+      }
+
+      const models = result.models || [];
+      res.json({
+        ok: true,
+        baseUrl,
+        httpAdapter,
+        authConfigured: authHeaderNames.length > 0,
+        authHeaderNames,
+        modelCount: models.length,
+        models,
+        modelsPreview: models.slice(0, 30),
+        message: `Conexión OK: ${listEndpoint} respondió (${models.length} modelo(s)).`
+      });
+    } catch (e) {
+      res.status(500).json({ ok: false, error: e.message });
+    }
+  });
+
+  /** Modelos instalados (Ollama /api/tags, OpenAI /v1/models, Cursor /v0/models). Query ?baseUrl= opcional. */
+  app.get('/api/ollama/models', async (req, res) => {
+    try {
+      const current = await fs.readJson('./config/project-config.json');
+      const localCfg = current.agents?.local || {};
+      const fromQuery = typeof req.query.baseUrl === 'string' ? req.query.baseUrl.trim() : '';
+      const fromConfig = localCfg.baseUrl;
+      const baseUrl = (fromQuery || fromConfig || 'http://localhost:11434').replace(/\/$/, '');
+      const httpAdapter = resolveHttpAdapterFromLocal(localCfg);
+      const crsrMix = misconfiguredCrsrKeyWithOpenAiCompatible(localCfg);
+      if (crsrMix) {
+        const ah = authHeadersFromLocalConfig(localCfg);
+        const names = Object.keys(ah);
+        return res.status(400).json({
+          error: crsrMix.error,
+          baseUrl,
+          httpAdapter,
+          listEndpoint: listModelsEndpointLabel(httpAdapter),
+          authConfigured: names.length > 0,
+          models: [],
+          hint: crsrMix.hint
+        });
+      }
+      const authHeaders = authHeadersFromLocalConfig(localCfg);
+      const authHeaderNames = Object.keys(authHeaders);
+      const result = await listModels(baseUrl, { authHeaders, local: localCfg });
+      if (!result.ok) {
+        const rawKey = rawApiKeyFromLocalConfig(localCfg);
+        const cursorOpenAiHint = hintAfterListModelsFailure(
+          result.error,
+          baseUrl,
+          rawKey,
+          httpAdapter
+        );
+        const defaultHint =
+          authHeaderNames.length === 0 &&
+          (httpAdapter === 'openai_compatible' || httpAdapter === 'cursor_cloud')
+            ? 'Las APIs cloud exigen API key: guárdala en Settings, define apiKeyEnv o OPENAI_API_KEY / CURSOR_API_KEY en el entorno donde corre el servidor.'
+            : authHeaderNames.length === 0
+              ? 'No se envió API key: rellena el campo en Settings, apiKeyEnv o AI_SCRUM_LOCAL_API_KEY / OLLAMA_API_KEY.'
+              : null;
+        const hint = cursorOpenAiHint || defaultHint;
+        return res.status(502).json({
+          error: result.error || 'No se pudo listar modelos',
+          baseUrl,
+          httpAdapter,
+          listEndpoint: listModelsEndpointLabel(httpAdapter),
+          authConfigured: authHeaderNames.length > 0,
+          models: [],
+          ...(hint ? { hint } : {})
+        });
+      }
+      res.json({ baseUrl, httpAdapter, models: result.models });
+    } catch (e) {
+      res.status(500).json({ error: e.message, models: [] });
+    }
+  });
+
+}
+
+module.exports = registerEngine;

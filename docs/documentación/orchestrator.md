@@ -1,6 +1,6 @@
 ---
-tags: [clase, orquestacion]
-src: src/orchestrator/orchestrator.js
+tags: [clase, orquestacion, legacy]
+src: src/orchestrator/orchestrator.js (ELIMINADO en FASE 5, ver [[legacy-src]] y [[orquestador-v2]])
 ---
 
 # orchestrator

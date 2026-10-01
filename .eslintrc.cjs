@@ -10,6 +10,6 @@ module.exports = {
     // Los catch vacios son intencionales (best-effort); van documentados.
     'no-empty': ['error', { allowEmptyCatch: true }]
   },
-  // FASE 5: src/ es codigo muerto pendiente de eliminar; fuera del gate.
-  ignorePatterns: ['node_modules/', 'outputs/', 'sessions/', 'logs/', 'public/', 'src/', '*.min.js']
+  // FASE 5: src/ eliminado; el gate cubre todo el codigo vivo.
+  ignorePatterns: ['node_modules/', 'outputs/', 'sessions/', 'logs/', 'public/', '*.min.js']
 };

@@ -13,7 +13,8 @@ Estado del `docs/PLAN-REESTRUCTURACION.txt` (v2). Cada fase = commits `phase-N`.
 - **FASE 2** (`d451de0`) — [[motor-opencode]], [[opencode-adapter]], [[opencode-agent]], [[personas]], config unificada + schema + validador, `setup.js`, `START.bat`/`STOP.bat`, `smoke`, `export-agents`.
 - **fix START end-to-end** (`2ac6362`) — modo `run`, modelo instalado, `resolveBinary`, `stdin:'ignore'`, `dir` contenida.
 - **FASE 3** (`dfd9abc`) — [[guards]], helmet/rate-limit/bind, deliverable honesto, XSS, `docs/SECURITY.md`.
-- **FASE 4** (en curso) — `npm test` (105/105), `npm run lint` limpio, humo borrado, `lib/llm-provider-presets.js` fijado contra sus tests, CI. Esta documentación.
+- **FASE 4** (commit `1662046`) — `npm test` (105/105), `npm run lint` limpio, humo borrado, `lib/llm-provider-presets.js` fijado contra sus tests, CI. Documentación Obsidian (MOC + 8 notas).
+- **FASE 5** (en curso) — `src/` y `local-agents.js` borrados, `server.js` partido en `server/` (25/25 rutas), barrels, `prompts→personas`, `dashboard-local` borrado, deps muertas fuera (`chalk`, `node-cron`, `uuid`; `playwright`→opcional). Obsidian revisado (legacy marcado, links verificados).
 
 ## Pendientes
 

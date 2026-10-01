@@ -1,6 +1,6 @@
 ---
-tags: [clase, agente]
-src: src/agent/local.js
+tags: [clase, agente, legacy]
+src: src/agent/local.js (ELIMINADO en FASE 5, ver [[legacy-src]])
 ---
 
 # local_agent
