@@ -64,6 +64,7 @@ function createServer() {
     'agent_initializing',
     'agent_sending',
     'agent_response',
+    'exchange', // U-conversaciones: prompt+respuesta completos por llamada
     'artifact_created',
     'action_required',
     'delivery',

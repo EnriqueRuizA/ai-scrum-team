@@ -6,12 +6,13 @@
 const { parseLlmJsonResponse } = require('../lib/parse-llm-json');
 
 class OpencodeAgent {
-  constructor({ name, role, persona, adapter, model, files = [], timeoutMs, dir }) {
+  constructor({ name, role, persona, adapter, model, variant, files = [], timeoutMs, dir }) {
     this.name = name;
     this.role = role;
     this.persona = persona || '';
     this.adapter = adapter;
     this.model = model || null;
+    this.variant = typeof variant === 'string' ? variant.trim() : '';
     this.files = files;
     this.timeoutMs = timeoutMs;
     this.dir = dir || null;
@@ -79,6 +80,7 @@ class OpencodeAgent {
       dir: this.dir || undefined,
       title: `${this.role}`,
       model: this.model || undefined,
+      variant: this.variant || undefined,
       timeoutMs: this.timeoutMs
     });
 

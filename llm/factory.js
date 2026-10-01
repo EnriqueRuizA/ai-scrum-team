@@ -11,6 +11,7 @@ function createAdapter(config) {
     mode: oc.mode || 'serve',
     url: oc.url || process.env.OPENCODE_URL || 'http://127.0.0.1:4096',
     model: oc.model || process.env.OPENCODE_MODEL || 'ollama/llama3.2',
+    variant: oc.variant || process.env.OPENCODE_VARIANT || '',
     dir: oc.dir || process.cwd(),
     timeoutMs: oc.timeoutMs,
     auto: oc.auto === true,

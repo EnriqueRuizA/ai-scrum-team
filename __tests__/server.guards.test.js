@@ -9,6 +9,7 @@ const {
   escHtml
 } = require('../server/guards');
 const { limitStateLogs, DEFAULT_STATE_LOGS, MAX_STATE_LOGS } = require('../server/helpers');
+const { readStepArtifacts } = require('../server/helpers');
 
 describe('validateSessionId', () => {
   test('acepta ids validos', () => {
@@ -118,5 +119,48 @@ describe('limitStateLogs (FASE 6)', () => {
 
   test('MAX_STATE_LOGS es 5000', () => {
     expect(MAX_STATE_LOGS).toBe(5000);
+  });
+});
+
+describe('readStepArtifacts', () => {
+  const fs = require('fs-extra');
+  const os = require('os');
+  const path = require('path');
+
+  test('lee pasos ordenados con exchanges e iteraciones', async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), 'steps-'));
+    const dir = path.join(root, 'outputs', 'session-abc');
+    await fs.ensureDir(path.join(dir, 'artifacts'));
+    await fs.writeJson(path.join(dir, 'artifacts', 'sprint-1-step-1-qa-probar.json'), {
+      role: 'qa',
+      task: 'probar',
+      data: { qa: { passed: false } },
+      exchange: { prompt: 'p1', response: 'r1', ms: 5 },
+      iterations: [
+        { n: 1, kind: 'fix', role: 'dev', task: 'implementar', ms: 3, exchange: { prompt: 'pf', response: 'rf' } }
+      ]
+    });
+    await fs.writeJson(path.join(dir, 'artifacts', 'sprint-1-step-0-sm-plan.json'), {
+      role: 'sm',
+      task: 'plan',
+      data: {},
+      exchange: { prompt: 'p0', response: 'r0', ms: 1 },
+      iterations: []
+    });
+    await fs.writeJson(path.join(dir, 'artifacts', 'not-a-step.json'), { hello: 1 });
+    const out = await readStepArtifacts(path.join(root, 'outputs'), 'session-abc');
+    expect(out).toHaveLength(2);
+    expect(out[0].step).toBe(0);
+    expect(out[0].exchange).toMatchObject({ prompt: 'p0' });
+    expect(out[1].iterations).toHaveLength(1);
+    expect(out[1].iterations[0]).toMatchObject({ kind: 'fix', role: 'dev' });
+    await fs.remove(root);
+  });
+
+  test('id invalido lanza; sesion sin artefactos devuelve []', async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), 'steps-'));
+    await expect(readStepArtifacts(path.join(root, 'outputs'), '../x')).rejects.toThrow();
+    expect(await readStepArtifacts(path.join(root, 'outputs'), 'session-nada')).toEqual([]);
+    await fs.remove(root);
   });
 });

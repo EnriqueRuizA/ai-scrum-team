@@ -116,6 +116,28 @@ describe('runPipeline (generico)', () => {
     expect(order).toContain('sprint_start');
   });
 
+  test('emite exchanges con prompt+respuesta y los guarda en el artefacto', async () => {
+    const seen = [];
+    const ctx = makeCtx(dir, [], {
+      flow: [{ role: 'dev', task: 'implementar' }]
+    });
+    const origEmit = ctx.emit;
+    ctx.emit = (e, d) => {
+      if (e === 'exchange') seen.push(d);
+      return origEmit(e, d);
+    };
+    await runPipeline(ctx);
+    expect(seen).toHaveLength(1);
+    expect(seen[0]).toMatchObject({ role: 'dev', task: 'implementar', kind: 'step' });
+    expect(seen[0].prompt).toMatch('Implementa el sprint');
+    expect(seen[0].response).toMatch('implementation');
+    expect(typeof seen[0].ms).toBe('number');
+    const file = (await fs.readdir(path.join(dir, 'artifacts'))).find((f) => f.includes('-step-0-dev-implementar'));
+    const saved = await fs.readJson(path.join(dir, 'artifacts', file));
+    expect(saved.exchange.prompt).toMatch('Implementa el sprint');
+    expect(saved.exchange.response).toMatch('implementation');
+  });
+
   test('respeta la parada tras el sprint', async () => {
     const ctx = makeCtx(dir, [], { stopAfter: 1 });
     const res = await runPipeline(ctx);

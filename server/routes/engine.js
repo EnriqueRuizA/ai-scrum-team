@@ -80,6 +80,7 @@ function registerEngine(app, _ctx) {
         ok: h.ok === true,
         mode: oc.mode || 'serve',
         model: oc.model || 'ollama/llama3.2',
+        variant: oc.variant || '',
         url: oc.url || 'http://127.0.0.1:4096',
         version: h.version || null,
         error: h.error || null,

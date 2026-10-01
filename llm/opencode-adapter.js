@@ -82,13 +82,16 @@ function collectMessageText(body) {
 
 class OpencodeAdapter {
   /**
-   * cfg = { mode, url, model, dir, timeoutMs, auto, command, username, password,
+   * cfg = { mode, url, model, variant, dir, timeoutMs, auto, command, username, password,
    *         env }
+   * variant: esfuerzo del modelo en opencode (p.ej. "xhigh" en muse-spark).
+   *   run  -> flag --variant ; serve -> campo variant del mensaje.
    */
   constructor(cfg = {}) {
     this.mode = cfg.mode === 'run' ? 'run' : 'serve';
     this.url = (cfg.url || 'http://127.0.0.1:4096').replace(/\/$/, '');
     this.model = cfg.model || 'ollama/llama3.2';
+    this.variant = typeof cfg.variant === 'string' ? cfg.variant.trim() : '';
     this.dir = cfg.dir || process.cwd();
     this.timeoutMs = cfg.timeoutMs > 0 ? cfg.timeoutMs : DEFAULT_TIMEOUT_MS;
     this.auto = cfg.auto === true;
@@ -197,7 +200,7 @@ class OpencodeAdapter {
   }
 
   /**
-   * @param {object} opts - { agent, prompt, files?, title?, model?, signal?, timeoutMs? }
+   * @param {object} opts - { agent, prompt, files?, title?, model?, variant?, signal?, timeoutMs? }
    * @returns {Promise<{text}>}
    */
   async generate(opts = {}) {
@@ -214,18 +217,26 @@ class OpencodeAdapter {
     }
   }
 
-  async _generateRun(opts, signal) {
-    const bin = await this.resolveBinary();
-    // dir por llamada (p.ej. outputs/session-XXX): el modelo nunca trabaja
-    // sobre la raiz del repo salvo que se pida explicitamente.
+  /** Construye argv de `opencode run` (puro: testeable sin binario). */
+  buildRunArgs(opts = {}) {
     const dir = opts.dir || this.dir;
     const args = ['run', '--format', 'json', '--dir', dir];
     if (opts.agent) args.push('--agent', opts.agent);
     args.push('--model', opts.model || this.model);
+    const variant = (opts.variant || this.variant || '').trim();
+    if (variant) args.push('--variant', variant);
     if (this.auto) args.push('--auto');
     for (const f of opts.files || []) args.push('--file', f);
     if (opts.title) args.push('--title', opts.title);
     args.push(opts.prompt);
+    return args;
+  }
+
+  async _generateRun(opts, signal) {
+    const bin = await this.resolveBinary();
+    // dir por llamada (p.ej. outputs/session-XXX): el modelo nunca trabaja
+    // sobre la raiz del repo salvo que se pida explicitamente.
+    const args = this.buildRunArgs(opts);
 
     const r = await spawnSafe(bin, args, {
       timeoutMs: 0, // el timeout lo gobierna el AbortSignal enlazado
@@ -269,11 +280,14 @@ class OpencodeAdapter {
     const sessionID = session && (session.id || session.ID);
     if (!sessionID) throw new Error('opencode serve no devolvio session.id');
     try {
-      const body = await this._serveJson('POST', `/session/${sessionID}/message`, {
+      const msg = {
         agent: opts.agent,
         model: opts.model || this.model,
         parts: [{ type: 'text', text: opts.prompt }]
-      }, signal);
+      };
+      const variant = (opts.variant || this.variant || '').trim();
+      if (variant) msg.variant = variant;
+      const body = await this._serveJson('POST', `/session/${sessionID}/message`, msg, signal);
       const text = collectMessageText(body);
       if (!text) throw new Error('opencode serve devolvio un mensaje sin texto');
       return { text };

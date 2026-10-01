@@ -28,6 +28,7 @@ function createOpencodeAgents(roles, config, outputDir) {
       persona: buildPersona(roleDef, config),
       adapter,
       model: roleDef.model || oc.model,
+      variant: roleDef.variant || oc.variant || '',
       files: Array.isArray(roleDef.files) ? roleDef.files : [],
       timeoutMs: oc.timeoutMs,
       dir: outputDir || oc.dir || undefined

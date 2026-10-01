@@ -37,6 +37,8 @@ Pestaña **Agentes** (U2) + modelo `agents.roles[]`/`agents.flow[]` (U1).
   `GET /api/skills` lista descubiertas; `setup.js` avisa si faltan.
 - Validador: mission ≥10 en personalizados, skill `^[a-z0-9-]+$`, loop max 1–10,
   roles del flow existentes.
+- **Variantes**: `agents.opencode.variant` global + `variant` por rol
+  (p.ej. `xhigh` en muse-spark; verificado contra el CLI real).
 
 ## Relaciones
 

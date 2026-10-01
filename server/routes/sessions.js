@@ -114,32 +114,19 @@ function registerSessions(app, ctx) {
     }
   });
 
-// Obtener artefacto específico
-  app.get('/api/artifact/:session/:name', async (req, res) => {
-  try {
-    const { validateSessionId, validateArtifactName, safeJoin } = require('../guards');
-    if (!validateSessionId(req.params.session) || !validateArtifactName(req.params.name)) {
-      return res.status(400).json({ error: 'Parámetros inválidos' });
-    }
-    const artifactPath = safeJoin('./outputs', req.params.session, 'artifacts', `${req.params.name}.json`);
-    const artifact = await fs.readJson(artifactPath);
-    res.json(artifact);
-  } catch (e) {
-    res.status(404).json({ error: 'Artefacto no encontrado' });
-  }
-  });
+  // U3: endpoints huerfanos eliminados (el dashboard lee artefactos del state):
+  // - GET /api/artifact/:session/:name
+  // - GET /api/download/:session
 
-// Descargar app final generada
-  app.get('/api/download/:session', async (req, res) => {
-  const { validateSessionId, safeJoin } = require('../guards');
-  if (!validateSessionId(req.params.session)) {
-    return res.status(400).json({ error: 'id de sesión inválido' });
-  }
-  const appDir = safeJoin('./outputs', req.params.session, 'final-app');
-  const exists = await fs.pathExists(appDir);
-  if (!exists) return res.status(404).json({ error: 'App final no encontrada' });
-  // No se expone la ruta absoluta (evita enumeracion del FS del servidor).
-  res.json({ session: req.params.session, message: 'App generada disponible en el directorio de la sesión.' });
+  // Conversaciones completas por sesion (prompt+respuesta por paso). Para la
+  // vista Conversacion del dashboard (tiempo real via WS `exchange`).
+  app.get('/api/steps/:session', async (req, res) => {
+    try {
+      const { readStepArtifacts } = require('../helpers');
+      res.json({ steps: await readStepArtifacts('./outputs', req.params.session) });
+    } catch (e) {
+      res.status(400).json({ error: e.message, steps: [] });
+    }
   });
 }
 

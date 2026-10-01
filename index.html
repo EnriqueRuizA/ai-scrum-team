@@ -1077,6 +1077,34 @@
     outline: 2px solid var(--accent);
     outline-offset: 1px;
   }
+  /* Conversación agente<->modelo */
+  .exchange-item {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 10px;
+    background: rgba(0, 212, 255, 0.03);
+  }
+  .exchange-item summary {
+    cursor: pointer;
+    font-size: 11px;
+    color: var(--text-bright);
+  }
+  .exchange-part {
+    margin-top: 8px;
+  }
+  .exchange-label {
+    font-size: 9px;
+    letter-spacing: 1px;
+    color: var(--text-dim);
+    margin-bottom: 4px;
+  }
+  .exchange-part pre {
+    max-height: 300px;
+    overflow: auto;
+    white-space: pre-wrap;
+    word-break: break-word;
+    font-size: 10px;
+  }
 </style>
 </head>
 <body>
@@ -1200,6 +1228,18 @@
           <div style="color:var(--text-dim); font-size:11px; padding:8px">
             Los artefactos aparecerán aquí cuando el proyecto esté en ejecución
           </div>
+        </div>
+      </div>
+
+      <!-- CONVERSACIÓN AGENTES<->MODELO (tiempo real) -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">Conversación</div>
+          <span id="statExchanges" style="font-size:11px; color:var(--text-dim)">0</span>
+        </div>
+        <div style="color:var(--text-dim); font-size:11px; margin-bottom:10px">Cada llamada al modelo: prompt enviado + respuesta completa, en vivo.</div>
+        <div id="conversationList" class="scrollbar-custom" style="display:flex; flex-direction:column; gap:8px; max-height:520px; overflow:auto">
+          <div class="conversation-empty" style="color:var(--text-dim); font-size:11px; padding:8px">Aquí verás cada llamada al modelo (prompt + respuesta) en tiempo real.</div>
         </div>
       </div>
 
@@ -1368,6 +1408,10 @@
           </p>
         </div>
         <div class="form-group" style="margin-bottom:8px">
+          <label class="form-label" data-tip="Esfuerzo/variante del modelo en opencode (p. ej. xhigh en muse-spark). Vacío = defecto del proveedor">Variante (p. ej. xhigh, opcional)</label>
+          <input class="form-input" type="text" id="oc_variant" placeholder="xhigh" autocomplete="off" />
+        </div>
+        <div class="form-group" style="margin-bottom:8px">
           <label class="form-label" data-tip="Solo se usa en modo serve. Debe coincidir con el puerto de opencode serve">URL de opencode serve (solo modo serve)</label>
           <input class="form-input" type="text" id="oc_url" placeholder="http://127.0.0.1:4096" autocomplete="off" />
         </div>
@@ -1439,6 +1483,8 @@
   // FASE 6: tope de logs en memoria del cliente (el servidor topa a 500 por defecto).
   const MAX_CLIENT_LOGS = 2000;
   const allLogs = [];
+  const MAX_EXCHANGES = 200;
+  const allExchanges = [];
   const allArtifacts = [];
   let projectState = { status: 'idle', currentSprint: 0, maxSprints: 5, sprints: [], runPaused: false };
 
@@ -1697,6 +1743,7 @@
       mission: (card.querySelector('.role-mission')?.value || '').trim(),
       extra: (card.querySelector('.role-extra')?.value || '').trim(),
       model: (card.querySelector('.role-model')?.value || '').trim(),
+      variant: (card.querySelector('.role-variant')?.value || '').trim(),
       skills: (card.querySelector('.role-skills')?.value || '')
         .split(',')
         .map((s) => s.trim())
@@ -1744,9 +1791,11 @@
       </div>
       <div class="form-group" style="margin-bottom:10px"><label class="form-label" data-tip="Qué hace este rol en 1-2 líneas. Obligatoria en roles nuevos; los clásicos usan su persona detallada si se deja vacía">Misión${isClassic ? ' (vacío = persona clásica)' : ''}</label>
         <textarea class="form-input role-mission" rows="2" placeholder="Qué hace este rol en 1-2 líneas…">${escHtml(r.mission || '')}</textarea></div>
-      <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:10px">
+      <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; margin-bottom:10px">
         <div class="form-group" style="margin:0"><label class="form-label" data-tip="Modelo solo para este rol. Vacío = el del motor">Modelo (vacío = el del motor)</label>
           <select class="form-input role-model"></select></div>
+        <div class="form-group" style="margin:0"><label class="form-label" data-tip="Variante solo para este rol (p. ej. xhigh). Vacía = la del motor">Variante (vacía = motor)</label>
+          <input class="form-input role-variant" placeholder="xhigh" /></div>
         <div class="form-group" style="margin:0"><label class="form-label" data-tip="Skills de opencode que este rol puede cargar, separadas por comas. Deben existir en .opencode/skills">Skills (separadas por comas)</label>
           <input class="form-input role-skills" value="${escHtml((r.skills || []).join(', '))}" placeholder="mis-docs, git-release" /></div>
       </div>
@@ -1756,6 +1805,7 @@
         <button type="button" class="btn btn-secondary role-del" data-tip="Quitar este rol. Los pasos del flow que lo usen fallarán al guardar" style="padding:4px 10px;font-size:10px">✕ Quitar</button>
       </div>`;
     d.querySelector('.role-model').dataset.want = r.model || '';
+    d.querySelector('.role-variant').value = r.variant || '';
     d.querySelector('.role-del').onclick = () => {
       d.remove();
       renderFlowRoleOptions();
@@ -1886,6 +1936,17 @@
     }
     const roles = readRolesFromEditor();
     const flow = readFlowFromEditor();
+    // U3: avisa (sin bloquear) de skills que no existen en el workspace.
+    try {
+      const sk = await fetch('/api/skills').then((r) => r.json()).catch(() => null);
+      const known = new Set((sk && sk.skills || []).map((s) => s.name));
+      if (known.size > 0) {
+        const unknown = [...new Set(roles.flatMap((r) => r.skills || []))].filter((s) => !known.has(s));
+        if (unknown.length > 0) {
+          notify('Skills no encontradas (se guardan igual): ' + unknown.join(', '), 'warning', 7000);
+        }
+      }
+    } catch (e) {}
     try {
       const res = await fetch('/api/config', {
         method: 'POST',
@@ -2031,6 +2092,7 @@
       case 'agent_response':
         setLlmRequestProgress(false);
         break;
+      case 'exchange': handleExchange(data); break;
       case 'artifact_created': handleArtifact(data); break;
       case 'action_required': handleActionRequired(data); break;
       case 'completed': handleCompleted(data); break;
@@ -2101,6 +2163,110 @@
     
     // Limit lines
     while (el.children.length > 500) el.removeChild(el.firstChild);
+  }
+
+  /** Conversaciones completas agente<->modelo (tiempo real + backfill). */
+  function exchangeTitle(e) {
+    const kind = e.kind && e.kind !== 'step' ? ` (${e.kind})` : '';
+    const ms = typeof e.ms === 'number' ? ` · ${(e.ms / 1000).toFixed(1)}s` : '';
+    return `S${e.sprint ?? '?'} · paso ${e.step ?? '?'} · ${e.role || '?'} → ${e.task || '?'}${kind}${ms}`;
+  }
+
+  function exchangeNode(e) {
+    const d = document.createElement('details');
+    d.className = 'exchange-item';
+    const s = document.createElement('summary');
+    s.textContent = exchangeTitle(e);
+    d.appendChild(s);
+    const mk = (label, text, truncated) => {
+      const w = document.createElement('div');
+      w.className = 'exchange-part';
+      const h = document.createElement('div');
+      h.className = 'exchange-label';
+      h.textContent = label + (truncated ? ' (recortado)' : '');
+      const pre = document.createElement('pre');
+      pre.className = 'code-block';
+      pre.textContent = text || '(vacío)';
+      w.append(h, pre);
+      return w;
+    };
+    d.append(mk('▶ Prompt enviado', e.prompt, e.promptTruncated));
+    d.append(mk('◀ Respuesta del modelo', e.response, e.responseTruncated));
+    return d;
+  }
+
+  function handleExchange(data) {
+    if (!data || typeof data !== 'object') return;
+    allExchanges.push(data);
+    if (allExchanges.length > MAX_EXCHANGES) allExchanges.splice(0, allExchanges.length - MAX_EXCHANGES);
+    const host = document.getElementById('conversationList');
+    if (!host) return;
+    const empty = host.querySelector('.conversation-empty');
+    if (empty) empty.remove();
+    host.appendChild(exchangeNode(data));
+    updateConversationCount();
+  }
+
+  function updateConversationCount() {
+    const el = document.getElementById('statExchanges');
+    if (el) el.textContent = String(allExchanges.length);
+  }
+
+  function renderConversationList() {
+    const host = document.getElementById('conversationList');
+    if (!host) return;
+    host.innerHTML = '';
+    if (!allExchanges.length) {
+      host.innerHTML = '<div class="conversation-empty" style="color:var(--text-dim); font-size:11px; padding:8px">Aquí verás cada llamada al modelo (prompt + respuesta) en tiempo real.</div>';
+    } else {
+      allExchanges.forEach((e) => host.appendChild(exchangeNode(e)));
+    }
+    updateConversationCount();
+  }
+
+  /** Backfill desde GET /api/steps/:session (vista restaurada o F5 a mitad). */
+  async function backfillConversation(sessionFolder) {
+    if (!sessionFolder || !isAppServerOrigin()) return;
+    try {
+      const res = await fetch('/api/steps/' + encodeURIComponent(sessionFolder));
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !Array.isArray(data.steps)) return;
+      allExchanges.length = 0;
+      for (const s of data.steps) {
+        if (s.exchange) {
+          allExchanges.push({
+            timestamp: null,
+            sprint: s.sprint,
+            step: s.step,
+            kind: 'step',
+            role: s.role,
+            task: s.task,
+            ms: s.exchange.ms,
+            prompt: s.exchange.prompt,
+            promptTruncated: s.exchange.promptTruncated,
+            response: s.exchange.response,
+            responseTruncated: s.exchange.responseTruncated
+          });
+        }
+        for (const it of s.iterations || []) {
+          if (!it.exchange) continue;
+          allExchanges.push({
+            timestamp: null,
+            sprint: s.sprint,
+            step: s.step,
+            kind: it.kind,
+            role: it.role,
+            task: it.task,
+            ms: it.ms,
+            prompt: it.exchange.prompt,
+            promptTruncated: it.exchange.promptTruncated,
+            response: it.exchange.response,
+            responseTruncated: it.exchange.responseTruncated
+          });
+        }
+      }
+      renderConversationList();
+    } catch (e) {}
   }
 
   function handleStatus(data) {
@@ -2497,6 +2663,7 @@
     handleStatus({ status: projectState.status });
     document.getElementById('statSprint').textContent = projectState.currentSprint || 0;
     hydrateArtifactsAndLogsFromState(state);
+    if (_sessionOutputFolder) backfillConversation(_sessionOutputFolder);
     updateProgressBar();
     updateSprintBoard();
     updateSprintMiniList();
@@ -3003,6 +3170,8 @@
         command: oc.command,
         note: oc.note
       };
+      const ocVariant = document.getElementById('oc_variant');
+      if (ocVariant) ocVariant.value = oc.variant || '';
       const ocMode = document.getElementById('oc_mode');
       if (ocMode) ocMode.value = oc.mode === 'serve' ? 'serve' : 'run';
       // Modelos primero (el select del motor y los de roles dependen de la lista).
@@ -3063,6 +3232,7 @@
         document.getElementById('oc_model')?.value.trim() ||
         (window._modelsList[0] && window._modelsList[0].id) ||
         'ollama/qwen3.5:9b',
+      variant: document.getElementById('oc_variant')?.value.trim() || '',
       url: document.getElementById('oc_url')?.value.trim() || 'http://127.0.0.1:4096'
     };
     if (extra.timeoutMs !== undefined) opencode.timeoutMs = extra.timeoutMs;
@@ -3137,7 +3307,8 @@
     try {
       const h = await fetch('/api/engine/health').then((r) => r.json());
       if (h && h.ok) {
-        paint(`Motor OK · ${escHtml(h.mode)} · ${escHtml(h.model)}`, 'var(--success)');
+        const v = h.variant ? ' · ' + h.variant : '';
+        paint(`Motor OK · ${escHtml(h.mode)} · ${escHtml(h.model)}${escHtml(v)}`, 'var(--success)');
         if (hint) hint.textContent = '';
       } else {
         paint('Motor NO disponible', 'var(--error)');
@@ -3180,8 +3351,10 @@
   }
 
   function clearLogs() {
-    // FASE 6: limpia vista Y memoria (antes solo vaciaba un panel).
+    // FASE 6: limpia vista Y memoria (antes solo un panel).
     allLogs.length = 0;
+    allExchanges.length = 0;
+    renderConversationList();
     const full = document.getElementById('fullLogBody');
     if (full) full.innerHTML = '';
     const term = document.getElementById('terminalBody');

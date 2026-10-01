@@ -154,6 +154,52 @@ function limitStateLogs(state, query = {}) {
   };
 }
 
+/**
+ * Lee los artefactos de pasos (sprint-N-step-I-rol-tarea.json) de una sesion,
+ * ordenados por sprint y paso. Para la vista Conversacion del dashboard.
+ */
+async function readStepArtifacts(outputsDir, sessionId) {
+  const { validateSessionId, safeJoin } = require('./guards');
+  if (!validateSessionId(sessionId)) throw new Error('id de sesión inválido');
+  const dir = safeJoin(outputsDir, sessionId, 'artifacts');
+  let entries = [];
+  try {
+    entries = await fs.readdir(dir);
+  } catch (e) {
+    return [];
+  }
+  const out = [];
+  for (const name of entries) {
+    const m = /^sprint-(\d+)-step-(\d+)-(.+)-([A-Za-z]+)\.json$/.exec(name);
+    if (!m) continue;
+    try {
+      const data = await fs.readJson(require('path').join(dir, name));
+      out.push({
+        file: name,
+        sprint: Number(m[1]),
+        step: Number(m[2]),
+        role: data.role || m[3],
+        task: data.task || m[4],
+        exchange: data.exchange || null,
+        iterations: (data.iterations || []).map((it) => ({
+          n: it.n,
+          kind: it.kind,
+          role: it.role,
+          task: it.task,
+          ms: it.ms,
+          exchange: it.exchange || null
+        })),
+        written: data.written || [],
+        ts: data.ts || null
+      });
+    } catch (e) {
+      continue;
+    }
+  }
+  out.sort((a, b) => a.sprint - b.sprint || a.step - b.step);
+  return out;
+}
+
 
 module.exports = {
   listModelsEndpointLabel,
@@ -164,5 +210,6 @@ module.exports = {
   sanitizeProjectConfigForClient,
   limitStateLogs,
   DEFAULT_STATE_LOGS,
-  MAX_STATE_LOGS
+  MAX_STATE_LOGS,
+  readStepArtifacts
 };

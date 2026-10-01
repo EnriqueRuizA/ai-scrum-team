@@ -37,6 +37,16 @@ src: index.html
   Guardar tienen ámbitos distintos y etiquetas distintas; los ↻ apuntan a
   destinos distintos).
 
+## Conversación en tiempo real (U-conversaciones)
+
+- Cada llamada al modelo emite WS `exchange` (sprint, paso, rol, tarea, ms,
+  prompt+respuesta completos, flags de recorte a 200K).
+- Card Conversación (`#conversationList`, tope 200 en memoria): `<details>`
+  por intercambio con prompt/respuesta escapados; `clearLogs` también la vacía.
+- Backfill: `GET /api/steps/:session` (pasos ordenados con exchanges e
+  iteraciones) al hidratar vista restaurada; en vivo basta el WS.
+- Artefactos de paso guardan `exchange` (los legacy solo resúmenes).
+
 ## Tiempo real
 
 - WS sin auth (solo localhost): ver `docs/adr/0001-ws-sin-auth-localhost.md` y [[guards]].

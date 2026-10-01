@@ -94,6 +94,9 @@ function validateRoles(roles, errors, modelIds) {
     } else if (typeof r.model === 'string' && r.model.trim() && modelIds.length > 0 && !modelIds.includes(r.model.trim())) {
       errors.push(`${p}.model: no esta en agents.models (${r.model.trim()})`);
     }
+    if (r.variant !== undefined && typeof r.variant !== 'string') {
+      errors.push(`${p}.variant: debe ser string (p.ej. xhigh)`);
+    }
     const mission = String(r.mission || '').trim();
     if (!VALID_ROLES.includes(r.id) && mission.length < 10) {
       errors.push(`${p}.mission: minimo 10 caracteres para roles personalizados`);
@@ -178,6 +181,9 @@ function validateOpencode(oc, errors, modelIds) {
     errors.push('agents.opencode.model: debe ser string (proveedor/modelo)');
   } else if (typeof oc.model === 'string' && oc.model.trim() && modelIds.length > 0 && !modelIds.includes(oc.model.trim())) {
     errors.push(`agents.opencode.model: no esta en agents.models (${oc.model.trim()})`);
+  }
+  if (oc.variant !== undefined && typeof oc.variant !== 'string') {
+    errors.push('agents.opencode.variant: debe ser string (p.ej. xhigh)');
   }
   if (oc.timeoutMs !== undefined && !(typeof oc.timeoutMs === 'number' && oc.timeoutMs >= 1000)) {
     errors.push('agents.opencode.timeoutMs: numero >= 1000');

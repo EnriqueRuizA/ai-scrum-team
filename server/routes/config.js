@@ -1,8 +1,6 @@
 // server/routes/config.js - FASE 5: rutas (extraido de server.js, sin cambios de comportamiento).
 const fs = require('fs-extra');
 const { sanitizeProjectConfigForClient, mergeCredentialsPatch, mergeProjectConfigPatch } = require('../helpers');
-const { authHeadersFromLocalConfig } = require('../../lib/local-llm');
-const { listModels } = require('../../lib/unified-local-llm');
 function registerConfig(app, _ctx) {
 // Obtener configuración actual
   app.get('/api/config', async (req, res) => {
@@ -75,75 +73,9 @@ function registerConfig(app, _ctx) {
   });
 
 
-  /**
-   * Endpoint para obtener la lista de modelos soportados.
-   * GET /api/config/models
-   */
-  app.get('/api/config/models', async (req, res) => {
-  try {
-    const current = await fs.readJson('./config/project-config.json').catch(() => ({}));
-    const localCfg = current.agents?.local || {};
-    const baseUrl = (localCfg.baseUrl || 'http://localhost:11434').replace(/\/$/, '');
-    const authHeaders = authHeadersFromLocalConfig(localCfg);
-    
-    const result = await listModels(baseUrl, { authHeaders, local: localCfg });
-    
-    if (!result.ok) {
-      return res.status(502).json({
-        error: result.error,
-        models: [],
-        available: []
-      });
-    }
-    
-    const models = result.models || [];
-    res.json({
-      baseUrl,
-      models,
-      available: models,
-      defaultModel: current.agents?.defaultModel || 'gpt-4o-mini'
-    });
-  } catch (e) {
-    res.status(500).json({ error: e.message, models: [], available: [] });
-  }
-  });
-
-  /**
-   * Endpoint para configurar el modelo de un rol.
-   * PATCH /api/config/agents/{id}/model con body: { "model": "ollama/qwen3.5:9b" }
-   */
-  app.patch('/api/config/agents/:id/model', async (req, res) => {
-  try {
-    const { normalizeRoles, roleById } = require('../../agents/team-config');
-    const { validateProjectConfig } = require('../../utils/config-validator');
-    const agentId = decodeURIComponent(req.params.id);
-    const { model } = req.body;
-
-    if (!model || typeof model !== 'string') {
-      return res.status(400).json({ error: 'model debe ser una cadena válida' });
-    }
-
-    // U1: el modelo por rol vive en agents.roles[].model
-    // (formato proveedor/modelo de opencode).
-    const current = await fs.readJson('./config/project-config.json').catch(() => ({}));
-    const roles = normalizeRoles(current);
-    const member = roleById(roles, agentId);
-    if (!member) {
-      return res.status(404).json({ error: `Agente «${agentId}» no encontrado` });
-    }
-    member.model = model.trim();
-
-    const updated = { ...current, agents: { ...current.agents, roles } };
-    const v = validateProjectConfig(updated);
-    if (!v.ok) return res.status(400).json({ error: v.errors.join('; ') });
-
-    await fs.writeJson('./config/project-config.json', updated, { spaces: 2 });
-
-    res.json({ success: true, agentId, model: member.model });
-  } catch (e) {
-    res.status(500).json({ error: e.message });
-  }
-  });
+  // U3: endpoints huerfanos eliminados (nadie los llamaba):
+  // - GET /api/config/models (modelos Ollama-directos; usar GET /api/engine/ollama-models)
+  // - PATCH /api/config/agents/:id/model (el modelo va en roles/flow via POST /api/config)
 
 }
 

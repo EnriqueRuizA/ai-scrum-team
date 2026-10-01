@@ -127,13 +127,7 @@ function registerRun(app, ctx) {
     res.json({ success: true, stopPending: true });
   });
 
-  /** Compatibilidad: antiguo POST /api/pause → pausar */
-  app.post('/api/pause', (req, res) => {
-    if (!state.orchestrator) return res.status(400).json({ error: 'No hay proyecto activo' });
-    state.orchestrator.setPaused(true);
-    broadcast('run_control', { paused: true });
-    res.json({ success: true, paused: true });
-  });
+  // U3: alias legacy POST /api/pause eliminado (usar POST /api/run/pause).
 
 }
 

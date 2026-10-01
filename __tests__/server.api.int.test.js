@@ -237,6 +237,13 @@ describe('server API (integration)', () => {
     expect(Array.isArray(res.body.models)).toBe(true);
   });
 
+  test('GET /api/steps/:session rechaza traversal', async () => {
+    const { app } = createServer();
+    const res = await request(app).get('/api/steps/..%2Fconfig');
+    expect(res.status).toBe(400);
+    expect(res.body.steps).toEqual([]);
+  });
+
   test('GET /api/engine/ollama-models devuelve array (haya Ollama o no)', async () => {
     fs.readJson.mockResolvedValue({});
     const { app } = createServer();

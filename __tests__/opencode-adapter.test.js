@@ -112,6 +112,46 @@ describe('OpencodeAgent', () => {
     expect(seen.prompt).toMatch('Eres dev.');
     expect(events.length).toBeGreaterThan(0);
   });
+
+  test('propaga variant al adapter', async () => {
+    const seen = {};
+    const fakeAdapter = {
+      async generate(opts) {
+        Object.assign(seen, opts);
+        return { text: 'ok' };
+      }
+    };
+    const agent = new OpencodeAgent({
+      name: 'Dev',
+      role: 'developer',
+      persona: 'x',
+      adapter: fakeAdapter,
+      variant: 'xhigh'
+    });
+    await agent.sendMessage('hola', true);
+    expect(seen.variant).toBe('xhigh');
+  });
+});
+
+describe('buildRunArgs (variant)', () => {
+  const { OpencodeAdapter: OA } = require('../llm/opencode-adapter');
+
+  test('sin variant no hay flag', () => {
+    const a = new OA({ mode: 'run', model: 'ollama/m', dir: '/tmp' });
+    const args = a.buildRunArgs({ prompt: 'hola' });
+    expect(args).toEqual(['run', '--format', 'json', '--dir', '/tmp', '--model', 'ollama/m', 'hola']);
+    expect(args).not.toContain('--variant');
+  });
+
+  test('con variant (llamada o adapter) anade --variant', () => {
+    const a = new OA({ mode: 'run', model: 'ollama/m', dir: '/tmp', variant: 'xhigh' });
+    expect(a.buildRunArgs({ prompt: 'h' })).toContain('--variant');
+    expect(a.buildRunArgs({ prompt: 'h' })[a.buildRunArgs({ prompt: 'h' }).indexOf('--variant') + 1]).toBe('xhigh');
+    const b = new OA({ mode: 'run', model: 'ollama/m', dir: '/tmp' });
+    const args = b.buildRunArgs({ prompt: 'h', variant: 'low' });
+    expect(args.slice(-2)).toEqual(['low', 'h']);
+    expect(args).toContain('--variant');
+  });
 });
 
 describe('serve mode (stub HTTP)', () => {
@@ -164,6 +204,13 @@ describe('serve mode (stub HTTP)', () => {
     expect(text).toBe('{"ok":true}');
     expect(seen.messageBody.parts).toEqual([{ type: 'text', text: 'hola' }]);
     expect(seen.messageBody.model).toBe('ollama/t');
+    expect(seen.messageBody.variant).toBeUndefined();
+  });
+
+  test('generate() propaga variant al body', async () => {
+    const a = new OpencodeAdapter({ mode: 'serve', url, model: 'opencode/m', variant: 'xhigh', timeoutMs: 5000 });
+    await a.generate({ prompt: 'hola' });
+    expect(seen.messageBody.variant).toBe('xhigh');
   });
 
   test('health() fallo con URL muerta y hint util', async () => {

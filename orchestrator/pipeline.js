@@ -56,13 +56,55 @@ async function writeFilesContained(baseDir, files) {
 
 async function askAgent(agent, prompt, ctx, opts = {}) {
   const timeoutMs = opts.timeoutMs || ctx.config.agents?.timeout || DEFAULT_STEP_TIMEOUT_MS;
+  const t0 = Date.now();
   const text = await withTimeout(
     agent.sendMessage(prompt, !!opts.isFirst),
     timeoutMs,
     `${agent.role || agent.name}`
   );
   const parsed = parseLlmJsonResponse(text || '');
-  return { text: text || '', parsed };
+  return { text: text || '', parsed, ms: Date.now() - t0 };
+}
+
+/** Tope de texto en eventos WS/artefactos (evita respuestas gigantes en RAM). */
+const MAX_EXCHANGE_CHARS = 200000;
+
+function clipExchange(s) {
+  const t = String(s || '');
+  if (t.length <= MAX_EXCHANGE_CHARS) return { text: t, truncated: false };
+  return { text: t.slice(0, MAX_EXCHANGE_CHARS), truncated: true };
+}
+
+/** Emite el intercambio completo (prompt+respuesta) para la vista Conversacion. */
+function emitExchange(ctx, { sprint, step, kind, role, task, prompt, text, ms }) {
+  const p = clipExchange(prompt);
+  const r = clipExchange(text);
+  ctx.emit('exchange', {
+    timestamp: new Date().toISOString(),
+    sprint,
+    step,
+    kind: kind || 'step',
+    role,
+    task,
+    ms,
+    prompt: p.text,
+    promptTruncated: p.truncated,
+    response: r.text,
+    responseTruncated: r.truncated
+  });
+}
+
+/** Intercambio recortado para guardar en el artefacto del paso. */
+function clippedExchange(prompt, text, ms) {
+  const p = clipExchange(prompt);
+  const r = clipExchange(text);
+  return {
+    ms,
+    prompt: p.text,
+    promptTruncated: p.truncated,
+    response: r.text,
+    responseTruncated: r.truncated
+  };
 }
 
 function artifactPaths(outputDir) {
@@ -122,7 +164,7 @@ async function runStep(step, index, run, exec) {
 
   const doOnce = async (iterationCtx) => {
     const prompt = task.buildPrompt({ step, role, run: { ...run, ...iterationCtx } });
-    const { text, parsed } = await askAgent(agent, prompt, ctx, { isFirst: exec.firstInSprint });
+    const { text, parsed, ms } = await askAgent(agent, prompt, ctx, { isFirst: exec.firstInSprint });
     exec.firstInSprint = false;
     const result = task.parse({ text, parsed });
     const artifact = {
@@ -130,8 +172,13 @@ async function runStep(step, index, run, exec) {
       role: role.id,
       task: task.id,
       data: result.data,
-      iterations: []
+      iterations: [],
+      exchange: clippedExchange(prompt, text, ms)
     };
+    emitExchange(ctx, {
+      sprint: run.sprintN, step: index, kind: 'step',
+      role: role.id, task: task.id, prompt, text, ms
+    });
     if (result.files && result.files.length > 0) {
       const written = await writeFilesContained(appDir, result.files);
       artifact.written = written;
@@ -174,26 +221,37 @@ async function runStep(step, index, run, exec) {
           fixTask.buildPrompt({ step: { ...step, ...fix }, role: fixRole, run });
         const fres = await askAgent(fixAgent, fixPrompt, ctx, {});
         const fresult = fixTask.parse({ text: fres.text, parsed: fres.parsed });
-        const it = { n: iter, kind: 'fix', role: fixRole.id, task: fixTask.id, data: fresult.data };
+        const it = { n: iter, kind: 'fix', role: fixRole.id, task: fixTask.id, data: fresult.data, ms: fres.ms };
         if (fresult.files && fresult.files.length > 0) {
           it.written = await writeFilesContained(appDir, fresult.files);
           run.lastWritten = it.written;
         }
         if (fixTask.id === 'implementar') it.checks = await runChecks(appDir);
+        it.exchange = clippedExchange(fixPrompt, fres.text, fres.ms);
         artifact.iterations.push(it);
+        emitExchange(ctx, {
+          sprint: run.sprintN, step: index, kind: 'fix',
+          role: fixRole.id, task: fixTask.id, prompt: fixPrompt, text: fres.text, ms: fres.ms
+        });
         applyToRunContext({ ...artifact, data: fresult.data, written: it.written }, run, true);
       }
-      const { text, parsed } = await askAgent(agent, task.buildPrompt({ step, role, run }), ctx, {});
+      const retryPrompt = task.buildPrompt({ step, role, run });
+      const { text, parsed, ms } = await askAgent(agent, retryPrompt, ctx, {});
       const result = task.parse({ text, parsed });
-      const retry = { n: iter, kind: 'retry', role: role.id, task: task.id, data: result.data };
+      const retry = { n: iter, kind: 'retry', role: role.id, task: task.id, data: result.data, ms };
       if (result.files && result.files.length > 0) {
         retry.written = await writeFilesContained(appDir, result.files);
         run.lastWritten = retry.written;
       }
       if (task.id === 'implementar') retry.checks = await runChecks(appDir);
+      retry.exchange = clippedExchange(retryPrompt, text, ms);
       artifact.iterations.push(retry);
       artifact.data = result.data;
       if (retry.written) artifact.written = retry.written;
+      emitExchange(ctx, {
+        sprint: run.sprintN, step: index, kind: 'retry',
+        role: role.id, task: task.id, prompt: retryPrompt, text, ms
+      });
       applyToRunContext(artifact, run, true);
     }
     if (!loopConditionMet(step.loop.until, run)) {
