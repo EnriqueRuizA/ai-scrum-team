@@ -1018,18 +1018,6 @@
     font-size: 10px;
     text-transform: uppercase;
   }
-  #mermaidFlowHost {
-    min-height: 200px;
-    overflow: auto;
-    background: rgba(0, 0, 0, 0.25);
-    border-radius: 10px;
-    padding: 16px;
-    border: 1px solid var(--border);
-  }
-  #mermaidFlowHost svg {
-    max-width: 100%;
-    height: auto;
-  }
 </style>
 </head>
 <body>
@@ -1067,29 +1055,12 @@
 <div id="llmRequestLabel" class="llm-request-label" role="status" aria-live="polite"></div>
 
 <div class="nav-tabs">
-  <button type="button" class="nav-tab active" data-tab="dashboard" onclick="showTab('dashboard', this)">⬡ Dashboard</button>
-  <button type="button" class="nav-tab" data-tab="flow" onclick="showTab('flow', this)">🔀 Flujo</button>
+  <button type="button" class="nav-tab active" data-tab="dashboard" onclick="showTab('dashboard', this)">⬡ Proyecto</button>
   <button type="button" class="nav-tab" data-tab="agents" onclick="showTab('agents', this)">👥 Agentes</button>
-  <button type="button" class="nav-tab" data-tab="sprints" onclick="showTab('sprints', this)">🗂 Sprints</button>
-  <button type="button" class="nav-tab" data-tab="artifacts" onclick="showTab('artifacts', this)">📦 Artefactos</button>
-  <button type="button" class="nav-tab" data-tab="logs" onclick="showTab('logs', this)">📋 Logs</button>
-  <button type="button" class="nav-tab" data-tab="settings" onclick="showTab('settings', this)">⚙ Settings</button>
+  <button type="button" class="nav-tab" data-tab="settings" onclick="showTab('settings', this)">⚙ Ajustes</button>
 </div>
 
-<!-- TAB: FLUJO (diagrama) -->
-<div class="main-content" id="tab-flow">
-  <div style="padding: 24px; max-width: 1100px">
-    <div style="font-family:'Syne',sans-serif; font-size:20px; font-weight:800; color:var(--text-bright); margin-bottom:8px">Flujo del pipeline</div>
-    <p style="font-size:12px; color:var(--text-dim); line-height:1.5; margin-bottom:16px">
-      Diagrama según <strong>agents.team</strong> (activos) y número de sprints. El orquestador sigue este orden: PRD → arquitectura → plan QA → planificación → implementación en disco → informe QA → entrega <code>final-app/</code>.
-    </p>
-    <button type="button" class="btn btn-secondary" onclick="refreshFlowDiagram()" style="margin-bottom:14px">↻ Regenerar diagrama</button>
-    <div id="mermaidFlowHost" class="scrollbar-custom"></div>
-    <p style="font-size:10px; color:var(--text-dim); margin-top:12px">Si el diagrama falla, revisa la consola del navegador. Guarda el equipo en Settings y vuelve a cargar.</p>
-  </div>
-</div>
-
-<!-- TAB: DASHBOARD -->
+<!-- TAB: DASHBOARD (Proyecto) -->
 <div class="main-content active" id="tab-dashboard">
   <div class="panel-grid">
     <div class="panel-main scrollbar-custom">
@@ -1151,54 +1122,62 @@
         </div>
       </div>
 
-      <!-- AGENTS GRID -->
+      <!-- AGENTS GRID (dinamico: se renderiza desde agents.roles) -->
       <div class="card">
         <div class="card-header">
           <div class="card-title">Equipo de Agentes</div>
           <span id="activeAgentCount" style="font-size:11px; color:var(--text-dim)">0 activos</span>
         </div>
-        <div class="agents-grid">
-          <div class="agent-card" id="agent-scrummaster">
-            <div class="agent-status-indicator" id="dot-scrummaster"></div>
-            <div class="agent-avatar" style="background: linear-gradient(135deg, #00d4ff22, #00d4ff44);">🧭</div>
-            <div class="agent-name">Carlos</div>
-            <div class="agent-role">Scrum Master</div>
-            <div class="agent-task" id="task-scrummaster">En espera...</div>
-          </div>
-          <div class="agent-card" id="agent-productowner">
-            <div class="agent-status-indicator" id="dot-productowner"></div>
-            <div class="agent-avatar" style="background: linear-gradient(135deg, #7b2fff22, #7b2fff44);">📋</div>
-            <div class="agent-name">Sarah</div>
-            <div class="agent-role">Product Owner</div>
-            <div class="agent-task" id="task-productowner">En espera...</div>
-          </div>
-          <div class="agent-card" id="agent-developer">
-            <div class="agent-status-indicator" id="dot-developer"></div>
-            <div class="agent-avatar" style="background: linear-gradient(135deg, #00ff8822, #00ff8844);">💻</div>
-            <div class="agent-name">Alex</div>
-            <div class="agent-role">Developer / Architect</div>
-            <div class="agent-task" id="task-developer">En espera...</div>
-          </div>
-          <div class="agent-card" id="agent-qatester">
-            <div class="agent-status-indicator" id="dot-qatester"></div>
-            <div class="agent-avatar" style="background: linear-gradient(135deg, #ffb80022, #ffb80044);">🔍</div>
-            <div class="agent-name">María</div>
-            <div class="agent-role">QA Tester</div>
-            <div class="agent-task" id="task-qatester">En espera...</div>
-          </div>
-        </div>
+        <div class="agents-grid" id="agentsGrid"></div>
       </div>
 
       <!-- RECENT ARTIFACTS -->
       <div class="card">
         <div class="card-header">
           <div class="card-title">Últimos Artefactos</div>
-          <button type="button" class="btn btn-secondary" onclick="showTab('artifacts')" style="padding:4px 10px; font-size:10px">Ver todos</button>
+          <button type="button" class="btn btn-secondary" onclick="document.getElementById('projectArtifacts').scrollIntoView({behavior:'smooth'})" style="padding:4px 10px; font-size:10px">Ver todos</button>
         </div>
         <div id="recentArtifacts" class="artifact-list">
           <div style="color:var(--text-dim); font-size:11px; padding:8px">
             Los artefactos aparecerán aquí cuando el proyecto esté en ejecución
           </div>
+        </div>
+      </div>
+
+      <!-- SPRINT BOARD (fusionado de tab-sprints) -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">Sprint Board</div>
+        </div>
+        <div style="color:var(--text-dim); font-size:11px; margin-bottom:10px">Estado de los sprints y user stories</div>
+        <div id="sprintBoardContainer">
+          <div style="color:var(--text-dim); font-size:12px; padding:20px; text-align:center">
+            El sprint board aparecerá cuando el proyecto esté en ejecución
+          </div>
+        </div>
+      </div>
+
+      <!-- ARTEFACTOS (fusionado de tab-artifacts) -->
+      <div class="card" id="projectArtifacts">
+        <div class="card-header">
+          <div class="card-title">Artefactos del Proyecto</div>
+        </div>
+        <div id="artifactsGrid" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap:14px"></div>
+      </div>
+
+      <!-- LOGS (fusionado de tab-logs) -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">Logs Completos</div>
+          <div style="display:flex; gap:8px">
+            <select id="logFilter" class="form-input" style="width:160px; padding:6px 10px" onchange="filterLogs()">
+              <option value="">Todos los agentes</option>
+            </select>
+            <button class="btn btn-secondary" onclick="clearLogs()">Limpiar</button>
+          </div>
+        </div>
+        <div class="terminal" style="height: 420px">
+          <div class="terminal-body scrollbar-custom" id="fullLogBody" style="height:100%; max-height:none"></div>
         </div>
       </div>
 
@@ -1242,7 +1221,7 @@
           <div class="log-entry log-info">
             <span class="log-time">00:00:00</span>
             <span class="log-agent">[SYSTEM]</span>
-            <span class="log-msg"> Configura las credenciales en Settings y luego inicia el proyecto.</span>
+            <span class="log-msg"> Revisa el pill «Motor» y pulsa Iniciar.</span>
           </div>
         </div>
       </div>
@@ -1257,127 +1236,38 @@
   </div>
 </div>
 
-<!-- TAB: SPRINTS -->
-<div class="main-content" id="tab-sprints">
-  <div style="padding: 24px">
-    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px">
-      <div>
-        <div style="font-family:'Syne',sans-serif; font-size:20px; font-weight:800; color:var(--text-bright)">Sprint Board</div>
-        <div style="color:var(--text-dim); font-size:11px; margin-top:4px">Estado de los sprints y user stories</div>
-      </div>
+<!-- TAB: AGENTES (roles + flow editables) -->
+<div class="main-content" id="tab-agents">
+  <div style="padding: 24px; max-width: 1000px">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px">
+      <div style="font-family:'Syne',sans-serif; font-size:20px; font-weight:800; color:var(--text-bright)">Agentes</div>
+      <button type="button" class="btn btn-primary" onclick="saveAgents()" style="padding:8px 16px;font-size:11px">💾 Guardar equipo y flujo</button>
     </div>
-    <div id="sprintBoardContainer">
-      <div style="color:var(--text-dim); font-size:12px; padding:20px; text-align:center">
-        El sprint board aparecerá cuando el proyecto esté en ejecución
-      </div>
-    </div>
-  </div>
-</div>
+    <div style="color:var(--text-dim); font-size:11px; margin-bottom:20px">Cada rol tiene una misión. El flujo se ejecuta en orden, de arriba abajo, con los loops que configures.</div>
 
-<!-- TAB: ARTIFACTS -->
-<div class="main-content" id="tab-artifacts">
-  <div style="padding: 24px">
-    <div style="font-family:'Syne',sans-serif; font-size:20px; font-weight:800; color:var(--text-bright); margin-bottom:20px">Artefactos del Proyecto</div>
-    <div id="artifactsGrid" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap:14px"></div>
-  </div>
-</div>
+    <div style="font-family:'Syne',sans-serif; font-size:14px; font-weight:700; color:var(--text-bright); margin-bottom:10px">Roles</div>
+    <div id="rolesEditor" style="display:flex; flex-direction:column; gap:10px; margin-bottom:16px"></div>
+    <button type="button" class="btn btn-secondary" onclick="addRoleCard()" style="padding:6px 12px;font-size:10px; margin-bottom:28px">+ Nuevo rol</button>
 
-<!-- TAB: LOGS -->
-<div class="main-content" id="tab-logs">
-  <div style="padding: 24px">
-    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px">
-      <div style="font-family:'Syne',sans-serif; font-size:20px; font-weight:800; color:var(--text-bright)">Logs Completos</div>
-      <div style="display:flex; gap:8px">
-        <select id="logFilter" class="form-input" style="width:160px; padding:6px 10px" onchange="filterLogs()">
-          <option value="">Todos los agentes</option>
-          <option value="ScrumMaster">Scrum Master</option>
-          <option value="ProductOwner">Product Owner</option>
-          <option value="Developer">Developer</option>
-          <option value="QA">QA Tester</option>
-        </select>
-        <button class="btn btn-secondary" onclick="clearLogs()">Limpiar</button>
-      </div>
-    </div>
-    <div class="terminal" style="height: calc(100vh - 200px)">
-      <div class="terminal-body scrollbar-custom" id="fullLogBody" style="height:100%; max-height:none"></div>
-    </div>
+    <div style="font-family:'Syne',sans-serif; font-size:14px; font-weight:700; color:var(--text-bright); margin-bottom:10px">Flujo</div>
+    <div id="flowEditor" style="display:flex; flex-direction:column; gap:8px; margin-bottom:16px"></div>
+    <button type="button" class="btn btn-secondary" onclick="addFlowStep()" style="padding:6px 12px;font-size:10px">+ Añadir paso</button>
+    <p style="font-size:10px; color:var(--text-dim); margin-top:12px; line-height:1.5">
+      Tareas: <code>plan</code>, <code>refinar</code>, <code>implementar</code>, <code>probar</code>,
+      <code>revisar</code>, <code>libre</code>. Loop: repite el paso (con fix opcional) hasta cumplir
+      la condición o agotar el máximo (tope 10).
+    </p>
   </div>
 </div>
 
 <!-- TAB: SETTINGS -->
 <div class="main-content" id="tab-settings">
   <div style="padding: 24px; max-width: 800px">
-    <div style="font-family:'Syne',sans-serif; font-size:20px; font-weight:800; color:var(--text-bright); margin-bottom:4px">Configuración</div>
-    <div style="color:var(--text-dim); font-size:11px; margin-bottom:24px">Credenciales y configuración del proyecto — todo se guarda en local</div>
+    <div style="font-family:'Syne',sans-serif; font-size:20px; font-weight:800; color:var(--text-bright); margin-bottom:4px">Ajustes</div>
+    <div style="color:var(--text-dim); font-size:11px; margin-bottom:24px">Proyecto y motor — todo se guarda en local. Los agentes se configuran en la pestaña Agentes.</div>
 
     <div class="form-section">
-      <div class="form-section-title">🤖 Claude.ai</div>
-      <div style="font-size:10px; color:var(--text-dim); margin-bottom:10px; line-height:1.45">
-        <strong>Email obligatorio.</strong> Muchas cuentas solo usan <strong>enlace mágico por correo</strong> (sin contraseña): deja la contraseña vacía.
-        Tras pulsar “Iniciar proyecto”, el navegador puede pedirte abrir el mail y confirmar; el agente espera hasta 5 minutos.
-        Si tu cuenta sí usa contraseña tras el email, rellénala aquí.
-      </div>
-      <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px">
-        <div class="form-group">
-          <label class="form-label">Email <span style="color:var(--accent)">*</span></label>
-          <input class="form-input" type="email" id="claude_email" placeholder="tu@email.com" autocomplete="username">
-        </div>
-        <div class="form-group">
-          <label class="form-label">Contraseña <span style="color:var(--text-dim)">(opcional)</span></label>
-          <input class="form-input" type="password" id="claude_password" placeholder="Vacío si usas enlace por email" autocomplete="current-password">
-        </div>
-      </div>
-    </div>
-
-    <div class="form-section">
-      <div class="form-section-title">📧 Gmail (para tracking de emails)</div>
-      <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px">
-        <div class="form-group">
-          <label class="form-label">Email Gmail</label>
-          <input class="form-input" type="email" id="gmail_email" placeholder="tu@gmail.com">
-        </div>
-        <div class="form-group">
-          <label class="form-label">App Password <span style="color:var(--text-dim)">(no contraseña normal)</span></label>
-          <input class="form-input" type="password" id="gmail_password" placeholder="xxxx xxxx xxxx xxxx">
-        </div>
-      </div>
-      <div style="font-size:10px; color:var(--text-dim); margin-top:6px">
-        ⚠ Usa una App Password de Google: myaccount.google.com → Security → App passwords
-      </div>
-    </div>
-
-    <div class="form-section">
-      <div class="form-section-title">💼 Plataformas de Empleo (opcionales)</div>
-      <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px">
-        <div class="form-group">
-          <label class="form-label">LinkedIn Email</label>
-          <input class="form-input" type="email" id="linkedin_email" placeholder="tu@email.com">
-        </div>
-        <div class="form-group">
-          <label class="form-label">LinkedIn Password</label>
-          <input class="form-input" type="password" id="linkedin_password" placeholder="••••••••">
-        </div>
-        <div class="form-group">
-          <label class="form-label">InfoJobs Email</label>
-          <input class="form-input" type="email" id="infojobs_email" placeholder="tu@email.com">
-        </div>
-        <div class="form-group">
-          <label class="form-label">InfoJobs Password</label>
-          <input class="form-input" type="password" id="infojobs_password" placeholder="••••••••">
-        </div>
-        <div class="form-group">
-          <label class="form-label">Indeed Email</label>
-          <input class="form-input" type="email" id="indeed_email" placeholder="tu@email.com">
-        </div>
-        <div class="form-group">
-          <label class="form-label">Indeed Password</label>
-          <input class="form-input" type="password" id="indeed_password" placeholder="••••••••">
-        </div>
-      </div>
-    </div>
-
-    <div class="form-section">
-      <div class="form-section-title">🦙 IA local — Ollama u OpenAI-compatible</div>
+      <div class="form-section-title">⚙ Motor opencode (gratuito)</div>
       <div style="border:1px solid var(--border); border-radius:8px; padding:12px; margin-bottom:14px">
         <div style="display:flex; align-items:center; gap:10px; margin-bottom:8px">
           <strong style="font-size:12px">Motor opencode (gratuito)</strong>
@@ -1409,243 +1299,17 @@
         </div>
         <p id="engine_health_hint" style="font-size:10px;color:var(--warning);margin:0;line-height:1.45"></p>
       </div>
-      <div style="font-size:10px; color:var(--text-dim); margin-bottom:12px; line-height:1.45">
-        Solo cuando el backend de agentes es <strong>local</strong>. Puedes usar <strong>Ollama</strong> (API <code>/api/generate</code>) o proveedores <strong>tipo OpenAI</strong> (ChatGPT, DeepSeek, Cursor proxy, Groq, Mistral… → <code>/v1/chat/completions</code>).
-        <strong>Claude.ai en el navegador</strong> no usa esta sección: elige <em>Backend → Claude</em> arriba.
-        <strong>RAG</strong> necesita un modelo de embeddings según tu proveedor (Ollama: <code>ollama pull …</code>; cloud: id de embedding en su documentación).
-        La <strong>API key</strong> no se devuelve al navegador al recargar la config.
-      </div>
-      <div class="form-group" style="margin-bottom:14px">
-        <label class="form-label">Proveedor de API (plantilla)</label>
-        <select class="form-input" id="local_llm_provider_preset"></select>
-        <p style="font-size:9px;color:var(--text-dim);margin-top:6px;line-height:1.45">
-          Al cambiar, se rellenan URL base, modelos sugeridos y modo de clave. Ajusta después si tu cuenta usa otros nombres de modelo.
-        </p>
-      </div>
-      <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:12px">
-        <div class="form-group">
-          <label class="form-label">Backend de agentes</label>
-          <select class="form-input" id="agent_backend">
-            <option value="local">Local — Ollama o API cloud (OpenAI-compatible)</option>
-            <option value="claude">Claude.ai — navegador (Playwright)</option>
-          </select>
-        </div>
-        <div class="form-group">
-          <label class="form-label">URL base (Ollama o …/v1)</label>
-          <input
-            class="form-input"
-            type="text"
-            id="local_ollama_baseurl"
-            placeholder="http://localhost:11434"
-            autocomplete="off"
-            oninput="updateLocalLlmConnectionPreview()"
-          />
-        </div>
-      </div>
-      <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:12px">
-        <div class="form-group">
-          <label class="form-label">Origen del modelo (para logs y comprobar)</label>
-          <select class="form-input" id="local_llm_connection_preset" onchange="updateLocalLlmConnectionPreview()">
-            <option value="ollama_local">Ollama en este PC o red local</option>
-            <option value="remote_api">API remota (cloud, proxy, con API key…)</option>
-            <option value="custom">Otro / personalizado</option>
-          </select>
-        </div>
-        <div class="form-group">
-          <label class="form-label">Nombre en logs (opcional)</label>
-          <input
-            class="form-input"
-            type="text"
-            id="local_llm_connection_label"
-            placeholder="ej. Cursor, OpenRouter, Ollama portátil"
-            autocomplete="off"
-            oninput="updateLocalLlmConnectionPreview()"
-          />
-        </div>
-      </div>
-      <p
-        id="local_llm_connection_preview"
-        style="font-size: 10px; color: var(--text-dim); margin: -4px 0 12px; line-height: 1.45"
-      ></p>
-      <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:12px">
-        <div class="form-group">
-          <label class="form-label">API key (opcional)</label>
-          <input
-            class="form-input"
-            type="password"
-            id="local_ollama_api_key"
-            placeholder=""
-            autocomplete="new-password"
-          />
-        </div>
-        <div class="form-group">
-          <label class="form-label">Cómo enviar la clave</label>
-          <select class="form-input" id="local_ollama_api_key_mode" onchange="updateOllamaApiKeyModeUI()">
-            <option value="bearer">Authorization: Bearer …</option>
-            <option value="basic">Basic (usuario = clave, contraseña vacía) — Cursor API</option>
-            <option value="x-api-key">Cabecera X-API-Key</option>
-            <option value="custom">Cabecera personalizada</option>
-          </select>
-        </div>
-      </div>
-      <div class="form-group" style="margin-bottom:12px">
-        <label class="form-label">Variable de entorno (opcional, prioritaria sobre el campo)</label>
-        <input
-          class="form-input"
-          type="text"
-          id="local_ollama_api_key_env"
-          placeholder="ej. OPENAI_API_KEY, CURSOR_API_KEY, AI_SCRUM_LOCAL_API_KEY"
-          autocomplete="off"
-        />
-      </div>
-      <div class="form-group" id="local_ollama_api_key_custom_row" style="display:none; margin-bottom:12px">
-        <label class="form-label">Cabecera y prefijo (solo modo personalizada)</label>
-        <div style="display:flex; gap:8px; flex-wrap:wrap">
-          <input
-            class="form-input"
-            type="text"
-            id="local_ollama_api_key_header"
-            placeholder="Nombre cabecera (ej. Authorization)"
-            style="flex:1; min-width:160px"
-            autocomplete="off"
-          />
-          <input
-            class="form-input"
-            type="text"
-            id="local_ollama_api_key_prefix"
-            placeholder='Prefijo (ej. "Bearer ")'
-            style="flex:1; min-width:120px"
-            autocomplete="off"
-          />
-        </div>
-      </div>
-      <div style="display:flex; flex-wrap:wrap; align-items:center; gap:10px; margin-bottom:6px">
-        <button
-          type="button"
-          class="btn btn-secondary"
-          onclick="testOllamaAuthConnection()"
-          style="font-size:10px;padding:8px 12px"
-        >
-          🔌 Probar URL y API key
-        </button>
-        <span
-          id="local_ollama_auth_test_result"
-          style="font-size:10px;color:var(--text-dim);max-width:100%;line-height:1.45"
-        ></span>
-      </div>
-      <p
-        id="local_auth_test_help"
-        style="font-size:9px;color:var(--text-dim);margin:-2px 0 12px;line-height:1.45"
-      >
-        Usa los valores de este formulario (<strong>no</strong> hace falta guardar). El servidor prueba con
-        <strong>GET /v1/models</strong> (OpenAI-compatible),
-        <strong>GET /v0/models</strong> (Cursor Cloud API, <code>https://api.cursor.com</code>, Basic Auth)
-        o <strong>GET /api/tags</strong> (Ollama), según la plantilla y la URL.
-        La clave de Cursor <strong>no</strong> sirve en <code>api.openai.com</code>; para Cursor usa plantilla «Cursor Cloud API» y modo Basic.
-      </p>
-      <div class="ollama-row">
-        <div class="form-group" style="flex:2; min-width:240px">
-          <label class="form-label">Modelo local</label>
-          <select class="form-input" id="local_ollama_model"></select>
-        </div>
-        <button type="button" class="btn btn-secondary btn-icon" id="btn_refresh_ollama_models" onclick="refreshOllamaModels()">↻ Cargar modelos</button>
-      </div>
-      <div
-        style="margin-top:14px;padding:12px;background:rgba(0,212,255,0.06);border:1px solid var(--border);border-radius:8px"
-      >
-        <div style="font-size:11px;font-weight:700;color:var(--accent);margin-bottom:8px">RAG (retrieval sobre ficheros del repo)</div>
-        <p style="font-size:10px;color:var(--text-dim);line-height:1.5;margin-bottom:10px">
-          Los agentes trocean texto de <code>agents.local.rag.indexPaths</code> y piden vectores a Ollama (<code>/api/embeddings</code>).
-          Eso exige un <strong>modelo de embeddings</strong> (p. ej. <code>nomic-embed-text</code>), distinto del modelo de chat. Si falta, verás error 404:
-          abre una terminal y ejecuta <code style="color:var(--accent)">ollama pull nomic-embed-text</code> (o el nombre que indiques abajo).
-        </p>
-        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:11px;margin-bottom:10px">
-          <input type="checkbox" id="local_rag_enabled" style="accent-color:var(--accent)" />
-          Activar RAG
-        </label>
-        <div class="form-group">
-          <label class="form-label">Modelo de embeddings en Ollama</label>
-          <input
-            class="form-input"
-            type="text"
-            id="local_ollama_embed_model"
-            placeholder="nomic-embed-text"
-            autocomplete="off"
-          />
-        </div>
-        <div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:8px">
-          <button type="button" class="btn btn-secondary" onclick="verifyOllamaForRag()" style="font-size:10px;padding:8px 12px">
-            ✓ Comprobar chat + embeddings
-          </button>
-          <span id="ollama_verify_result" style="font-size:10px;color:var(--text-dim)"></span>
-        </div>
-      </div>
     </div>
 
     <div class="form-section">
       <div class="form-section-title">👥 Equipo de agentes (flujo)</div>
       <p style="font-size:10px; color:var(--text-dim); line-height:1.45; margin-bottom:10px">
-        Activa o desactiva roles en el pipeline. <strong>Scrum Master</strong> debe estar activo. <strong>Product Owner</strong> hace falta para el PRD; <strong>Developer</strong> para código; <strong>QA</strong> para plan/informes (si está off, se usan stubs).
-        Puedes <strong>quitar</strong> filas con ✕ y <strong>añadir</strong> roles que falten. El diagrama en la pestaña <em>Flujo</em> se actualiza al guardar.
+        Los roles y el flujo se editan en la pestaña <strong>Agentes</strong> (misiones, modelos, skills, orden y loops).
       </p>
-      <table class="team-table">
-        <thead>
-          <tr>
-            <th>Rol</th>
-            <th style="width:72px">Activo</th>
-            <th>Nombre visible</th>
-            <th style="width:56px"></th>
-          </tr>
-        </thead>
-        <tbody id="teamTableBody"></tbody>
-      </table>
-      <div style="display:flex; flex-wrap:wrap; gap:8px">
-        <button type="button" class="btn btn-secondary" onclick="addTeamRoleRow()">+ Añadir rol</button>
-        <button type="button" class="btn btn-secondary" onclick="resetTeamDefault()">↺ Equipo por defecto</button>
-      </div>
     </div>
 
     <div class="form-section">
-      <div class="form-section-title">📦 Entrega real (código en disco)</div>
-      <p style="font-size:10px; color:var(--text-dim); margin-bottom:10px; line-height:1.45">
-        Tras cada sprint se vuelcan ficheros a <code>outputs/session-…/working-app</code> y, si está activo, se ejecutan <strong>npm install</strong>, <strong>node --check</strong> y <strong>npm test</strong> sobre esa carpeta (no solo “opinión” del LLM). Al final, <code>final-app/</code> + README.
-      </p>
-      <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-size:11px; margin-bottom:6px">
-        <input type="checkbox" id="out_working_copy" checked style="accent-color:var(--accent)">
-        Copia <code>working-app</code> tras cada sprint
-      </label>
-      <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-size:11px; margin-bottom:6px">
-        <input type="checkbox" id="out_require_files" checked style="accent-color:var(--accent)">
-        Exigir ficheros en JSON (rechazar sprint si no hay <code>files[]</code>)
-      </label>
-      <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px; flex-wrap:wrap">
-        <label style="font-size:11px; color:var(--text-dim)">Reintentos si 0 ficheros</label>
-        <input type="number" class="form-input" id="out_retry_max" value="2" min="0" max="8" style="width:56px; padding:4px 8px">
-      </div>
-      <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-size:11px; margin-bottom:6px">
-        <input type="checkbox" id="out_real_checks_sprint" checked style="accent-color:var(--accent)">
-        Comprobaciones reales cada sprint (<code>npm install</code> + sintaxis + test)
-      </label>
-      <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-size:11px; margin-bottom:6px">
-        <input type="checkbox" id="out_npm_install_sprint" checked style="accent-color:var(--accent)">
-        Incluir <code>npm install</code> en esas comprobaciones
-      </label>
-      <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-size:11px; margin-bottom:6px">
-        <input type="checkbox" id="out_fail_checks" style="accent-color:var(--accent)">
-        Marcar sprint como no aprobado si fallan comprobaciones reales
-      </label>
-      <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-size:11px; margin-bottom:6px">
-        <input type="checkbox" id="out_syntax_check" checked style="accent-color:var(--accent)">
-        <code>node --check</code> en .js al entregar (final-app y sprint si aplica)
-      </label>
-      <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-size:11px">
-        <input type="checkbox" id="out_npm_test" style="accent-color:var(--accent)">
-        Ejecutar <code>npm test</code> al entregar / en sprint (si existe script)
-      </label>
-    </div>
-
-    <div class="form-section">
-      <div class="form-section-title">⚙ Configuración del Proyecto</div>
+      <div class="form-section-title">⚙ Proyecto</div>
       <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px">
         <div class="form-group">
           <label class="form-label">Nombre del Proyecto</label>
@@ -1660,25 +1324,12 @@
           <textarea class="form-input" id="proj_description" rows="3" style="resize:vertical">Aplicación web para seguimiento de procesos de selección activos mediante integración con email y plataformas de empleo</textarea>
         </div>
       </div>
-      <div style="display:flex; gap:12px; align-items:center; margin-top:8px">
-        <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-size:11px">
-          <input type="checkbox" id="headless_mode" style="accent-color:var(--accent)">
-          Modo headless (sin ventana de navegador)
-        </label>
-        <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-size:11px">
-          <input type="checkbox" id="share_session" checked style="accent-color:var(--accent)">
-          Compartir sesión (recomendado)
-        </label>
-      </div>
     </div>
 
     <div style="display:flex; flex-wrap:wrap; gap:12px; align-items:center">
-      <button type="button" class="btn btn-primary" onclick="saveSettings()">💾 Guardar configuración</button>
+      <button type="button" class="btn btn-primary" onclick="saveSettings()">💾 Guardar ajustes</button>
       <button type="button" class="btn btn-secondary" onclick="loadSettings()">↺ Recargar desde servidor</button>
       <button type="button" class="btn btn-secondary" onclick="testServerConnection()">🔌 Probar conexión API</button>
-    </div>
-    <div style="font-size:10px; color:var(--text-dim); margin-top:10px">
-      Las contraseñas no se muestran al recargar (solo email). Si cambias solo el email, las contraseñas guardadas se conservan.
     </div>
   </div>
 </div>
@@ -1717,157 +1368,316 @@
   const allArtifacts = [];
   let projectState = { status: 'idle', currentSprint: 0, maxSprints: 5, sprints: [], runPaused: false };
 
-  const TEAM_ROLES = ['productOwner', 'developer', 'qaTester', 'scrumMaster'];
-  const TEAM_ROLE_TITLES = {
-    productOwner: 'Product Owner (PRD)',
-    developer: 'Developer (código / arquitectura)',
-    qaTester: 'QA (plan e informes)',
-    scrumMaster: 'Scrum Master (sprints)'
-  };
-  const DEFAULT_TEAM_LABELS = {
-    productOwner: 'Sarah (Product Owner)',
-    developer: 'Alex (Developer)',
-    qaTester: 'María (QA)',
-    scrumMaster: 'Carlos (Scrum Master)'
-  };
+  // U2: constantes del team fijo eliminadas (roles libres en la pestaña Agentes).
 
-  function defaultTeamRows() {
-    return TEAM_ROLES.map((role) => ({
-      id: role,
-      role,
-      enabled: true,
-      label: DEFAULT_TEAM_LABELS[role]
-    }));
+  // === U2: ROLES + FLOW (sustituye a la team table fija) ===
+  const TASK_IDS = ['plan', 'refinar', 'implementar', 'probar', 'revisar', 'libre'];
+  const LOOP_UNTIL = ['qa.passed', 'noCriticalBugs', 'filesWritten', 'always'];
+  const AVATARS = ['🧭', '📋', '💻', '🔍', '🧪', '📦', '🤖', '⚙️'];
+  const AVATAR_COLORS = ['#00d4ff', '#7b2fff', '#00ff88', '#ffb800', '#ff5f57', '#00d4ff'];
+
+  function defaultRoles() {
+    return [
+      { id: 'scrumMaster', label: 'Carlos (Scrum Master)', mission: '', model: '', skills: [], enabled: true },
+      { id: 'productOwner', label: 'Sarah (Product Owner)', mission: '', model: '', skills: [], enabled: true },
+      { id: 'developer', label: 'Alex (Developer)', mission: '', model: '', skills: [], enabled: true },
+      { id: 'qaTester', label: 'María (QA)', mission: '', model: '', skills: [], enabled: true }
+    ];
   }
 
-  function renderTeamTable(team) {
-    const tb = document.getElementById('teamTableBody');
-    if (!tb) return;
-    const rows = team && team.length ? team : defaultTeamRows();
-    tb.innerHTML = '';
-    rows.forEach((r) => {
-      const tr = document.createElement('tr');
-      tr.dataset.role = r.role;
-      const title = TEAM_ROLE_TITLES[r.role] || r.role;
-      const td0 = document.createElement('td');
-      td0.innerHTML =
-        '<code style="font-size:10px">' +
-        escHtml(r.role) +
-        '</code><div style="font-size:9px;color:var(--text-dim)">' +
-        escHtml(title) +
-        '</div>';
-      const td1 = document.createElement('td');
-      const cb = document.createElement('input');
-      cb.type = 'checkbox';
-      cb.className = 'team-enabled';
-      if (r.enabled !== false) cb.checked = true;
-      td1.appendChild(cb);
-      const td2 = document.createElement('td');
-      const inp = document.createElement('input');
-      inp.type = 'text';
-      inp.className = 'form-input team-label';
-      inp.style.cssText = 'padding:6px 8px;font-size:11px';
-      inp.value = r.label || '';
-      td2.appendChild(inp);
-      const td3 = document.createElement('td');
-      const rm = document.createElement('button');
-      rm.type = 'button';
-      rm.className = 'btn btn-secondary';
-      rm.style.cssText = 'padding:4px 8px;font-size:10px';
-      rm.textContent = '✕';
-      rm.onclick = () => removeTeamRow(rm);
-      td3.appendChild(rm);
-      tr.appendChild(td0);
-      tr.appendChild(td1);
-      tr.appendChild(td2);
-      tr.appendChild(td3);
-      tb.appendChild(tr);
+  function defaultFlow() {
+    return [
+      { role: 'scrumMaster', task: 'plan' },
+      { role: 'productOwner', task: 'refinar' },
+      { role: 'developer', task: 'implementar' },
+      { role: 'qaTester', task: 'probar', loop: { until: 'qa.passed', max: 3, fix: { role: 'developer', task: 'implementar' } } },
+      { role: 'scrumMaster', task: 'revisar' }
+    ];
+  }
+
+  function avatarFor(id, i) {
+    let h = 0;
+    for (const c of String(id)) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+    const color = AVATAR_COLORS[h % AVATAR_COLORS.length];
+    return { emoji: AVATARS[h % AVATARS.length], color };
+  }
+
+  /** Cards del dashboard desde roles (cualquier id, no solo los 4 fijos). */
+  function renderAgentCards(roles) {
+    const grid = document.getElementById('agentsGrid');
+    if (!grid) return;
+    const list = Array.isArray(roles) && roles.length ? roles : defaultRoles();
+    grid.innerHTML = '';
+    list.forEach((r, i) => {
+      const a = avatarFor(r.id, i);
+      const card = document.createElement('div');
+      card.className = 'agent-card';
+      card.dataset.role = r.id;
+      card.id = 'agent-' + r.id;
+      const dot = document.createElement('div');
+      dot.className = 'agent-status-indicator';
+      dot.id = 'dot-' + r.id;
+      const av = document.createElement('div');
+      av.className = 'agent-avatar';
+      av.style.background = `linear-gradient(135deg, ${a.color}22, ${a.color}44)`;
+      av.textContent = a.emoji;
+      const nm = document.createElement('div');
+      nm.className = 'agent-name';
+      nm.textContent = (r.label || r.id).split(' (')[0];
+      const rl = document.createElement('div');
+      rl.className = 'agent-role';
+      rl.textContent = (r.label || r.id) + (r.enabled === false ? ' (off)' : '');
+      const tk = document.createElement('div');
+      tk.className = 'agent-task';
+      tk.id = 'task-' + r.id;
+      tk.textContent = 'En espera...';
+      card.append(dot, av, nm, rl, tk);
+      grid.appendChild(card);
     });
+    const count = document.getElementById('activeAgentCount');
+    if (count) {
+      const n = list.filter((r) => r.enabled !== false).length;
+      count.textContent = n + ' activos';
+    }
+    // Filtro de logs con los roles reales
+    const sel = document.getElementById('logFilter');
+    if (sel) {
+      sel.innerHTML = '';
+      const all = document.createElement('option');
+      all.value = '';
+      all.textContent = 'Todos los agentes';
+      sel.appendChild(all);
+      list.forEach((r) => {
+        const o = document.createElement('option');
+        o.value = r.label || r.id;
+        o.textContent = r.label || r.id;
+        sel.appendChild(o);
+      });
+    }
   }
 
-  function readTeamFromTable() {
-    const tb = document.getElementById('teamTableBody');
-    if (!tb) return defaultTeamRows();
-    return Array.from(tb.querySelectorAll('tr')).map((tr) => ({
-      id: tr.dataset.role,
-      role: tr.dataset.role,
-      enabled: tr.querySelector('.team-enabled')?.checked ?? true,
-      label: (tr.querySelector('.team-label')?.value || '').trim() || DEFAULT_TEAM_LABELS[tr.dataset.role]
+  /** Lee roles del editor (pestaña Agentes). */
+  function readRolesFromEditor() {
+    const host = document.getElementById('rolesEditor');
+    if (!host) return defaultRoles();
+    return Array.from(host.querySelectorAll('.role-card')).map((card) => ({
+      id: (card.querySelector('.role-id')?.value || '').trim(),
+      label: (card.querySelector('.role-label')?.value || '').trim(),
+      mission: (card.querySelector('.role-mission')?.value || '').trim(),
+      extra: (card.querySelector('.role-extra')?.value || '').trim(),
+      model: (card.querySelector('.role-model')?.value || '').trim(),
+      skills: (card.querySelector('.role-skills')?.value || '')
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean),
+      files: [],
+      enabled: card.querySelector('.role-enabled')?.checked ?? true
     }));
   }
 
-  function addTeamRoleRow() {
-    const cur = readTeamFromTable();
-    const have = new Set(cur.map((r) => r.role));
-    const next = TEAM_ROLES.find((r) => !have.has(r));
-    if (!next) {
-      notify('Ya están los cuatro roles en la tabla.', 'info');
-      return;
-    }
-    cur.push({ id: next, role: next, enabled: true, label: DEFAULT_TEAM_LABELS[next] });
-    renderTeamTable(cur);
-  }
-
-  function removeTeamRow(btn) {
-    const tr = btn.closest('tr');
-    if (!tr) return;
-    if (tr.dataset.role === 'scrumMaster') {
-      notify('No quites el Scrum Master de la tabla: desactívalo con la casilla si no debe ejecutarse (pero el servidor exige un SM activo al iniciar).', 'error');
-      return;
-    }
-    tr.remove();
-    if (!document.querySelector('#teamTableBody tr')) renderTeamTable(defaultTeamRows());
-  }
-
-  function resetTeamDefault() {
-    renderTeamTable(defaultTeamRows());
-    notify('Equipo por defecto cargado (pulsa Guardar para persistir).', 'info');
-  }
-
-  let mermaidLoadPromise = null;
-  function ensureMermaid() {
-    if (window.mermaid) return Promise.resolve();
-    if (mermaidLoadPromise) return mermaidLoadPromise;
-    mermaidLoadPromise = new Promise((resolve, reject) => {
-      const s = document.createElement('script');
-      s.src = 'https://cdn.jsdelivr.net/npm/mermaid@10.6.1/dist/mermaid.min.js';
-      s.onload = () => {
-        mermaid.initialize({ startOnLoad: false, theme: 'dark', securityLevel: 'strict' });
-        resolve();
+  function readFlowFromEditor() {
+    const host = document.getElementById('flowEditor');
+    if (!host) return defaultFlow();
+    return Array.from(host.querySelectorAll('.flow-step')).map((row) => {
+      const step = {
+        role: row.querySelector('.flow-role')?.value || '',
+        task: row.querySelector('.flow-task')?.value || 'libre'
       };
-      s.onerror = () => reject(new Error('No se pudo cargar Mermaid'));
-      document.head.appendChild(s);
+      if (row.querySelector('.flow-loop')?.checked) {
+        step.loop = {
+          until: row.querySelector('.flow-until')?.value || 'qa.passed',
+          max: Math.min(10, Math.max(1, parseInt(row.querySelector('.flow-max')?.value, 10) || 1))
+        };
+        const fixRole = row.querySelector('.flow-fix-role')?.value || '';
+        const fixTask = row.querySelector('.flow-fix-task')?.value || '';
+        if (fixRole && fixTask) step.loop.fix = { role: fixRole, task: fixTask };
+      }
+      if (row.querySelector('.flow-onerror')?.checked) step.onError = 'continue';
+      return step;
     });
-    return mermaidLoadPromise;
   }
 
-  async function refreshFlowDiagram() {
-    const host = document.getElementById('mermaidFlowHost');
+  function roleCardEl(r) {
+    const d = document.createElement('div');
+    d.className = 'role-card';
+    d.style.cssText = 'border:1px solid var(--border);border-radius:8px;padding:12px';
+    const isClassic = ['scrumMaster', 'productOwner', 'developer', 'qaTester'].includes(r.id);
+    d.innerHTML = `
+      <div style="display:grid; grid-template-columns:1fr 1fr auto; gap:10px; align-items:end; margin-bottom:10px">
+        <div class="form-group" style="margin:0"><label class="form-label">ID</label>
+          <input class="form-input role-id" value="${escHtml(r.id || '')}" ${isClassic ? 'disabled' : ''} placeholder="mi-rol" /></div>
+        <div class="form-group" style="margin:0"><label class="form-label">Nombre</label>
+          <input class="form-input role-label" value="${escHtml(r.label || '')}" placeholder="Nombre visible" /></div>
+        <label style="font-size:11px;display:flex;gap:6px;align-items:center;white-space:nowrap">
+          <input type="checkbox" class="role-enabled" ${r.enabled === false ? '' : 'checked'} /> Activo</label>
+      </div>
+      <div class="form-group" style="margin-bottom:10px"><label class="form-label">Misión${isClassic ? ' (vacío = persona clásica)' : ''}</label>
+        <textarea class="form-input role-mission" rows="2" placeholder="Qué hace este rol en 1-2 líneas…">${escHtml(r.mission || '')}</textarea></div>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:10px">
+        <div class="form-group" style="margin:0"><label class="form-label">Modelo (vacío = el del motor)</label>
+          <input class="form-input role-model" value="${escHtml(r.model || '')}" placeholder="ollama/qwen3.5:9b" /></div>
+        <div class="form-group" style="margin:0"><label class="form-label">Skills (separadas por comas)</label>
+          <input class="form-input role-skills" value="${escHtml((r.skills || []).join(', '))}" placeholder="mis-docs, git-release" /></div>
+      </div>
+      <details style="font-size:11px;margin-bottom:10px"><summary style="cursor:pointer;color:var(--text-dim)">Instrucciones extra</summary>
+        <textarea class="form-input role-extra" rows="2" style="margin-top:6px" placeholder="Opcional: matices para este rol…">${escHtml(r.extra || '')}</textarea></details>
+      <div style="display:flex;gap:6px">
+        <button type="button" class="btn btn-secondary role-up" style="padding:4px 10px;font-size:10px">↑</button>
+        <button type="button" class="btn btn-secondary role-down" style="padding:4px 10px;font-size:10px">↓</button>
+        <button type="button" class="btn btn-secondary role-del" style="padding:4px 10px;font-size:10px">✕ Quitar</button>
+      </div>`;
+    d.querySelector('.role-up').onclick = () => {
+      if (d.previousElementSibling) d.parentNode.insertBefore(d, d.previousElementSibling);
+    };
+    d.querySelector('.role-down').onclick = () => {
+      if (d.nextElementSibling) d.parentNode.insertBefore(d.nextElementSibling, d);
+    };
+    d.querySelector('.role-del').onclick = () => {
+      d.remove();
+      renderFlowRoleOptions();
+    };
+    ['.role-id', '.role-label'].forEach((sel) => {
+      d.querySelector(sel).addEventListener('input', renderFlowRoleOptions);
+    });
+    return d;
+  }
+
+  function renderRolesEditor(roles) {
+    const host = document.getElementById('rolesEditor');
     if (!host) return;
+    host.innerHTML = '';
+    (Array.isArray(roles) && roles.length ? roles : defaultRoles()).forEach((r) => host.appendChild(roleCardEl(r)));
+    renderFlowRoleOptions();
+  }
+
+  function addRoleCard() {
+    const host = document.getElementById('rolesEditor');
+    if (!host) return;
+    const n = host.querySelectorAll('.role-card').length + 1;
+    host.appendChild(
+      roleCardEl({ id: 'rol-' + n, label: 'Rol ' + n, mission: '', extra: '', model: '', skills: [], enabled: true })
+    );
+    renderFlowRoleOptions();
+    host.lastChild.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+
+  function flowStepEl(s, roles) {
+    const d = document.createElement('div');
+    d.className = 'flow-step';
+    d.style.cssText = 'border:1px solid var(--border);border-radius:8px;padding:10px';
+    const roleOpts = roles.map((r) => `<option value="${escHtml(r.id)}">${escHtml(r.label || r.id)}</option>`).join('');
+    const taskOpts = TASK_IDS.map((t) => `<option value="${t}">${t}</option>`).join('');
+    const untilOpts = LOOP_UNTIL.map((u) => `<option value="${u}">${u}</option>`).join('');
+    const hasLoop = !!s.loop;
+    d.innerHTML = `
+      <div style="display:grid; grid-template-columns:1fr 1fr auto; gap:10px; align-items:end">
+        <div class="form-group" style="margin:0"><label class="form-label">Rol</label>
+          <select class="form-input flow-role">${roleOpts}</select></div>
+        <div class="form-group" style="margin:0"><label class="form-label">Tarea</label>
+          <select class="form-input flow-task">${taskOpts}</select></div>
+        <div style="display:flex;gap:6px">
+          <button type="button" class="btn btn-secondary flow-up" style="padding:4px 10px;font-size:10px">↑</button>
+          <button type="button" class="btn btn-secondary flow-down" style="padding:4px 10px;font-size:10px">↓</button>
+          <button type="button" class="btn btn-secondary flow-del" style="padding:4px 10px;font-size:10px">✕</button>
+        </div>
+      </div>
+      <div style="display:flex;gap:14px;margin-top:8px;font-size:11px;align-items:center;flex-wrap:wrap">
+        <label style="display:flex;gap:6px;align-items:center"><input type="checkbox" class="flow-loop" ${hasLoop ? 'checked' : ''} /> Loop</label>
+        <label style="display:flex;gap:6px;align-items:center">hasta
+          <select class="form-input flow-until" style="padding:4px 8px;font-size:10px">${untilOpts}</select></label>
+        <label style="display:flex;gap:6px;align-items:center">máx
+          <input type="number" class="form-input flow-max" min="1" max="10" style="width:64px;padding:4px 8px;font-size:10px" /></label>
+        <label style="display:flex;gap:6px;align-items:center">fix con
+          <select class="form-input flow-fix-role" style="padding:4px 8px;font-size:10px"><option value="">—</option>${roleOpts}</select></label>
+        <select class="form-input flow-fix-task" style="padding:4px 8px;font-size:10px"><option value="">—</option>${taskOpts}</select>
+        <label style="display:flex;gap:6px;align-items:center" title="Si el paso falla, seguir con el siguiente en vez de abortar">
+          <input type="checkbox" class="flow-onerror" /> seguir si falla</label>
+      </div>`;
+    d.querySelector('.flow-role').value = s.role || '';
+    d.querySelector('.flow-task').value = TASK_IDS.includes(s.task) ? s.task : 'libre';
+    if (hasLoop) {
+      d.querySelector('.flow-until').value = LOOP_UNTIL.includes(s.loop.until) ? s.loop.until : 'qa.passed';
+      d.querySelector('.flow-max').value = s.loop.max || 3;
+      if (s.loop.fix) {
+        d.querySelector('.flow-fix-role').value = s.loop.fix.role || '';
+        d.querySelector('.flow-fix-task').value = s.loop.fix.task || '';
+      }
+    } else {
+      d.querySelector('.flow-max').value = 3;
+    }
+    if (s.onError === 'continue') d.querySelector('.flow-onerror').checked = true;
+    d.querySelector('.flow-up').onclick = () => {
+      if (d.previousElementSibling) d.parentNode.insertBefore(d, d.previousElementSibling);
+    };
+    d.querySelector('.flow-down').onclick = () => {
+      if (d.nextElementSibling) d.parentNode.insertBefore(d.nextElementSibling, d);
+    };
+    d.querySelector('.flow-del').onclick = () => d.remove();
+    return d;
+  }
+
+  function currentEditorRoles() {
+    const host = document.getElementById('rolesEditor');
+    if (!host || !host.querySelector('.role-card')) return defaultRoles();
+    return readRolesFromEditor();
+  }
+
+  function renderFlowRoleOptions() {
+    const roles = currentEditorRoles();
+    document.querySelectorAll('#flowEditor .flow-step').forEach((row) => {
+      const sel = row.querySelector('.flow-role');
+      const fixSel = row.querySelector('.flow-fix-role');
+      const cur = sel.value;
+      const curFix = fixSel.value;
+      const opts = roles.map((r) => `<option value="${escHtml(r.id)}">${escHtml(r.label || r.id)}</option>`).join('');
+      sel.innerHTML = opts;
+      if (roles.some((r) => r.id === cur)) sel.value = cur;
+      fixSel.innerHTML = '<option value="">—</option>' + opts;
+      if (roles.some((r) => r.id === curFix)) fixSel.value = curFix;
+    });
+  }
+
+  function renderFlowEditor(flow) {
+    const host = document.getElementById('flowEditor');
+    if (!host) return;
+    host.innerHTML = '';
+    (Array.isArray(flow) && flow.length ? flow : defaultFlow()).forEach((s) =>
+      host.appendChild(flowStepEl(s, currentEditorRoles()))
+    );
+  }
+
+  function addFlowStep() {
+    const host = document.getElementById('flowEditor');
+    if (!host) return;
+    const roles = currentEditorRoles();
+    host.appendChild(flowStepEl({ role: (roles[0] && roles[0].id) || '', task: 'libre' }, roles));
+  }
+
+  /** Guarda roles+flow (un solo POST validado). */
+  async function saveAgents() {
     if (!isAppServerOrigin()) {
-      host.innerHTML = '<p class="artifact-muted">Abre el dashboard desde http://localhost:…</p>';
+      notify(MSG_DEBES_ABRIR_LOCALHOST, 'error');
       return;
     }
-    host.innerHTML = '<span style="color:var(--text-dim)">Generando diagrama…</span>';
+    const roles = readRolesFromEditor();
+    const flow = readFlowFromEditor();
     try {
-      await ensureMermaid();
-      const res = await fetch('/api/flow/diagram');
+      const res = await fetch('/api/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ agents: { roles, flow } })
+      });
       const data = await res.json().catch(() => ({}));
-      const def = data.mermaid || 'flowchart TD\n  E[sin datos]';
-      // FASE 3: el diagrama deriva de etiquetas editables en Settings.
-      // Solo se aceptan diagramas flowchart/graph sin HTML ni manejadores.
-      if (!/^\s*(flowchart|graph)\b/.test(def) || /[<>"']|on\w+\s*=|javascript:/i.test(def)) {
-        host.innerHTML = '<p class="artifact-muted">Diagrama rechazado (contenido no permitido).</p>';
-        return;
-      }
-      const id = 'mmd-flow-' + Date.now();
-      const { svg } = await mermaid.render(id, def);
-      host.innerHTML = svg;
+      if (!res.ok) throw new Error(data.error || 'HTTP ' + res.status);
+      notify('Equipo y flujo guardados ✓', 'success');
+      renderAgentCards(roles);
     } catch (e) {
-      host.innerHTML =
-        '<pre class="code-block" style="color:var(--error)">' + escHtml(String(e.message || e)) + '</pre>';
+      notify('Error guardando equipo: ' + e.message, 'error', 8000);
     }
   }
+
+  // U2: diagrama Mermaid eliminado (pestaña Flujo fuera). La secuencia viva
+  // se edita en la pestaña Agentes (flowEditor).
 
   /** Barra superior: espera activa al modelo (WS agent_sending / agent_response + heurística por logs). */
   function setLlmRequestProgress(active, labelText) {
@@ -2259,38 +2069,36 @@
     setAgentStatus(key, 'waiting', 'Inicializando...');
   }
 
+  function cardForRole(key) {
+    return (
+      document.querySelector(`.agent-card[data-role="${CSS.escape(key)}"]`) ||
+      document.getElementById(`agent-${key}`)
+    );
+  }
+
   function setAgentWorking(key, task) {
-    const normalizedKey = normalizeAgentKey(key);
-    setAgentStatus(normalizedKey, 'working', task);
-    
-    const card = document.getElementById(`agent-${normalizedKey}`);
+    const card = cardForRole(key);
+    const id = (card && (card.dataset.role || key)) || key;
+    setAgentStatus(id, 'working', task);
     if (card) card.classList.add('active');
   }
 
   function setAgentStatus(key, status, task) {
-    const dot = document.getElementById(`dot-${key}`);
-    const taskEl = document.getElementById(`task-${key}`);
-    
+    const card = cardForRole(key);
+    const id = (card && (card.dataset.role || key)) || key;
+    const dot =
+      (card && card.querySelector('.agent-status-indicator')) || document.getElementById(`dot-${id}`);
+    const taskEl =
+      (card && card.querySelector('.agent-task')) || document.getElementById(`task-${id}`);
+
     if (dot) dot.className = 'agent-status-indicator ' + status;
     if (taskEl) taskEl.textContent = task || '';
-    
-    if (status !== 'working') {
-      const card = document.getElementById(`agent-${key}`);
-      if (card) card.classList.remove('active');
-    }
+
+    if (status !== 'working' && card) card.classList.remove('active');
   }
 
   function normalizeAgentKey(key) {
-    const map = {
-      'scrumMaster': 'scrummaster',
-      'scrum-master': 'scrummaster',
-      'productOwner': 'productowner',
-      'product-owner': 'productowner',
-      'developer': 'developer',
-      'qaTester': 'qatester',
-      'qa-tester': 'qatester'
-    };
-    return map[key] || key.toLowerCase().replace(/[-_]/g, '');
+    return key;
   }
 
   function handleArtifact(data) {
@@ -2924,39 +2732,6 @@
   }
 
   // === SETTINGS ===
-  function updateOllamaApiKeyModeUI() {
-    const mode = document.getElementById('local_ollama_api_key_mode')?.value;
-    const row = document.getElementById('local_ollama_api_key_custom_row');
-    if (row) row.style.display = mode === 'custom' ? 'block' : 'none';
-  }
-
-  function updateLocalLlmConnectionPreview() {
-    const pre = document.getElementById('local_llm_connection_preview');
-    if (!pre) return;
-    const base = (document.getElementById('local_ollama_baseurl')?.value || '').trim() || 'http://localhost:11434';
-    const preset = document.getElementById('local_llm_connection_preset')?.value || 'ollama_local';
-    const names = {
-      ollama_local: 'Tipo: modelo local típico (Ollama en localhost o LAN)',
-      remote_api: 'Tipo: servidor remoto (suele ir con API key)',
-      custom: 'Tipo: personalizado (revisa URL y nombre)'
-    };
-    let host = '?';
-    try {
-      const u = new URL(base);
-      host = u.hostname + (u.port ? ':' + u.port : '');
-    } catch {
-      host = '(URL no válida)';
-    }
-    const user = (document.getElementById('local_llm_connection_label')?.value || '').trim();
-    pre.innerHTML =
-      '<strong>Vista previa</strong> · ' +
-      (names[preset] || names.remote_api) +
-      ' · <code style="color:var(--accent)">host ' +
-      host +
-      '</code>' +
-      (user ? ' · etiqueta: «' + escapeHtml(user) + '»' : '') +
-      '. Al <strong>Iniciar proyecto</strong> el orquestador escribe un resumen en el log; cada agente indica la misma info en cada llamada al modelo.';
-  }
 
   function escapeHtml(s) {
     return String(s)
@@ -2967,118 +2742,9 @@
       .replace(/'/g, '&#39;');
   }
 
-  async function populateLocalLlmProviderSelect() {
-    const sel = document.getElementById('local_llm_provider_preset');
-    if (!sel) return false;
-    try {
-      const res = await fetch('/api/llm/provider-presets');
-      const data = await res.json();
-      window._llmProviderPresets = data.presets || [];
-      sel.innerHTML = '';
-      window._llmProviderPresets.forEach((p) => {
-        const o = document.createElement('option');
-        o.value = p.id;
-        o.textContent = p.label;
-        if (p.description) o.title = p.description;
-        sel.appendChild(o);
-      });
-      wireLocalLlmProviderPresetSelect();
-      return true;
-    } catch (e) {
-      console.error(e);
-      sel.innerHTML = '<option value="ollama_local">Ollama (local)</option>';
-      return false;
-    }
-  }
+  // U2: presets Ollama-directos eliminados (el motor es opencode).
 
-  function onLocalLlmProviderPresetChange() {
-    const id = document.getElementById('local_llm_provider_preset')?.value;
-    const p = (window._llmProviderPresets || []).find((x) => x.id === id);
-    if (!p) return;
-    const bu = document.getElementById('local_ollama_baseurl');
-    if (bu && p.defaultBaseUrl) bu.value = p.defaultBaseUrl;
-    const modeEl = document.getElementById('local_ollama_api_key_mode');
-    if (modeEl && p.defaultApiKeyMode) modeEl.value = p.defaultApiKeyMode;
-    const modSel = document.getElementById('local_ollama_model');
-    if (modSel && p.defaultModel) {
-      const exists = Array.from(modSel.options).some((o) => o.value === p.defaultModel);
-      if (!exists) {
-        const o = document.createElement('option');
-        o.value = p.defaultModel;
-        o.textContent = p.defaultModel + ' (sugerido)';
-        modSel.insertBefore(o, modSel.firstChild);
-      }
-      modSel.value = p.defaultModel;
-    }
-    const emb = document.getElementById('local_ollama_embed_model');
-    if (emb && p.defaultEmbedModel) emb.value = p.defaultEmbedModel;
-    updateOllamaApiKeyModeUI();
-    updateLocalLlmConnectionPreview();
-    if (!window._suppressDashboardEvents) {
-      notify('Plantilla aplicada (revisa API key; guarda para persistir).', 'success');
-    }
-  }
-
-  function wireLocalLlmProviderPresetSelect() {
-    const sel = document.getElementById('local_llm_provider_preset');
-    if (!sel || sel.dataset.wired === '1') return;
-    sel.dataset.wired = '1';
-    sel.addEventListener('change', onLocalLlmProviderPresetChange);
-  }
-
-  async function refreshOllamaModels() {
-    if (!isAppServerOrigin()) return;
-    const baseInput = document.getElementById('local_ollama_baseurl');
-    const sel = document.getElementById('local_ollama_model');
-    const btn = document.getElementById('btn_refresh_ollama_models');
-    const baseUrl = (baseInput && baseInput.value.trim()) || 'http://localhost:11434';
-    const previous = sel ? sel.value : '';
-    if (btn) {
-      btn.disabled = true;
-      btn.textContent = '…';
-    }
-    if (sel) {
-      sel.innerHTML = '<option value="">Cargando modelos…</option>';
-    }
-    try {
-      const local = readLocalOllamaSettingsFromForm();
-      const res = await fetch('/api/ollama/test-auth', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ local })
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok || data.ok === false) {
-        const msg = [data.error, data.hint].filter(Boolean).join(' — ') || 'HTTP ' + res.status;
-        throw new Error(msg);
-      }
-      if (!sel) return;
-      sel.innerHTML = '';
-      const models = data.models || data.modelsPreview || [];
-      if (models.length === 0) {
-        const o = document.createElement('option');
-        o.value = '';
-        o.textContent = '(No hay modelos — ejecuta: ollama pull nombre)';
-        sel.appendChild(o);
-      } else {
-        models.forEach((name) => {
-          const o = document.createElement('option');
-          o.value = name;
-          o.textContent = name;
-          sel.appendChild(o);
-        });
-      }
-      if (previous && models.includes(previous)) sel.value = previous;
-    } catch (e) {
-      notify('No se pudieron listar modelos: ' + e.message, 'error');
-      if (sel) sel.innerHTML = '<option value="">(error al cargar)</option>';
-    } finally {
-      if (btn) {
-        btn.disabled = false;
-        btn.textContent = '↻ Cargar modelos';
-      }
-    }
-  }
+  // U2: listado de modelos Ollama-directos eliminado (el modelo se escribe a mano).
 
   async function loadSettings() {
     if (!isAppServerOrigin()) {
@@ -3092,53 +2758,16 @@
         const err = await res.json().catch(() => ({}));
         throw new Error(err.error || 'HTTP ' + res.status);
       }
-      const { config, credentials } = await res.json();
+      const { config } = await res.json();
 
-      await populateLocalLlmProviderSelect();
-      const provSel = document.getElementById('local_llm_provider_preset');
-      if (provSel) {
-        const savedP = config.agents?.local?.providerPreset;
-        if (savedP && Array.from(provSel.options).some((o) => o.value === savedP)) {
-          provSel.value = savedP;
-        } else if (config.agents?.local?.httpAdapter === 'openai_compatible') {
-          provSel.value = Array.from(provSel.options).some((o) => o.value === 'custom_openai')
-            ? 'custom_openai'
-            : provSel.value;
-        }
-      }
-
-      document.getElementById('claude_email').value = credentials.claude?.email || '';
-      document.getElementById('gmail_email').value = credentials.gmail?.email || '';
-      document.getElementById('linkedin_email').value = credentials.linkedin?.email || '';
-      document.getElementById('infojobs_email').value = credentials.infojobs?.email || '';
-      document.getElementById('indeed_email').value = credentials.indeed?.email || '';
       document.getElementById('proj_name').value = config.project?.name || '';
       document.getElementById('proj_description').value = config.project?.description || '';
       document.getElementById('proj_sprints').value = config.scrum?.maxSprints || 5;
-      document.getElementById('headless_mode').checked = config.agents?.headless || false;
-      document.getElementById('share_session').checked = config.agents?.shareSession ?? true;
 
-      renderTeamTable(config.agents?.team);
-      const ow = document.getElementById('out_working_copy');
-      const os = document.getElementById('out_syntax_check');
-      const on = document.getElementById('out_npm_test');
-      const orf = document.getElementById('out_require_files');
-      const orc = document.getElementById('out_real_checks_sprint');
-      const ofc = document.getElementById('out_fail_checks');
-      const oni = document.getElementById('out_npm_install_sprint');
-      const orm = document.getElementById('out_retry_max');
-      if (ow) ow.checked = config.outputs?.writeWorkingCopyEachSprint !== false;
-      if (orf) orf.checked = config.outputs?.requireFilesEachSprint !== false;
-      if (orm) orm.value = String(config.outputs?.implementationRetryMax ?? 2);
-      if (orc) orc.checked = config.outputs?.runRealChecksEachSprint !== false;
-      if (oni) oni.checked = config.outputs?.npmInstallEachSprint !== false;
-      if (ofc) ofc.checked = config.outputs?.failSprintIfChecksFail === true;
-      if (os) os.checked = config.outputs?.nodeSyntaxCheckOnDelivery !== false;
-      if (on) on.checked = config.outputs?.runNpmTestOnDelivery === true;
-
-      const backend = config.agents?.backend === 'claude' ? 'claude' : 'local';
-      const ab = document.getElementById('agent_backend');
-      if (ab) ab.value = backend;
+      // U2: equipo y flujo se editan en la pestaña Agentes (y cards del dashboard).
+      renderAgentCards(config.agents?.roles);
+      renderRolesEditor(config.agents?.roles);
+      renderFlowEditor(config.agents?.flow);
 
       // UX: motor opencode (guarda el resto de campos para no perderlos al guardar).
       const oc = config.agents?.opencode || {};
@@ -3156,61 +2785,6 @@
       const ocUrl = document.getElementById('oc_url');
       if (ocUrl) ocUrl.value = oc.url || 'http://127.0.0.1:4096';
       refreshEngineHealth();
-      const bu = document.getElementById('local_ollama_baseurl');
-      if (bu) bu.value = config.agents?.local?.baseUrl || 'http://localhost:11434';
-
-      const presetEl = document.getElementById('local_llm_connection_preset');
-      if (presetEl) {
-        const p = config.agents?.local?.llmConnectionPreset;
-        presetEl.value = ['ollama_local', 'remote_api', 'custom'].includes(p) ? p : 'ollama_local';
-      }
-      const connLabelEl = document.getElementById('local_llm_connection_label');
-      if (connLabelEl) connLabelEl.value = config.agents?.local?.llmConnectionLabel || '';
-      updateLocalLlmConnectionPreview();
-
-      const modeEl = document.getElementById('local_ollama_api_key_mode');
-      if (modeEl) modeEl.value = config.agents?.local?.apiKeyMode || 'bearer';
-      const envEl = document.getElementById('local_ollama_api_key_env');
-      if (envEl) envEl.value = config.agents?.local?.apiKeyEnv || '';
-      const hdrEl = document.getElementById('local_ollama_api_key_header');
-      if (hdrEl) hdrEl.value = config.agents?.local?.apiKeyHeader || '';
-      const pfxEl = document.getElementById('local_ollama_api_key_prefix');
-      if (pfxEl) pfxEl.value = config.agents?.local?.apiKeyPrefix != null ? String(config.agents.local.apiKeyPrefix) : '';
-      const apk = document.getElementById('local_ollama_api_key');
-      if (apk) {
-        apk.value = '';
-        apk.placeholder = config.agents?.local?.hasApiKey
-          ? '•••• configurada — vacío = no cambiar'
-          : 'Solo si tu API / proxy la exige';
-      }
-      updateOllamaApiKeyModeUI();
-
-      const savedModel = config.agents?.local?.model || '';
-      await refreshOllamaModels();
-      const sel = document.getElementById('local_ollama_model');
-      if (sel && savedModel) {
-        const has = Array.from(sel.options).some((o) => o.value === savedModel);
-        if (has) sel.value = savedModel;
-        else {
-          const o = document.createElement('option');
-          o.value = savedModel;
-          o.textContent = savedModel + ' (no listado; guardado en config)';
-          sel.insertBefore(o, sel.firstChild);
-          sel.value = savedModel;
-        }
-      }
-
-      const ragCb = document.getElementById('local_rag_enabled');
-      if (ragCb) ragCb.checked = config.agents?.local?.rag?.enabled === true;
-      const embIn = document.getElementById('local_ollama_embed_model');
-      if (embIn) {
-        embIn.value =
-          config.agents?.local?.embedModel ||
-          config.agents?.local?.rag?.embedModel ||
-          'nomic-embed-text';
-      }
-      const vr = document.getElementById('ollama_verify_result');
-      if (vr) vr.textContent = '';
     } catch (e) {
       notify('Error cargando configuración: ' + e.message, 'error');
     } finally {
@@ -3218,117 +2792,11 @@
     }
   }
 
-  /** Lee agents.local desde el formulario Settings (misma forma que al guardar). */
-  function readLocalOllamaSettingsFromForm() {
-    const presetId = document.getElementById('local_llm_provider_preset')?.value || 'ollama_local';
-    const pr = (window._llmProviderPresets || []).find((x) => x.id === presetId);
-    let httpAdapter = 'ollama';
-    if (pr) {
-      if (pr.httpAdapter === 'openai_compatible') httpAdapter = 'openai_compatible';
-      else if (pr.httpAdapter === 'cursor_cloud') httpAdapter = 'cursor_cloud';
-    }
+  // U2: lectura del formulario Ollama-directo eliminada.
 
-    const loc = {
-      baseUrl: (document.getElementById('local_ollama_baseurl')?.value || '').trim() || 'http://localhost:11434',
-      providerPreset: presetId,
-      httpAdapter,
-      llmConnectionPreset: document.getElementById('local_llm_connection_preset')?.value || 'ollama_local',
-      llmConnectionLabel: (document.getElementById('local_llm_connection_label')?.value || '').trim(),
-      model: (document.getElementById('local_ollama_model')?.value || '').trim() || 'llama3.2',
-      embedModel:
-        (document.getElementById('local_ollama_embed_model')?.value || '').trim() || 'nomic-embed-text',
-      apiKeyMode: document.getElementById('local_ollama_api_key_mode')?.value || 'bearer',
-      apiKeyEnv: (document.getElementById('local_ollama_api_key_env')?.value || '').trim(),
-      rag: {
-        enabled: document.getElementById('local_rag_enabled')?.checked === true
-      }
-    };
-    const mode = loc.apiKeyMode;
-    if (mode === 'custom') {
-      loc.apiKeyHeader = (document.getElementById('local_ollama_api_key_header')?.value || '').trim();
-      loc.apiKeyPrefix = document.getElementById('local_ollama_api_key_prefix')?.value ?? '';
-    } else {
-      loc.apiKeyHeader = '';
-      loc.apiKeyPrefix = '';
-    }
-    const newKey = (document.getElementById('local_ollama_api_key')?.value || '').trim();
-    if (newKey) loc.apiKey = newKey;
-    return loc;
-  }
+  // U2: test-auth Ollama-directo eliminado (el motor se comprueba con ↻ Comprobar).
 
-  async function testOllamaAuthConnection() {
-    if (!isAppServerOrigin()) {
-      notify(MSG_DEBES_ABRIR_LOCALHOST, 'error');
-      return;
-    }
-    const el = document.getElementById('local_ollama_auth_test_result');
-    if (el) el.textContent = 'Probando conexión…';
-    try {
-      const local = readLocalOllamaSettingsFromForm();
-      const res = await fetch('/api/ollama/test-auth', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ local })
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        const line = [data.error, data.hint].filter(Boolean).join(' ');
-        if (el) el.textContent = 'Error: ' + (line || 'HTTP ' + res.status);
-        notify(data.hint || data.error || 'Fallo al probar la API', 'error');
-        return;
-      }
-      const auth = data.authConfigured ? data.authHeaderNames?.join(', ') || 'sí' : 'sin cabeceras de clave';
-      const preview = (data.modelsPreview || []).slice(0, 5).join(', ');
-      const more = data.modelCount > 5 ? '…' : '';
-      if (el) {
-        const adapt = data.httpAdapter ? ' · adaptador: ' + data.httpAdapter : '';
-        el.textContent =
-          '✓ ' +
-          (data.message || 'OK') +
-          adapt +
-          ' · Auth: ' +
-          auth +
-          (preview ? ' · Ej.: ' + preview + more : '');
-      }
-      notify(data.message || 'Conexión y API key OK', 'success');
-    } catch (e) {
-      if (el) el.textContent = 'Error: ' + e.message;
-      notify(e.message || String(e), 'error');
-    }
-  }
-
-  async function verifyOllamaForRag() {
-    if (!isAppServerOrigin()) return;
-    const el = document.getElementById('ollama_verify_result');
-    const baseUrl = (document.getElementById('local_ollama_baseurl')?.value || '').trim() || 'http://localhost:11434';
-    const model = (document.getElementById('local_ollama_model')?.value || '').trim() || 'llama3.2';
-    const embedModel = (document.getElementById('local_ollama_embed_model')?.value || '').trim() || 'nomic-embed-text';
-    const rag = document.getElementById('local_rag_enabled')?.checked ? '1' : '0';
-    if (el) el.textContent = 'Comprobando…';
-    try {
-      const q = new URLSearchParams({ baseUrl, model, embedModel, rag });
-      const res = await fetch('/api/ollama/verify?' + q.toString());
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || 'HTTP ' + res.status);
-      let msg = data.hasChat ? 'Modelo chat ✓' : 'Modelo chat ✗';
-      if (data.ragEnabled) {
-        msg += data.hasEmbed ? ' · Embeddings ✓' : ' · Embeddings ✗';
-      } else {
-        msg += ' · RAG off';
-      }
-      if (el) el.textContent = msg;
-      if (!data.hasChat) {
-        notify(data.hintChat || 'Falta el modelo de chat en Ollama.', 'warning');
-      } else if (data.ragEnabled && !data.hasEmbed) {
-        notify(data.hintEmbed || 'Falta modelo de embeddings. Ejecuta ollama pull ' + embedModel, 'warning');
-      } else {
-        notify('Ollama: comprobación OK.', 'success');
-      }
-    } catch (e) {
-      if (el) el.textContent = 'Error';
-      notify(e.message || String(e), 'error');
-    }
-  }
+  // U2: verificación RAG Ollama-directa eliminada.
 
   async function testServerConnection() {
     if (!isAppServerOrigin()) {
@@ -3351,43 +2819,8 @@
       notify(MSG_DEBES_ABRIR_LOCALHOST, 'error');
       return;
     }
-    const credentials = {
-      claude: { 
-        email: document.getElementById('claude_email').value, 
-        password: document.getElementById('claude_password').value || undefined
-      },
-      gmail: { 
-        email: document.getElementById('gmail_email').value, 
-        password: document.getElementById('gmail_password').value || undefined
-      },
-      linkedin: { 
-        email: document.getElementById('linkedin_email').value, 
-        password: document.getElementById('linkedin_password').value || undefined
-      },
-      infojobs: { 
-        email: document.getElementById('infojobs_email').value, 
-        password: document.getElementById('infojobs_password').value || undefined
-      },
-      indeed: { 
-        email: document.getElementById('indeed_email').value, 
-        password: document.getElementById('indeed_password').value || undefined
-      }
-    };
-    
-    // Solo enviar contraseñas si se rellenaron
-    for (const platform of Object.values(credentials)) {
-      if (!platform.password) delete platform.password;
-    }
-    
-    const team = readTeamFromTable();
-    if (!team.some((t) => t.enabled !== false && t.role === 'scrumMaster')) {
-      notify('Debe existir un Scrum Master marcado como activo.', 'error');
-      return;
-    }
-
-    await populateLocalLlmProviderSelect();
-
-    // UX: bloque opencode completo (los campos extra se preservan).
+    // U2: solo proyecto + motor. Roles/flow se guardan en la pestaña Agentes;
+    // el resto (backend, local, outputs...) se preserva por merge en el servidor.
     const extra = window._opencodeExtra || {};
     const opencode = {
       mode: document.getElementById('oc_mode')?.value === 'serve' ? 'serve' : 'run',
@@ -3406,37 +2839,11 @@
       },
       scrum: { maxSprints: parseInt(document.getElementById('proj_sprints').value) },
       agents: {
-        headless: document.getElementById('headless_mode').checked,
-        shareSession: document.getElementById('share_session').checked,
-        backend: document.getElementById('agent_backend')?.value || 'local',
-        team,
-        opencode,
-        local: readLocalOllamaSettingsFromForm()
-      },
-      outputs: {
-        writeWorkingCopyEachSprint: document.getElementById('out_working_copy')?.checked !== false,
-        requireFilesEachSprint: document.getElementById('out_require_files')?.checked !== false,
-        implementationRetryMax: Math.min(
-          8,
-          Math.max(0, parseInt(document.getElementById('out_retry_max')?.value, 10) || 0)
-        ),
-        runRealChecksEachSprint: document.getElementById('out_real_checks_sprint')?.checked !== false,
-        npmInstallEachSprint: document.getElementById('out_npm_install_sprint')?.checked !== false,
-        failSprintIfChecksFail: document.getElementById('out_fail_checks')?.checked === true,
-        nodeSyntaxCheckOnDelivery: document.getElementById('out_syntax_check')?.checked !== false,
-        runNpmTestOnDelivery: document.getElementById('out_npm_test')?.checked === true
+        opencode
       }
     };
     
     try {
-      const resC = await fetch('/api/credentials', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(credentials)
-      });
-      const errC = await resC.json().catch(() => ({}));
-      if (!resC.ok) throw new Error(errC.error || 'Credenciales HTTP ' + resC.status);
-
       const resP = await fetch('/api/config', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -3512,10 +2919,6 @@
     document.getElementById('tab-' + tab)?.classList.add('active');
     const btn = el || document.querySelector('.nav-tab[data-tab="' + tab + '"]');
     if (btn) btn.classList.add('active');
-
-    if (tab === 'flow' && isAppServerOrigin()) {
-      refreshFlowDiagram();
-    }
   }
 
   function notify(msg, type = 'info', ms = 4000) {
@@ -3558,6 +2961,10 @@
   // === INIT ===
   refreshOriginHint();
   showOfflineBannerIfNeeded();
+  // U2: pinta defaults para que la UI nunca salga vacia (loadSettings los sustituye).
+  renderAgentCards();
+  renderRolesEditor();
+  renderFlowEditor();
   if (isAppServerOrigin()) {
     connectWS();
     loadSettings();

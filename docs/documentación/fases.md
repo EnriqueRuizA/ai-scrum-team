@@ -16,7 +16,10 @@ Estado del `docs/PLAN-REESTRUCTURACION.txt` (v2). Cada fase = commits `phase-N`.
 - **FASE 4** (commit `1662046`) — `npm test` (105/105), `npm run lint` limpio, humo borrado, `lib/llm-provider-presets.js` fijado contra sus tests, CI. Documentación Obsidian (MOC + 8 notas).
 - **FASE 5** (commit `0b7ec8e`) — `server.js` 1099→63 líneas, `src/` borrado, barrels, `prompts→personas`, `dashboard-local` borrado, deps limpias. Obsidian revisado.
 - **FASE 6** (commit `4071aa9`) — `GET /api/state?logs=&since=` (`limitStateLogs` + meta), tope cliente 2000, `clearLogs` real, `docs/adr/0001-ws-sin-auth-localhost.md`, nota [[dashboard]].
-- **UX intermedio** (en curso) — `GET /api/engine/health`, pill de motor + preflight, sección opencode en Settings, validación en `POST /api/config`, banner sin credenciales.
+- **UX intermedio** (commit `a76f068`) — pill, preflight, Settings opencode, validación POST config.
+- **U0** (commit `246ad6c`) — START.bat llega al servidor (paréntesis en echoes).
+- **U1** (commit `cd0e820`) — roles+flow+loops, skills, validador, endpoints.
+- **U2** (en curso) — UI 3 pestañas, sin legacy, endpoint flow borrado.
 
 ## Pendientes
 

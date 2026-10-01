@@ -4,7 +4,6 @@ const { authHeadersFromLocalConfig, rawApiKeyFromLocalConfig } = require('../../
 const { hintAfterListModelsFailure, misconfiguredCrsrKeyWithOpenAiCompatible } = require('../../lib/llm-auth-hints');
 const { listModels } = require('../../lib/unified-local-llm');
 const { listPresetsForApi, resolveHttpAdapterFromLocal } = require('../../lib/llm-provider-presets');
-const { buildMermaidFromConfig } = require('../../lib/flow-mermaid');
 const { verifyLlmModels } = require('../../lib/unified-local-llm');
 const { mergeLocalForOllamaTest, listModelsEndpointLabel } = require('../helpers');
 function registerEngine(app, _ctx) {
@@ -36,16 +35,6 @@ function registerEngine(app, _ctx) {
       });
     } catch (e) {
       res.status(500).json({ ok: false, error: e.message });
-    }
-  });
-
-  /** Diagrama Mermaid del flujo (según agents.team y scrum.maxSprints). */
-  app.get('/api/flow/diagram', async (req, res) => {
-    try {
-      const config = await fs.readJson('./config/project-config.json');
-      res.json({ mermaid: buildMermaidFromConfig(config) });
-    } catch (e) {
-      res.status(500).json({ error: e.message, mermaid: 'flowchart TD\n  ERR[Error cargando config]' });
     }
   });
 

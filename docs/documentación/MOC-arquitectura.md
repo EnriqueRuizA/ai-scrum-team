@@ -11,7 +11,8 @@ orquesta y visualiza.
 ## Núcleo nuevo
 
 - [[orquestador-v2|Orquestador v2]] — `orchestrator/index.js`, clase única y completa
-- [[pipeline|Pipeline]] — `orchestrator/pipeline.js`, secuencia por sprint
+- [[pipeline|Pipeline]] — `orchestrator/pipeline.js`, ejecutor genérico de flow
+- [[agentes-flow|Agentes y flow]] — roles + skills + loops (UI y backend)
 - [[state|Estado atómico]] — `orchestrator/state.js`, tmp+rename, tope de logs
 - [[team-config|Equipo]] — `agents/team-config.js` + `agents/factory.js`
 

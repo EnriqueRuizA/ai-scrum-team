@@ -5,8 +5,12 @@ src: index.html
 
 # dashboard
 
-- **Ruta**: `index.html` (raíz, ~3490 líneas; lo sirve `GET /`, ver `server/routes/static.js`)
+- **Ruta**: `index.html` (raíz, ~3000 líneas; lo sirve `GET /`, ver `server/routes/static.js`)
 - Servido en `http://127.0.0.1:3000`. No abrir con doble clic (ver `MSG_DEBES_ABRIR_LOCALHOST`).
+- **IA (U2): 3 pestañas** — Proyecto (= dashboard + sprints + artefactos + logs fusionados),
+  [[agentes-flow|Agentes]] (roles + flow editables), Ajustes (proyecto + motor).
+  Eliminados: tabs Flujo/Sprints/Artefactos/Logs, bloques de credenciales,
+  selector backend, sección Ollama-directa/RAG, toggles outputs, team table.
 
 ## Logs (FASE 6: topes por todas partes)
 

@@ -136,21 +136,10 @@ describe('server API (integration)', () => {
     expect(res.body.success).toBe(true);
   });
 
-  test('GET /api/flow/diagram devuelve texto Mermaid', async () => {
-    fs.readJson.mockResolvedValue({
-      agents: {
-        team: [
-          { role: 'productOwner', enabled: true, label: 'PO' },
-          { role: 'scrumMaster', enabled: true, label: 'SM' }
-        ]
-      },
-      scrum: { maxSprints: 3 }
-    });
+  test('GET /api/flow/diagram ya no existe (U2: tira viva en Agentes)', async () => {
     const { app } = createServer();
     const res = await request(app).get('/api/flow/diagram');
-    expect(res.status).toBe(200);
-    expect(res.body.mermaid).toMatch(/flowchart TD/);
-    expect(res.body.mermaid).toMatch(/DEC\{/);
+    expect(res.status).toBe(404);
   });
 
   test('GET /api/ollama/models returns lista desde Ollama', async () => {
