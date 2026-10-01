@@ -13,7 +13,9 @@ class ExecTimeoutError extends Error {
 /**
  * @param {string} cmd - ejecutable (sin shell, sin interpolacion)
  * @param {string[]} args - argumentos (validados por el llamador)
- * @param {object} opts - { timeoutMs, signal, cwd, maxBuffer, env }
+ * @param {object} opts - { timeoutMs, signal, cwd, maxBuffer, env, stdin }
+ *   stdin: 'pipe' (defecto) | 'ignore' (cierra stdin: el hijo no puede
+ *   quedarse esperando input interactivo; recomendado en headless).
  * @returns {Promise<{stdout, stderr, code}>}
  */
 function spawnSafe(cmd, args, opts = {}) {
@@ -35,7 +37,8 @@ function spawnSafe(cmd, args, opts = {}) {
         shell: false,
         windowsHide: true,
         cwd: opts.cwd,
-        env: opts.env || process.env
+        env: opts.env || process.env,
+        stdio: opts.stdin === 'ignore' ? ['ignore', 'pipe', 'pipe'] : ['pipe', 'pipe', 'pipe']
       });
     } catch (e) {
       reject(e);

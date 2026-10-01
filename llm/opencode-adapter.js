@@ -7,6 +7,8 @@
 // como JSON en el body (serve).
 
 const { spawnSafe } = require('../utils/exec-safe');
+const path = require('path');
+const fs = require('fs');
 
 const DEFAULT_TIMEOUT_MS = 10 * 60 * 1000;
 
@@ -94,6 +96,60 @@ class OpencodeAdapter {
     this.username = cfg.username || process.env.OPENCODE_SERVER_USERNAME || '';
     this.password = cfg.password || process.env.OPENCODE_SERVER_PASSWORD || '';
     this.extraEnv = cfg.env || {};
+    this._binary = null; // resuelto por resolveBinary() (importante en Windows: .cmd no es ejecutable directo)
+  }
+
+  /**
+   * Resuelve el ejecutable real de opencode. En Windows, `opencode` suele ser
+   * un shim .cmd/.ps1 de npm que CreateProcess NO puede lanzar sin shell;
+   * hay que encontrar el opencode.exe real. Cachea el resultado.
+   */
+  async resolveBinary() {
+    if (this._binary) return this._binary;
+    // 1. Override explicito (ruta o nombre) si responde a --version.
+    if (this.command && this.command !== 'opencode') {
+      this._binary = this.command;
+      return this._binary;
+    }
+    const tried = [];
+    const candidates = [];
+    if (process.platform === 'win32') {
+      try {
+        const w = await spawnSafe('where', ['opencode'], { timeoutMs: 10000 });
+        if (w.code === 0) {
+          const lines = w.stdout.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+          // .exe primero (ejecutable directo); .cmd/.ps1 no sirven sin shell.
+          lines.sort((a, b) => (a.toLowerCase().endsWith('.exe') ? -1 : 1));
+          candidates.push(...lines);
+        }
+      } catch (e) {}
+      const appData = process.env.APPDATA || path.join(process.env.USERPROFILE || '', 'AppData', 'Roaming');
+      candidates.push(path.join(appData, 'npm', 'node_modules', 'opencode-ai', 'bin', 'opencode.exe'));
+    } else {
+      try {
+        const w = await spawnSafe('which', ['opencode'], { timeoutMs: 10000 });
+        if (w.code === 0) candidates.push(...w.stdout.split('\n').map((l) => l.trim()).filter(Boolean));
+      } catch (e) {}
+    }
+    candidates.push('opencode');
+    for (const c of candidates) {
+      if (tried.includes(c.toLowerCase())) continue;
+      tried.push(c.toLowerCase());
+      if ((c.toLowerCase().endsWith('.cmd') || c.toLowerCase().endsWith('.ps1')) && !fs.existsSync(c)) continue;
+      if (path.isAbsolute(c) && !fs.existsSync(c)) continue;
+      try {
+        const r = await spawnSafe(c, ['--version'], { timeoutMs: 15000 });
+        if (r.code === 0) {
+          this._binary = c;
+          return c;
+        }
+      } catch (e) {
+        // ENOENT u otro: probar siguiente candidato
+      }
+    }
+    throw new Error(
+      'No se encontro un ejecutable opencode funcional. ¿Esta instalado? https://opencode.ai (opencode --version debe responder).'
+    );
   }
 
   authHeaders() {
@@ -105,7 +161,8 @@ class OpencodeAdapter {
   async health() {
     if (this.mode === 'run') {
       try {
-        const r = await spawnSafe(this.command, ['--version'], { timeoutMs: 15000 });
+        const bin = await this.resolveBinary();
+        const r = await spawnSafe(bin, ['--version'], { timeoutMs: 15000 });
         const version = (r.stdout || r.stderr || '').trim().split('\n')[0];
         if (r.code !== 0) throw new Error((r.stderr || 'opencode --version fallo').trim());
         return { ok: true, mode: 'run', version };
@@ -157,7 +214,11 @@ class OpencodeAdapter {
   }
 
   async _generateRun(opts, signal) {
-    const args = ['run', '--format', 'json', '--dir', this.dir];
+    const bin = await this.resolveBinary();
+    // dir por llamada (p.ej. outputs/session-XXX): el modelo nunca trabaja
+    // sobre la raiz del repo salvo que se pida explicitamente.
+    const dir = opts.dir || this.dir;
+    const args = ['run', '--format', 'json', '--dir', dir];
     if (opts.agent) args.push('--agent', opts.agent);
     args.push('--model', opts.model || this.model);
     if (this.auto) args.push('--auto');
@@ -165,9 +226,10 @@ class OpencodeAdapter {
     if (opts.title) args.push('--title', opts.title);
     args.push(opts.prompt);
 
-    const r = await spawnSafe(this.command, args, {
+    const r = await spawnSafe(bin, args, {
       timeoutMs: 0, // el timeout lo gobierna el AbortSignal enlazado
       signal,
+      stdin: 'ignore', // headless: nunca esperar input interactivo (falla rapido, no cuelga)
       maxBuffer: 20 * 1024 * 1024,
       env: { ...process.env, ...this.extraEnv }
     });

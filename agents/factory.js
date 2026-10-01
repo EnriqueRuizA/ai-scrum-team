@@ -14,7 +14,7 @@ function teamLabel(team, role) {
   return (m && m.label) || role;
 }
 
-function createOpencodeAgents(team, config) {
+function createOpencodeAgents(team, config, outputDir) {
   const OpencodeAgent = require('./opencode-agent');
   const adapter = createAdapter(config);
   const oc = config.agents.opencode || {};
@@ -36,7 +36,8 @@ function createOpencodeAgents(team, config) {
       adapter,
       model: member.model || oc.model,
       files: Array.isArray(member.files) ? member.files : [],
-      timeoutMs: oc.timeoutMs
+      timeoutMs: oc.timeoutMs,
+      dir: outputDir || oc.dir || undefined
     });
   }
   return out;
@@ -139,7 +140,7 @@ function createAgents({ team, config, credentials, sessionDir, outputDir }) {
   // FASE 2: si hay bloque agents.opencode en config, el motor es opencode
   // (modelos gratuitos). Si no, ruta legacy (local/Claude) hasta FASE 5.
   if (config.agents && config.agents.opencode) {
-    return { agents: createOpencodeAgents(team, config), sharedAgents: [] };
+    return { agents: createOpencodeAgents(team, config, outputDir), sharedAgents: [] };
   }
   const useLocalBackend = config.agents?.backend === 'local';
   if (useLocalBackend) {

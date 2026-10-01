@@ -37,6 +37,21 @@ if not "%OPENCODE_SKIP_SETUP%"=="1" if %errorlevel% neq 0 (
   echo o pulsar Ctrl+C para revisar (ollama serve / opencode serve).
   pause
 )
+REM Si el modo es serve y opencode serve no escucha, levantarlo en otra ventana
+for /f "tokens=1,2 delims=|" %%a in ('powershell -NoProfile -Command "try { $c=Get-Content config/project-config.json -Raw | ConvertFrom-Json; $m=$c.agents.opencode.mode; if(-not $m){$m='run'}; $u=$c.agents.opencode.url; if(-not $u){$u='http://127.0.0.1:4096'}; $p=([uri]$u).Port; Write-Host ($m.ToLower()+'|'+$p) } catch { Write-Host 'run|4096' }"') do (
+  set "OC_MODE=%%a"
+  set "OC_PORT=%%b"
+)
+if /i "%OC_MODE%"=="serve" (
+  powershell -NoProfile -Command "if (Get-NetTCPConnection -LocalPort %OC_PORT% -State Listen -ErrorAction SilentlyContinue) { exit 0 } else { exit 1 }"
+  if %errorlevel%==0 (
+    echo [OK] opencode serve ya escucha en el puerto %OC_PORT%.
+  ) else (
+    echo Levantando opencode serve en el puerto %OC_PORT% (nueva ventana)...
+    start "opencode serve" opencode serve --port %OC_PORT%
+    timeout /t 4 /nobreak >nul
+  )
+)
 echo Iniciando servidor...
 node server.js
 if %errorlevel%==0 (

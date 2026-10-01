@@ -6,7 +6,7 @@
 const { parseLlmJsonResponse } = require('../lib/parse-llm-json');
 
 class OpencodeAgent {
-  constructor({ name, role, persona, adapter, model, files = [], timeoutMs }) {
+  constructor({ name, role, persona, adapter, model, files = [], timeoutMs, dir }) {
     this.name = name;
     this.role = role;
     this.persona = persona || '';
@@ -14,6 +14,7 @@ class OpencodeAgent {
     this.model = model || null;
     this.files = files;
     this.timeoutMs = timeoutMs;
+    this.dir = dir || null;
     this.initialized = false;
     this.eventHandlers = {};
     this._firstSent = false;
@@ -75,6 +76,7 @@ class OpencodeAgent {
       agent: undefined, // el rol ya viaja en la persona; el agent de opencode es opcional
       prompt,
       files: this.files,
+      dir: this.dir || undefined,
       title: `${this.role}`,
       model: this.model || undefined,
       timeoutMs: this.timeoutMs

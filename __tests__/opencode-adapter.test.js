@@ -47,12 +47,23 @@ describe('factory', () => {
 });
 
 describe('run mode (binario falso = node)', () => {
+  test('resolveBinary respeta override explicito', async () => {
+    const a = new OpencodeAdapter({ mode: 'run', command: 'node' });
+    await expect(a.resolveBinary()).resolves.toBe('node');
+  });
   test('health() ok con `node --version`', async () => {
     const a = new OpencodeAdapter({ mode: 'run', command: 'node', timeoutMs: 10000 });
     const h = await a.health();
     expect(h.ok).toBe(true);
     expect(h.mode).toBe('run');
     expect(h.version).toMatch(/v\d+\./);
+  });
+
+  test("stdin:'ignore' no rompe spawn (regresion cuelgue interactivo)", async () => {
+    const { spawnSafe } = require('../utils/exec-safe');
+    const r = await spawnSafe('node', ['--version'], { timeoutMs: 10000, stdin: 'ignore' });
+    expect(r.code).toBe(0);
+    expect(r.stdout).toMatch(/v\d+\./);
   });
 
   test('health() fallo con binario inexistente y hint util', async () => {
@@ -72,6 +83,34 @@ describe('run mode (binario falso = node)', () => {
     const ctrl = new AbortController();
     ctrl.abort();
     await expect(a.generate({ prompt: 'hola', signal: ctrl.signal })).rejects.toThrow();
+  });
+});
+
+describe('OpencodeAgent', () => {
+  const OpencodeAgent = require('../agents/opencode-agent');
+
+  test('trabaja dentro del outputDir (no la raiz del repo)', async () => {
+    const seen = {};
+    const fakeAdapter = {
+      async generate(opts) {
+        Object.assign(seen, opts);
+        return { text: '{"ok":true}' };
+      }
+    };
+    const agent = new OpencodeAgent({
+      name: 'Dev',
+      role: 'developer',
+      persona: 'Eres dev.',
+      adapter: fakeAdapter,
+      dir: '/tmp/session-xxx'
+    });
+    const events = [];
+    agent.on('log', (e) => events.push(e));
+    const text = await agent.sendMessage('haz algo', true);
+    expect(text).toBe('{"ok":true}');
+    expect(seen.dir).toBe('/tmp/session-xxx');
+    expect(seen.prompt).toMatch('Eres dev.');
+    expect(events.length).toBeGreaterThan(0);
   });
 });
 

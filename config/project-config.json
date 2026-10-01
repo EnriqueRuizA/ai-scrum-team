@@ -39,12 +39,12 @@
     ],
     "backend": "local",
     "opencode": {
-      "mode": "serve",
+      "mode": "run",
       "url": "http://127.0.0.1:4096",
-      "model": "ollama/llama3.2",
+      "model": "ollama/qwen3.5:9b",
       "timeoutMs": 600000,
       "auto": false,
-      "note": "Motor agentico (FASE 2). mode: serve (opencode serve persistente) | run (opencode run por llamada). model con formato proveedor/modelo de opencode. auto=true permite a opencode aprobar herramientas solo (nunca shell del proyecto)."
+      "note": "Motor agentico (FASE 2). mode: run (opencode run por llamada, sin proceso previo) | serve (opencode serve persistente, mas rapido; START.bat lo levanta solo). model con formato proveedor/modelo de opencode; debe existir (ollama list u opencode models)."
     },
     "rag": {
       "enabled": true,
