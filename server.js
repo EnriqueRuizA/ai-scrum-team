@@ -7,6 +7,7 @@ const path = require('path');
 const fs = require('fs-extra');
 
 const ScrumMasterOrchestrator = require('./orchestrator');
+const { RunLock } = require('./server/state-store');
 const { authHeadersFromLocalConfig, rawApiKeyFromLocalConfig } = require('./lib/local-llm');
 const {
   hintAfterListModelsFailure,
@@ -181,7 +182,7 @@ function createServer() {
 
   // Estado global
   let orchestrator = null;
-  let isRunning = false;
+  const runLock = new RunLock();
   const connectedClients = new Set();
 
 // WebSocket - broadcast a todos los clientes
@@ -523,8 +524,8 @@ function createServer() {
 
 // Iniciar el proyecto
   app.post('/api/start', async (req, res) => {
-  if (isRunning) {
-    return res.status(400).json({ error: 'Ya hay un proyecto en ejecución' });
+  if (!runLock.tryAcquire({ endpoint: '/api/start' })) {
+    return res.status(409).json({ error: 'Ya hay un proyecto en ejecución', run: runLock.getInfo() });
   }
 
   try {
@@ -597,7 +598,6 @@ function createServer() {
       }
     }
 
-    isRunning = true;
     broadcast('status', { status: 'starting' });
     res.json({ success: true, message: 'Proyecto iniciado' });
 
@@ -605,11 +605,10 @@ function createServer() {
     runProject(config, credentials).catch(err => {
       console.error('Error en proyecto:', err);
       broadcast('error', { message: err.message });
-      isRunning = false;
     });
 
   } catch (e) {
-    isRunning = false;
+    runLock.release();
     res.status(500).json({ error: e.message });
   }
   });
@@ -951,7 +950,7 @@ function createServer() {
     broadcast('error', { message: error.message });
     throw error;
   } finally {
-    isRunning = false;
+    runLock.release();
     if (orchestrator) {
       try {
         await orchestrator.saveState();
@@ -977,27 +976,41 @@ function createServer() {
     });
   }
 
-  if (!createServer._shutdownRegistered) {
-    createServer._shutdownRegistered = true;
-    const saveOnExit = async () => {
-      if (orchestrator) {
-        try {
-          await orchestrator.saveState();
-          console.log('[ai-scrum] Estado guardado en disco (cierre del servidor).');
-        } catch (e) {
-          console.error('[ai-scrum] No se pudo guardar el estado:', e.message);
-        }
+  // Handlers de cierre: uno por instancia (Set), sin flag estatico, para que
+  // los tests con varios createServer() no crucen estado entre si.
+  const saveOnExit = async () => {
+    if (orchestrator) {
+      try {
+        await orchestrator.saveState();
+        console.log('[ai-scrum] Estado guardado en disco (cierre del servidor).');
+      } catch (e) {
+        console.error('[ai-scrum] No se pudo guardar el estado:', e.message);
       }
-    };
-    process.on('SIGINT', () => {
-      saveOnExit().finally(() => process.exit(0));
-    });
-    process.on('SIGTERM', () => {
-      saveOnExit().finally(() => process.exit(0));
-    });
-  }
+    }
+  };
+  shutdownRegistry.add(saveOnExit);
 
   return { app, server, wss, start };
+}
+
+// Registro de guardados al cerrar: una sola suscripcion a SIGINT/SIGTERM por
+// proceso que recorre las instancias vivas (evita el leak del flag estatico).
+const shutdownRegistry = new Set();
+if (!shutdownRegistry._hooked) {
+  shutdownRegistry._hooked = true;
+  const saveAllAndExit = (signal) => {
+    const pending = [...shutdownRegistry].map((fn) => {
+      try {
+        return fn();
+      } catch (e) {
+        console.error(`[ai-scrum] saveOnExit (${signal}):`, e.message);
+        return Promise.resolve();
+      }
+    });
+    Promise.all(pending).finally(() => process.exit(0));
+  };
+  process.on('SIGINT', () => saveAllAndExit('SIGINT'));
+  process.on('SIGTERM', () => saveAllAndExit('SIGTERM'));
 }
 
 if (require.main === module) {
