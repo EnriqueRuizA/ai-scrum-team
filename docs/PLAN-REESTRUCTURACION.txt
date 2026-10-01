@@ -1,7 +1,8 @@
 ===============================================================================
- PLAN DE REESTRUCTURACION Y CORRECCION - ai-scrum-team  (v2, DEFINITIVO)
- Fecha: 2026-09-30
- Estado: REDACTADO - listo para ejecutar fase a fase
+ PLAN DE REESTRUCTURACION Y CORRECCION - ai-scrum-team  (v3, EN EJECUCION)
+ Fecha: 2026-09-30 (v3: 2026-10-01, anade fases UX U0-U3)
+ Estado: FASES 0-6 + UX-intermedio HECHAS (commits phase-0..phase-6, fix, ux);
+         pendientes U0-U3 (UX profundo) y FASE 7.
  Objetivo: Corregir hallazgos de la auditoria, simplificar y modularizar el
            proyecto, y convertirlo en un generador de flujos agenticos basado
            en los MODELOS GRATUITOS DE OPENCODE (motor opencode + proveedor
@@ -20,12 +21,17 @@ INDICE
   6. FASE 3 - Seguridad (P0)
   7. FASE 4 - Pruebas (P0/P1)
   8. FASE 5 - Modularizacion y simplificacion (P1)
-  9. FASE 6 - Frontend / Dashboard (P1)
- 10. FASE 7 - Documentacion (P2)
- 11. Problemas emergentes previstos y mitigaciones
- 12. Checklist de aceptacion (Definition of Done)
- 13. Estimacion de esfuerzo y orden de ejecucion
- 14. Riesgos y rollback
+  9. FASE 6 - Frontend / Dashboard (P1) [HECHA]
+ 10. UX-intermedio - Pill/preflight motor, Settings opencode (P0) [HECHO]
+ 11. U0 - START.bat end-to-end garantizado
+ 12. U1 - Backend: roles + skills + flow con loops
+ 13. U2 - UI remodelada: 3 pestanas
+ 14. U3 - Cierre UX (limpieza, verificacion, docs)
+ 15. FASE 7 - Documentacion (P2)
+ 16. Problemas emergentes previstos y mitigaciones (E1-E10 + E11-E15 UX)
+ 17. Checklist de aceptacion (Definition of Done, ampliado UX)
+ 18. Estimacion de esfuerzo y orden de ejecucion (actualizado)
+ 19. Riesgos y rollback
 
 -------------------------------------------------------------------------------
 0. DECISIONES CERRADAS Y CONTEXTO
@@ -43,6 +49,20 @@ Respuestas del usuario (2026-09-30):
   D4. generar_mapa.py SE BORRA (el grafo de Obsidian lo cubre).
   D5. project_schema.json SE BORRA (el grafo de Obsidian lo cubre). Tambien se
       borran GRAPH_MAP.md y architecture.html por el mismo motivo.
+  D6. (UX, 2026-10-01) Pestana Flujo ELIMINADA del todo (pestana + endpoint
+      /api/flow/diagram + lib/flow-mermaid.js); sustituida por tira de
+      secuencia viva en la pestana Agentes.
+  D7. (UX) Backend Claude-navegador y credenciales (Claude/Gmail/LinkedIn/
+      InfoJobs/Indeed) FUERA de la UI (siguen configurables por fichero).
+      UI 100% opencode.
+  D8. (UX) Empezar de cero: el nuevo modelo roles+flow NO migra la config
+      antigua (sin automigracion); instalacion fresca trae el flujo Scrum
+      clasico por defecto.
+  D9. (UX) Tareas tipadas cerradas: plan | refinar | implementar | probar |
+      revisar | libre. Cada paso del flow = rol + tarea (parseable).
+  D10. (UX) Roles personalizables con skills + secuencia en orden libre +
+      loops (p.ej. QA->fix hasta pasar). Sin roles reservados: SM/PO/Dev/QA
+      son los 4 roles por defecto, borrables como cualquier otro.
 
 Decisiones tecnicas por defecto (recomendadas, configurables):
   T1. Integracion con opencode: MODO PRIMARIO = `opencode serve` persistente
@@ -53,6 +73,16 @@ Decisiones tecnicas por defecto (recomendadas, configurables):
   T2. Roles (PO, Dev, QA, SM) definidos como AGENTES DE OPENCODE en
       .opencode/agent/ (visibles y editables), con un ejemplo versionado en
       el repo (opencode.example/ o docs/). El orquestador los invoca por nombre.
+  T3. (UX) Skills = `.opencode/skills/<nombre>/SKILL.md` (formato opencode:
+      frontmatter name+description). Los roles referencian skills por nombre;
+      `export-agents.js` las vuelca al frontmatter del `.md`
+      (`permission: {skill: {...allow}}`). `setup.js` avisa si falta alguna
+      (no falla). Nuevo `GET /api/skills` lista las descubiertas.
+  T4. (UX) El pipeline pasa de secuencia fija a EJECUTOR GENERICO de pasos:
+      cada paso = {role, task, loop?, onError?}; loops con
+      `until: qa.passed|noCriticalBugs|filesWritten|always` + `max` +
+      `fix?`; artefactos genericos {step, role, task, data, files?,
+      iterations?}. `maxSprints` sigue como eje exterior.
 
 Hallazgos de la auditoria que este plan corrige (resumen):
   C1 orchestrator.js:269-270 truncado pero requerido por server.js:9.
@@ -369,7 +399,112 @@ Test: __tests__/opencode-adapter.test.js (spawn/HTTP mockeados: args exactos,
 9.5 docs/adr/0001-ws-sin-auth-localhost.md (justificar WS sin token).
 
 -------------------------------------------------------------------------------
-10. FASE 7 - DOCUMENTACION (P2)
+10. UX-INTERMEDIO - PILL/PREFLIGHT MOTOR, SETTINGS OPENCODE (P0) [HECHO]
+-------------------------------------------------------------------------------
+Commit `a76f068` (112/112 tests). Ver seccion 0 (D6-D10 parciales ya aplicadas
+aqui: pill, preflight, seccion motor) y nota Obsidian `dashboard.md`.
+
+-------------------------------------------------------------------------------
+11. U0 - START.BAT END-TO-END GARANTIZADO (0.5 dias)
+-------------------------------------------------------------------------------
+U0.1 Protocolo de verificacion (manual, en la maquina del usuario):
+      START.bat (doble clic) -> preflight OK -> dashboard 200 ->
+      pill motor OK -> `POST /api/start` acepta en modo `run` sin `serve`
+      previo -> `npm run smoke` verde.
+U0.2 Endurecer: fallo fatal de setup.js = mensaje claro + pausa (existe);
+      documentar `OPENCODE_SKIP_SETUP=1` como comentario en el propio .bat.
+U0.3 Si modo=serve y nadie escucha, START.bat levanta `opencode serve` solo
+      (existe); STOP.bat --with-engine lo para (existe).
+Entregable U0: checklist firmado en el commit (evidencia de cada paso).
+
+-------------------------------------------------------------------------------
+12. U1 - BACKEND: ROLES + SKILLS + FLOW CON LOOPS (2-3 dias)
+-------------------------------------------------------------------------------
+U1.1 Nuevo modelo en `config/project-config.json` (sustituye `agents.team`;
+      `team` deja de leerse; D8: sin automigracion, default = flujo Scrum
+      clasico):
+        "agents": {
+          "roles": [
+            {"id":"po","label":"Product Owner",
+             "mission":"Define que construir...",
+             "extra":"...",
+             "model":"ollama/qwen3.5:9b",      // opcional, hereda opencode.model
+             "skills":["mis-docs"],            // nombres ^[a-z0-9]+(-[a-z0-9]+)*$
+             "enabled":true}
+          ],
+          "flow": [
+            {"role":"sm","task":"plan"},
+            {"role":"po","task":"refinar"},
+            {"role":"dev","task":"implementar"},
+            {"role":"qa","task":"probar",
+             "loop":{"until":"qa.passed","max":3,
+                     "fix":{"role":"dev","task":"implementar"}}},
+            {"role":"sm","task":"revisar"}
+          ],
+          "opencode": {...}
+        }
+U1.2 Tareas cerradas (D9): plan|refinar|implementar|probar|revisar|libre.
+      Nuevo `orchestrator/tasks/*.js`: cada una con constructor de prompt +
+      parser/extractor (los actuales de pipeline.js se mudan aqui).
+U1.3 `orchestrator/pipeline.js` reescrito como EJECUTOR GENERICO (T4):
+      por cada paso: resuelve rol (por id, error 400 si falta/deshabilitado)
+      -> agente via factory -> prompt segun tarea -> parse segun tarea ->
+      artefacto generico {step,role,task,data,files?,iterations?} ->
+      evalua loop (condiciones: qa.passed|noCriticalBugs|filesWritten|
+      always) y onError (abort|continue, defecto abort).
+      `maxSprints` sigue como eje exterior (flow x sprints).
+U1.4 Skills (T3): `export-agents.js` vuelca skills al frontmatter del .md;
+      `setup.js` avisa si falta `.opencode/skills/<n>/SKILL.md`; nuevo
+      `GET /api/skills` (escanea workspace, solo nombres+descripcion).
+U1.5 Validador + factory + `export-agents` + `setup` actualizados al modelo.
+      `agents/team-config.js` pasa a validar roles+flow (compat: team ignora).
+U1.6 Tests: executor con mocks (orden libre; loop itera 2x y corta; loop
+      agota max; rol desconocido; skill invalida; tarea libre sin parse).
+      Commits: `ux-roles` (modelo+tasks+pipeline), `ux-skills` (skills+skills
+      endpoint), `ux-flow` (loops+validador+factory).
+
+-------------------------------------------------------------------------------
+13. U2 - UI REMODELADA: 3 PESTANAS (2-3 dias)
+-------------------------------------------------------------------------------
+Estado actual (index.html ~3593 lineas, 7 tabs): nav "Agentes" MUERTO (sin
+div), tabs Sprints/Artefactos/Logs duplican el dashboard, Flujo es estatico,
+Settings mezcla 5 bloques de credenciales + Ollama-directo + RAG (legacy).
+Nueva IA (D6/D7):
+  - **Proyecto** = dashboard + sprint board + artefactos + terminal en una
+    vista (se eliminan tab-sprints/tab-artifacts/tab-logs como pestanas;
+    terminal con "ver todo" expandible inline). Conserva pill motor/estado,
+    Iniciar/Pausa/Stop, progreso, preflight.
+  - **Agentes** (pestana nueva real): cards por rol (mision visible, toggle,
+    nombre, modelo, skills como tags editables, subir/bajar, borrar,
+    "+ Nuevo rol") + TIRA DE SECUENCIA VIVA (pasos del flow con flechas,
+    badge de loop, anadir/quitar/reordenar; por paso: rol + tarea + config
+    de loop). Un solo Guardar (POST validado, errores por campo).
+  - **Ajustes**: solo Proyecto (nombre, descripcion, sprints) + Motor
+    (mode/modelo/url + Comprobar) + `<details>` Avanzado (toggles outputs).
+    ELIMINADO de la UI: credenciales x5, selector backend, seccion
+    Ollama-directa/RAG/api-key. Endpoints de credenciales quedan (solo
+    fichero, sin UI).
+  - ELIMINADO del todo: pestana Flujo + `GET /api/flow/diagram` +
+    `lib/flow-mermaid.js` (+ reescribir su test en server.api.int),
+    `refreshFlowDiagram`, `renderTeamTable/readTeamFromTable`, presets
+    locales del dashboard.
+  - Estimacion index.html: ~3593 -> ~2000 lineas. Reutilizar CSS/JS;
+    borrar funciones muertas. Verificacion: boot + click-through +
+    tests de endpoints. Commit `ux-ui`.
+
+-------------------------------------------------------------------------------
+14. U3 - CIERRE UX (1 dia)
+-------------------------------------------------------------------------------
+U3.1 `GET /api/skills` + START.bat verificado de verdad (doble clic ->
+      Iniciar real con maxSprints:1 en copia temporal de config + limpieza).
+U3.2 Suite verde + lint + check:secrets; sin endpoints huerfanos
+      (inventario 25 rutas - flow = 24).
+U3.3 Docs: Obsidian (`dashboard.md` reescrito, nota nueva `agentes-flow.md`,
+      MOC, `fases.md`) + `docs/adr/0002-roles-flow-loops.md`. Commits
+      `ux-cierre`. FASE 7 despues (README/GUIA/TROUBLESHOOTING/CHANGELOG/0.2.0).
+
+-------------------------------------------------------------------------------
+15. FASE 7 - DOCUMENTACION (P2)
 -------------------------------------------------------------------------------
 10.1 README.md reescrito: motor opencode + modelos gratis (Ollama local),
     requisitos (opencode CLI + ollama serve + pull de modelos), quickstart,
@@ -383,7 +518,7 @@ Test: __tests__/opencode-adapter.test.js (spawn/HTTP mockeados: args exactos,
 10.6 CHANGELOG.md inicial + bump a 0.2.0 al cerrar la fase.
 
 -------------------------------------------------------------------------------
-11. PROBLEMAS EMERGENTES PREVISTOS
+16. PROBLEMAS EMERGENTES PREVISTOS
 -------------------------------------------------------------------------------
 E1. Renombres rompen imports -> git mv + barrels + tests tras cada rename;
     mantener legacy hasta FASE 4 con cobertura.
@@ -401,9 +536,19 @@ E9. `opencode run` por turno (modo fallback) hace cold-boot por paso: para
     pipelines largos preferir mode "serve"; documentado en TROUBLESHOOTING.
 E10. Permisos de herramientas de opencode (--auto): por defecto auto=false
     (seguro); auto=true solo en local documentado.
+E11. (UX) Roles sin mision util -> system prompt vacio y respuestas
+    inparseables: validador exige mission>=10 chars; tarea `libre` como
+    escape sin parseo.
+E12. (UX) Loops infinitos por modelo que nunca cumple `until`: `max`
+    obligatorio (>=1, tope 10) + siempre se registra iterations[].
+E13. (UX) `agents.team` antiguo en discos de usuarios: se IGNORA (D8);
+    setup.js avisa si existe team sin roles/flow ("config antigua").
+E14. (UX) index.html monolito: remodelar por secciones con boot+click-through
+    tras cada bloque; no reescribir de cero (riesgo de regresion).
+E15. (UX) Skills inexistentes: solo aviso (no error) para no bloquear sin red.
 
 -------------------------------------------------------------------------------
-12. CHECKLIST DE ACEPTACION (Definition of Done)
+17. CHECKLIST DE ACEPTACION (Definition of Done)
 -------------------------------------------------------------------------------
 [ ] git ls-files sin: credentials.json, temp-*, debug*.log, architecture.html,
     GRAPH_MAP.md, generar_mapa.py, project_schema.json, agents-config.json.
@@ -420,9 +565,13 @@ E10. Permisos de herramientas de opencode (--auto): por defecto auto=false
 [ ] README/GUIA describen flujo opencode+gratis; nada apunta a inexistentes.
 [ ] Docker opcional: build && run -> dashboard responde.
 [ ] Node 20 y 22 sin warnings de engines.
+[ ] UX: de cero solo con UI (motor + roles por defecto + flow clasico +
+    Iniciar funciona); loop QA->fix visible con iterations[] en artefactos.
+[ ] UX: 3 pestanas (Proyecto/Agentes/Ajustes); sin tabs muertos ni bloques
+    legacy; index.html ~2000 lineas; endpoints huerfanos = 0.
 
 -------------------------------------------------------------------------------
-13. ORDEN DE EJECUCION Y ESFUERZO ESTIMADO
+18. ORDEN DE EJECUCION Y ESFUERZO ESTIMADO (ACTUALIZADO v3)
 -------------------------------------------------------------------------------
   FASE 0  Higiene git/secretos/mapss       0.5 dia   (bloqueante)
   FASE 1  Orquestador unico delgado        1-2 dias  (bloqueante)
@@ -430,15 +579,21 @@ E10. Permisos de herramientas de opencode (--auto): por defecto auto=false
   FASE 3  Seguridad                        1.5-2 dias
   FASE 4  Pruebas                          1-2 dias  (paralelo con FASE 3)
   FASE 5  Modularizacion / limpieza        2 dias
-  FASE 6  Frontend                         1 dia
+  FASE 6  Frontend                         1 dia   [HECHA]
+  UX-int  Pill/preflight/Settings opencode  0.5 dia [HECHO]
+  U0      START.bat garantizado            0.5 dia
+  U1      Roles + skills + flow/loops      2-3 dias
+  U2      UI 3 pestanas                    2-3 dias
+  U3      Cierre UX                        1 dia
   FASE 7  Documentacion                    0.5-1 dia
-  TOTAL                                     ~10-13 dias de esfuerzo
+  TOTAL anterior                            ~10-13 dias (invertidos)
+  TOTAL nuevo                               ~6-8 dias restantes
 
-  Orden obligatorio: 0 -> 1 -> 2 -> 3 -> 4 -> (5,6,7 en paralelo).
-  Cada fase termina con: npm test + npm run lint + smoke manual.
+  Orden: U0 -> U1 -> U2 -> U3 -> FASE 7.
+  Cada fase termina con: npm test + npm run lint + verificacion viva.
 
 -------------------------------------------------------------------------------
-14. RIESGOS Y ROLLBACK
+19. RIESGOS Y ROLLBACK
 -------------------------------------------------------------------------------
  - Cada fase = commits "phase-N: ..." para git revert selectivo.
  - Tag local pre-phase-0 antes de borrar ficheros (D2: sin remoto, el riesgo
@@ -449,7 +604,10 @@ E10. Permisos de herramientas de opencode (--auto): por defecto auto=false
    al menos 2 releases (documentado en adr/0001).
  - Si `opencode serve` no encaja en algun entorno, el modo "run" es el
    fallback soportado (misma interfaz, solo cambia factory + config).
+ - UX: cada subfase (ux-roles/ux-skills/ux-flow/ux-ui/ux-cierre) = commit
+   propio; `agents.team` antiguo se ignora pero NO se borra del fichero del
+   usuario (D8: empezar de cero sin destruir nada).
 
 ===============================================================================
- FIN DEL PLAN v2
+ FIN DEL PLAN v3
 ===============================================================================
