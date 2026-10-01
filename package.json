@@ -5,7 +5,9 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "setup": "npx playwright install chromium --force",
+    "setup": "node setup.js",
+    "smoke": "node scripts/smoke-opencode.js",
+    "export-agents": "node scripts/export-agents.js",
     "dev": "node server.js --dev --inspect=9229",
     "test": "node tests/run-all-tests.js",
     "test:unit": "node tests/test-agent-order.js",

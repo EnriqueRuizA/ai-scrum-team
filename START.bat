@@ -28,7 +28,15 @@ if %errorlevel%==0 (
   exit /b 0
 )
 
-REM Si el puerto no está en uso, iniciar el servidor
+REM Si el puerto no está en uso, preflight + iniciar el servidor
+echo Comprobando motor (opencode/ollama)...
+node setup.js
+if not "%OPENCODE_SKIP_SETUP%"=="1" if %errorlevel% neq 0 (
+  echo.
+  echo [AVISO] El preflight devolvio aviso/error. Puedes continuar igualmente
+  echo o pulsar Ctrl+C para revisar (ollama serve / opencode serve).
+  pause
+)
 echo Iniciando servidor...
 node server.js
 if %errorlevel%==0 (

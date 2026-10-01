@@ -1,41 +1,106 @@
-// setup.js - Script de configuración inicial
-const { execSync } = require('child_process');
-const fs = require('fs-extra');
-const path = require('path');
+// setup.js - FASE 2: health-check inicial (sin credenciales, sin Playwright).
+// Verifica: directorios, config valida, opencode instalado, motor alcanzable
+// (serve o run) y modelo de Ollama disponible. Playwright/Chromium solo con
+// --claude (backend opcional). Nunca falla por credenciales: ya no existen.
 
-async function setup() {
-  console.log('\n🚀 AI SCRUM TEAM - Setup Inicial\n');
-  
-  // Crear directorios necesarios
-  const dirs = ['outputs', 'sessions', 'logs'];
-  for (const dir of dirs) {
-    await fs.ensureDir(dir);
-    console.log(`✓ Directorio creado: ${dir}/`);
-  }
-  
-  // Verificar credenciales
-  const credPath = './config/credentials.json';
-  const creds = await fs.readJson(credPath);
-  
-  if (creds.claude.email === 'TU_EMAIL@gmail.com') {
-    console.log('\n⚠️  IMPORTANTE: Configura tus credenciales en:');
-    console.log('   → config/credentials.json');
-    console.log('   → O desde el dashboard en Settings\n');
-  }
-  
-  // Instalar browsers de Playwright
-  console.log('📦 Instalando Chromium para Playwright...');
+const fs = require('fs-extra');
+const { spawnSafe } = require('./utils/exec-safe');
+const { validateProjectConfig } = require('./utils/config-validator');
+
+const CLAUDE_ONLY = process.argv.includes('--claude');
+
+async function checkOllamaModels() {
   try {
-    execSync('npx playwright install chromium', { stdio: 'inherit' });
-    console.log('✓ Chromium instalado\n');
+    const r = await spawnSafe('ollama', ['list'], { timeoutMs: 15000 });
+    if (r.code !== 0) return { ok: false, models: [] };
+    const models = r.stdout
+      .split('\n')
+      .slice(1)
+      .map((l) => l.trim().split(/\s+/)[0])
+      .filter(Boolean);
+    return { ok: true, models };
   } catch (e) {
-    console.log('⚠️  Error instalando Chromium. Ejecuta manualmente: npx playwright install chromium\n');
+    return { ok: false, models: [], error: e.message };
   }
-  
-  console.log('✅ Setup completado!');
-  console.log('\nPara iniciar:');
-  console.log('  npm start');
-  console.log('  → Abre http://localhost:3000\n');
 }
 
-setup().catch(console.error);
+async function main() {
+  console.log('\nAI SCRUM TEAM - Setup (FASE 2: motor opencode)\n');
+  let warnings = 0;
+  const warn = (m) => {
+    warnings += 1;
+    console.log(`  ! ${m}`);
+  };
+
+  for (const dir of ['outputs', 'sessions', 'logs']) {
+    await fs.ensureDir(dir);
+    console.log(`  ✓ Directorio: ${dir}/`);
+  }
+
+  // 1. Config valida
+  let config = {};
+  try {
+    config = await fs.readJson('./config/project-config.json');
+  } catch (e) {
+    console.log('  ✖ No se pudo leer config/project-config.json');
+    process.exitCode = 1;
+    return;
+  }
+  const v = validateProjectConfig(config);
+  if (!v.ok) {
+    console.log('  ✖ project-config.json invalido:');
+    v.errors.forEach((e) => console.log(`    - ${e}`));
+    process.exitCode = 1;
+    return;
+  }
+  console.log('  ✓ project-config.json valido');
+
+  // 2. opencode instalado y motor alcanzable
+  const oc = config.agents?.opencode || { mode: 'serve', model: 'ollama/llama3.2' };
+  const { createAdapter } = require('./llm/factory');
+  const health = await createAdapter(config).health();
+  if (health.ok) {
+    console.log(`  ✓ Motor opencode OK (modo ${health.mode}${health.version ? `, ${health.version}` : ''})`);
+  } else {
+    warn(`Motor opencode NO disponible: ${health.error}`);
+    console.log(`    → ${health.hint}`);
+  }
+
+  // 3. Modelo (solo informativo si el proveedor es Ollama local)
+  const model = oc.model || 'ollama/llama3.2';
+  if (model.startsWith('ollama/')) {
+    const ollama = await checkOllamaModels();
+    const want = model.slice('ollama/'.length);
+    if (!ollama.ok) {
+      warn('Ollama no responde (ollama list fallo). ¿Esta `ollama serve` en marcha?');
+    } else if (!ollama.models.some((m) => m === want || m.startsWith(`${want}:`))) {
+      warn(`El modelo "${want}" no esta en Ollama. Instalados: ${ollama.models.join(', ') || '(ninguno)'}`);
+      console.log(`    → Ejecuta: ollama pull ${want}`);
+      console.log('      o cambia agents.opencode.model en config/project-config.json');
+    } else {
+      console.log(`  ✓ Modelo Ollama disponible: ${want}`);
+    }
+  } else {
+    console.log(`  · Modelo no-Ollama (${model}): la auth vive en opencode (opencode auth list).`);
+  }
+
+  // 4. Playwright solo si se pide el backend opcional
+  if (CLAUDE_ONLY) {
+    console.log('  · Instalando Chromium (backend opcional --claude)...');
+    try {
+      const r = await spawnSafe('npx', ['playwright', 'install', 'chromium'], { timeoutMs: 10 * 60 * 1000 });
+      if (r.code !== 0) warn('Chromium no se pudo instalar; ejecucion manual: npx playwright install chromium');
+      else console.log('  ✓ Chromium instalado');
+    } catch (e) {
+      warn(`Chromium: ${e.message}`);
+    }
+  }
+
+  console.log(warnings === 0 ? '\nSetup OK. Inicia con: npm start (o START.bat)\n' : `\nSetup con ${warnings} aviso(s). Revisa arriba y reejecuta.\n`);
+  if (warnings > 0) process.exitCode = 0; // avisos, no error fatal
+}
+
+main().catch((e) => {
+  console.error('Setup fallo:', e.message);
+  process.exitCode = 1;
+});

@@ -38,6 +38,14 @@
       }
     ],
     "backend": "local",
+    "opencode": {
+      "mode": "serve",
+      "url": "http://127.0.0.1:4096",
+      "model": "ollama/llama3.2",
+      "timeoutMs": 600000,
+      "auto": false,
+      "note": "Motor agentico (FASE 2). mode: serve (opencode serve persistente) | run (opencode run por llamada). model con formato proveedor/modelo de opencode. auto=true permite a opencode aprobar herramientas solo (nunca shell del proyecto)."
+    },
     "rag": {
       "enabled": true,
       "indexPaths": [

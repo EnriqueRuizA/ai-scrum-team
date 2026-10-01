@@ -533,10 +533,19 @@ function createServer() {
     const useLocal = config.agents?.backend === 'local';
     let credentials = {};
     if (!useLocal) {
-      credentials = await fs.readJson('./config/credentials.json');
+      credentials = await fs.readJson('./config/credentials.json').catch(() => ({}));
       if (!credentials.claude?.email || !String(credentials.claude.email).trim()) {
         return res.status(400).json({
           error: 'Credenciales de Claude.ai: indica al menos el email. La contraseña es opcional si usas enlace mágico por correo.'
+        });
+      }
+    } else if (config.agents?.opencode) {
+      // FASE 2: el motor es opencode (modelos gratuitos). Un solo health-check.
+      const { createAdapter } = require('./llm/factory');
+      const ocHealth = await createAdapter(config).health();
+      if (!ocHealth.ok) {
+        return res.status(400).json({
+          error: `Motor opencode no disponible (${ocHealth.mode}): ${ocHealth.error}. ${ocHealth.hint || ''}`
         });
       }
     } else {
@@ -772,58 +781,41 @@ function createServer() {
    */
   app.patch('/api/config/order', async (req, res) => {
   try {
+    const { normalizeTeam, VALID_ROLES } = require('./agents/team-config');
+    const { validateProjectConfig } = require('./utils/config-validator');
     const current = await fs.readJson('./config/project-config.json').catch(() => ({}));
     const { agentsOrder } = req.body;
-    
+
     if (!Array.isArray(agentsOrder)) {
       return res.status(400).json({ error: 'agentsOrder debe ser una array' });
     }
-    
-    // Leer también la config de agentsOrder
-    let agentsOrderConfig = [];
-    try {
-      const agentsConfigPath = './config/agents-config.json';
-      if (await fs.pathExists(agentsConfigPath)) {
-        const agentsOrderData = await fs.readJson(agentsConfigPath);
-        agentsOrderConfig = agentsOrderData.agentsOrder || [];
-      }
-    } catch (e) {}
-    
-    // Actualizar en el config principal
+    const unknown = agentsOrder.filter((r) => !VALID_ROLES.includes(r));
+    if (unknown.length > 0) {
+      return res.status(400).json({ error: `Roles desconocidos: ${unknown.join(', ')}` });
+    }
+
+    // FASE 2: el orden vive en agents.team (una sola fuente). Se reordena el
+    // array poniendo primero los roles pedidos; el resto mantiene su orden.
+    const team = normalizeTeam(current);
+    const rank = new Map(agentsOrder.map((r, i) => [r, i]));
+    team.sort((a, b) => {
+      const ra = rank.has(a.role) ? rank.get(a.role) : VALID_ROLES.length;
+      const rb = rank.has(b.role) ? rank.get(b.role) : VALID_ROLES.length;
+      return ra - rb;
+    });
+
     const updated = {
       ...current,
       agents: {
         ...current.agents,
-        agentsOrder: agentsOrder
+        team
       }
     };
-    
-    // Guardar en el archivo
+    const v = validateProjectConfig(updated);
+    if (!v.ok) return res.status(400).json({ error: v.errors.join('; ') });
+
     await fs.writeJson('./config/project-config.json', updated, { spaces: 2 });
-    // También guardar en agents-config.json si existe
-    if (await fs.pathExists('./config/agents-config.json')) {
-      await fs.writeJson(
-        './config/agents-config.json',
-        {
-          ...agentsOrderData,
-          agentsOrder: agentsOrder
-        },
-        { spaces: 2 }
-      );
-    } else {
-      // Crear si no existe
-      await fs.writeJson('./config/agents-config.json', {
-        agentsOrder: agentsOrder,
-        defaultModel: current.agents?.defaultModel || 'gpt-4o-mini',
-        agents: {
-          productOwner: {},
-          developer: {},
-          qaTester: {},
-          scrumMaster: {}
-        }
-      }, { spaces: 2 });
-    }
-    
+
     res.json({ success: true, agentsOrder });
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -869,39 +861,32 @@ function createServer() {
    */
   app.patch('/api/config/agents/:id/model', async (req, res) => {
   try {
+    const { normalizeTeam } = require('./agents/team-config');
+    const { validateProjectConfig } = require('./utils/config-validator');
     const agentId = decodeURIComponent(req.params.id);
     const { model } = req.body;
-    
+
     if (!model || typeof model !== 'string') {
       return res.status(400).json({ error: 'model debe ser una cadena válida' });
     }
-    
-    // Leer config de agents y actualizar el modelo del agente
-    const agentsConfigPath = './config/agents-config.json';
-    if (!(await fs.pathExists(agentsConfigPath))) {
-      return res.status(404).json({ error: 'Config de agentes no encontrada' });
-    }
-    
-    const agentsConfig = await fs.readJson(agentsConfigPath);
-    
-    if (!agentsConfig.agents || !agentsConfig.agents[agentId]) {
+
+    // FASE 2: el modelo por miembro vive en agents.team[].model
+    // (formato proveedor/modelo de opencode, p.ej. ollama/llama3.2).
+    const current = await fs.readJson('./config/project-config.json').catch(() => ({}));
+    const team = normalizeTeam(current);
+    const member = team.find((t) => t.id === agentId || t.role === agentId);
+    if (!member) {
       return res.status(404).json({ error: `Agente «${agentId}» no encontrado` });
     }
-    
-    const updatedAgentsConfig = {
-      ...agentsConfig,
-      agents: {
-        ...agentsConfig.agents,
-        [agentId]: {
-          ...agentsConfig.agents[agentId],
-          model: model
-        }
-      }
-    };
-    
-    await fs.writeJson(agentsConfigPath, updatedAgentsConfig, { spaces: 2 });
-    
-    res.json({ success: true, agentId, model });
+    member.model = model.trim();
+
+    const updated = { ...current, agents: { ...current.agents, team } };
+    const v = validateProjectConfig(updated);
+    if (!v.ok) return res.status(400).json({ error: v.errors.join('; ') });
+
+    await fs.writeJson('./config/project-config.json', updated, { spaces: 2 });
+
+    res.json({ success: true, agentId, model: member.model });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }

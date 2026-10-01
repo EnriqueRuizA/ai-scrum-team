@@ -5,12 +5,41 @@
 // En FASE 2 el interior se sustituye por el adapter de opencode sin tocar al
 // orquestador: solo esta factoria cambia.
 
-const { SCRUM_MASTER, PRODUCT_OWNER, DEVELOPER, QA_TESTER } = require('../prompts');
+const { SCRUM_MASTER, PRODUCT_OWNER, DEVELOPER, QA_TESTER } = require('./personas');
 const { getEnabledRoles } = require('./team-config');
+const { createAdapter } = require('../llm/factory');
 
 function teamLabel(team, role) {
   const m = team.find((t) => t.role === role);
   return (m && m.label) || role;
+}
+
+function createOpencodeAgents(team, config) {
+  const OpencodeAgent = require('./opencode-agent');
+  const adapter = createAdapter(config);
+  const oc = config.agents.opencode || {};
+  const enabled = getEnabledRoles(team);
+  const out = {};
+  const defs = [
+    ['productOwner', PRODUCT_OWNER],
+    ['developer', DEVELOPER],
+    ['qaTester', QA_TESTER],
+    ['scrumMaster', SCRUM_MASTER]
+  ];
+  for (const [role, personaFn] of defs) {
+    if (!enabled.has(role)) continue;
+    const member = team.find((t) => t.role === role) || {};
+    out[role] = new OpencodeAgent({
+      name: teamLabel(team, role),
+      role,
+      persona: personaFn(config),
+      adapter,
+      model: member.model || oc.model,
+      files: Array.isArray(member.files) ? member.files : [],
+      timeoutMs: oc.timeoutMs
+    });
+  }
+  return out;
 }
 
 function createLocalAgents(team, config, sessionDir, outputDir) {
@@ -107,6 +136,11 @@ function createClaudeAgents(team, config, credentials, sessionDir, outputDir) {
  *   qaTester?, scrumMaster?} y sharedAgents = [agente compartido?] para init.
  */
 function createAgents({ team, config, credentials, sessionDir, outputDir }) {
+  // FASE 2: si hay bloque agents.opencode en config, el motor es opencode
+  // (modelos gratuitos). Si no, ruta legacy (local/Claude) hasta FASE 5.
+  if (config.agents && config.agents.opencode) {
+    return { agents: createOpencodeAgents(team, config), sharedAgents: [] };
+  }
   const useLocalBackend = config.agents?.backend === 'local';
   if (useLocalBackend) {
     return {
