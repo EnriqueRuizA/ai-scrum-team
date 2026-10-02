@@ -2,7 +2,10 @@
 // Cumple la interfaz normalizada de agents/factory.js:
 //   { name, role, on, initialize, sendMessage(msg, isFirst?), close }.
 // La persona (system prompt) se antepone solo en el primer mensaje.
+// Un agente = una sesion opencode por ejecucion (reutilizada en cada llamada
+// para no generar decenas de sesiones duplicadas con el mismo titulo).
 
+const path = require('path');
 const { parseLlmJsonResponse } = require('../lib/parse-llm-json');
 
 class OpencodeAgent {
@@ -17,6 +20,7 @@ class OpencodeAgent {
     this.timeoutMs = timeoutMs;
     this.dir = dir || null;
     this.initialized = false;
+    this.sessionID = null; // sesion opencode reutilizada (una por agente)
     this.eventHandlers = {};
     this._firstSent = false;
   }
@@ -62,6 +66,7 @@ class OpencodeAgent {
 
   async startNewConversation() {
     this._firstSent = false;
+    this.sessionID = null;
     this.log('Nueva conversacion (opencode)');
   }
 
@@ -73,16 +78,20 @@ class OpencodeAgent {
     this.log(`Enviando mensaje (${prompt.length} chars)...`);
     this.emit('sending', { agent: this.name, preview: String(message).substring(0, 100) });
 
-    const { text } = await this.adapter.generate({
+    // Titulo unico por proyecto (solo se usa al crear la sesion).
+    const sessionTag = this.dir ? ` [${path.basename(this.dir)}]` : '';
+    const { text, sessionID } = await this.adapter.generate({
       agent: undefined, // el rol ya viaja en la persona; el agent de opencode es opcional
       prompt,
       files: this.files,
       dir: this.dir || undefined,
-      title: `${this.role}`,
+      title: `${this.role}${sessionTag}`,
       model: this.model || undefined,
       variant: this.variant || undefined,
-      timeoutMs: this.timeoutMs
+      timeoutMs: this.timeoutMs,
+      sessionID: this.sessionID || undefined // continua la sesion del agente
     });
+    if (sessionID) this.sessionID = sessionID;
 
     this.emit('response', { agent: this.name, preview: (text || '').substring(0, 200) });
     this.log('Respuesta recibida (opencode)');

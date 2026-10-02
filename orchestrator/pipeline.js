@@ -38,15 +38,34 @@ function assertSafeRelPath(rel) {
   return norm;
 }
 
+/**
+ * Ruta del modelo -> relativa contenida en baseDir.
+ * Los modelos en Windows suelen devolver absolutas (P:\...\session-X\a.js):
+ * si apuntan DENTRO de baseDir se aceptan relativizadas; si no, error.
+ * Nunca deja escapar de baseDir (comparacion case-insensitive en win32).
+ */
+function toContainedRelPath(baseDir, p) {
+  if (typeof p !== 'string' || !p.trim()) throw new Error('Ruta de fichero vacia');
+  if (p.includes('\0')) throw new Error('Ruta de fichero invalida');
+  const fail = () => {
+    throw new Error(`Ruta fuera del proyecto: ${String(p).slice(0, 200)}`);
+  };
+  const resolvedBase = path.resolve(baseDir);
+  const abs = path.isAbsolute(p) ? path.normalize(p) : path.resolve(resolvedBase, p);
+  const lowAbs = process.platform === 'win32' ? abs.toLowerCase() : abs;
+  const lowBase = process.platform === 'win32' ? resolvedBase.toLowerCase() : resolvedBase;
+  if (lowAbs !== lowBase && !lowAbs.startsWith(lowBase + path.sep)) fail();
+  const rel = path.relative(resolvedBase, abs);
+  if (!rel || rel === '.' || rel.startsWith('..') || path.isAbsolute(rel)) fail();
+  return rel;
+}
+
 async function writeFilesContained(baseDir, files) {
   const written = [];
+  const resolvedBase = path.resolve(baseDir);
   for (const f of files || []) {
-    const rel = assertSafeRelPath(f.path);
-    const dest = path.join(baseDir, rel);
-    const resolvedBase = path.resolve(baseDir) + path.sep;
-    if (!path.resolve(dest).startsWith(resolvedBase)) {
-      throw new Error(`Ruta fuera del proyecto: ${f.path}`);
-    }
+    const rel = toContainedRelPath(resolvedBase, f.path);
+    const dest = path.join(resolvedBase, rel);
     await fs.ensureDir(path.dirname(dest));
     await fs.writeFile(dest, f.code ?? f.content ?? '', 'utf8');
     written.push(rel);
@@ -412,4 +431,4 @@ async function runPipeline(ctx) {
   return { stopped: false, sprints: maxSprints };
 }
 
-module.exports = { runPipeline, withTimeout, assertSafeRelPath, writeFilesContained, loopConditionMet };
+module.exports = { runPipeline, withTimeout, assertSafeRelPath, toContainedRelPath, writeFilesContained, loopConditionMet };

@@ -7,7 +7,8 @@ module.exports = {
   buildPrompt({ run }) {
     return (
       `Implementa el sprint ${run.sprintN} con estas historias: ${JSON.stringify(run.stories)}. ` +
-      `Responde SOLO con JSON: {"implementation":{"files":[{"path":"...","code":"..."}],"notes":"..."}}`
+      `Responde SOLO con JSON: {"implementation":{"files":[{"path":"...","code":"..."}],"notes":"..."}} ` +
+      `Usa rutas de fichero RELATIVAS al proyecto (p. ej. "src/index.js"), nunca absolutas.`
     );
   },
   parse({ text, parsed }) {

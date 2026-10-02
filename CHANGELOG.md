@@ -17,6 +17,19 @@ Formato Keep a Changelog (resumen por fase/entrega).
   modelo (antes solo stderr, a menudo vacío e indiagnosticable), `--dir`
   absoluto y `resolveBinary` en Windows que descarta shims no ejecutables
   (`.cmd`/`.ps1`/script sh) y prefiere el `.exe` real.
+- Proveedor Ollama explícito: `opencode.example/opencode.json` (versionado,
+  sin secretos) inyectado al hijo `opencode run` vía `OPENCODE_CONFIG_CONTENT`.
+  Sin esto, `run` muere en 2-3s con `UnknownError: Unexpected server error`
+  antes de llamar a Ollama. Excepción en `.gitignore` para el template.
+- Una sesión opencode por agente y ejecución (reutilizada con `--session` en
+  `run` y `sessionID` en `serve`; título único `rol [session-…]`): antes se
+  creaba una por llamada y se acumulaban decenas de duplicadas. `toContainedRelPath`:
+  rutas absolutas dentro del proyecto se relativizan en vez de abortar.
+- Gestor de proyectos en el dashboard: tabla con nombre, estado, sprints y
+  fecha, con acciones Ver (solo vista), Continuar (reanuda) y Borrar (con
+  confirmación; bloqueado en el proyecto en vivo). `GET /api/sessions`
+  incluye `summary` por sesión (+ `projectName` guardado en el estado) y
+  nuevo `DELETE /api/sessions/:id` con limpieza del puntero.
 
 ### Corregido
 

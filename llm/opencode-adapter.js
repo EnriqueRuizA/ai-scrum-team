@@ -79,6 +79,16 @@ function extractTextFromEvent(node) {
   return out;
 }
 
+/** sessionID de la primera linea JSON con "sessionID" (para continuar con --session). */
+function collectRunSessionID(stdout) {
+  for (const line of String(stdout || '').split('\n')) {
+    const t = line.trim();
+    if (!t || !t.startsWith('{')) continue;
+    const m = /"sessionID"\s*:\s*"([^"]+)"/.exec(t);
+    if (m) return m[1];
+  }
+  return null;
+}
 /** Texto de la respuesta de POST /session/:id/message ({ info, parts }). */
 function collectMessageText(body) {
   const parts = (body && body.parts) || [];
@@ -92,9 +102,14 @@ function collectMessageText(body) {
 class OpencodeAdapter {
   /**
    * cfg = { mode, url, model, variant, dir, timeoutMs, auto, command, username, password,
-   *         env }
-   * variant: esfuerzo del modelo en opencode (p.ej. "xhigh" en muse-spark).
+   *         env, providerTemplate }
+   * variant: esfuerzo del modelo en opencode (p. ej. "xhigh" en muse-spark).
    *   run  -> flag --variant ; serve -> campo variant del mensaje.
+   * providerTemplate: ruta al opencode.json versionado (opencode.example/)
+   *   cuyo `provider` se inyecta al hijo `opencode run` via
+   *   OPENCODE_CONFIG_CONTENT. Sin proveedor explicito, `run` muere con
+   *   UnknownError antes de llamar a Ollama (ver TROUBLESHOOTING).
+   *   Se respeta si el entorno ya trae OPENCODE_CONFIG_CONTENT.
    */
   constructor(cfg = {}) {
     this.mode = cfg.mode === 'run' ? 'run' : 'serve';
@@ -108,7 +123,12 @@ class OpencodeAdapter {
     this.username = cfg.username || process.env.OPENCODE_SERVER_USERNAME || '';
     this.password = cfg.password || process.env.OPENCODE_SERVER_PASSWORD || '';
     this.extraEnv = cfg.env || {};
+    this.providerTemplate =
+      cfg.providerTemplate !== undefined
+        ? cfg.providerTemplate
+        : path.join(__dirname, '..', 'opencode.example', 'opencode.json');
     this._binary = null; // resuelto por resolveBinary() (importante en Windows: .cmd no es ejecutable directo)
+    this._providerEnv = undefined; // cache de providerEnv()
   }
 
   /**
@@ -179,6 +199,26 @@ class OpencodeAdapter {
     return { Authorization: `Basic ${Buffer.from(`${user}:${this.password}`).toString('base64')}` };
   }
 
+  /**
+   * Contenido para OPENCODE_CONFIG_CONTENT del hijo `opencode run`
+   * (solo `provider`, sin `model`: el flag --model manda).
+   * Cacheado; null si no hay template o no trae provider.
+   */
+  providerEnv() {
+    if (this._providerEnv !== undefined) return this._providerEnv;
+    this._providerEnv = null;
+    if (!this.providerTemplate) return null;
+    try {
+      const tpl = JSON.parse(fs.readFileSync(this.providerTemplate, 'utf8'));
+      if (tpl && tpl.provider && typeof tpl.provider === 'object') {
+        this._providerEnv = JSON.stringify({ provider: tpl.provider });
+      }
+    } catch (e) {
+      this._providerEnv = null;
+    }
+    return this._providerEnv;
+  }
+
   async health() {
     if (this.mode === 'run') {
       try {
@@ -217,8 +257,10 @@ class OpencodeAdapter {
   }
 
   /**
-   * @param {object} opts - { agent, prompt, files?, title?, model?, variant?, signal?, timeoutMs? }
-   * @returns {Promise<{text}>}
+   * @param {object} opts - { agent, prompt, files?, title?, model?, variant?, signal?, timeoutMs?, sessionID? }
+   *   sessionID: reutiliza la sesion opencode (un agente = una sesion por
+   *   ejecucion; evita decenas de sesiones duplicadas con el mismo titulo).
+   * @returns {Promise<{text, sessionID}>}
    */
   async generate(opts = {}) {
     if (!opts.prompt || typeof opts.prompt !== 'string') {
@@ -249,6 +291,8 @@ class OpencodeAdapter {
     if (this.auto) args.push('--auto');
     for (const f of opts.files || []) args.push('--file', f);
     if (opts.title) args.push('--title', opts.title);
+    // Continuar la sesion del agente en vez de crear una nueva por llamada.
+    if (opts.sessionID) args.push('--session', opts.sessionID);
     args.push(opts.prompt);
     return args;
   }
@@ -259,12 +303,20 @@ class OpencodeAdapter {
     // sobre la raiz del repo salvo que se pida explicitamente.
     const args = this.buildRunArgs(opts);
 
+    // Proveedor explicito al hijo (respeta el entorno existente):
+    // sin esto, `run` puede morir con UnknownError antes de usar Ollama.
+    const injected = this.providerEnv();
+    const baseEnv = { ...process.env, ...this.extraEnv };
+    if (injected && !baseEnv.OPENCODE_CONFIG_CONTENT) {
+      baseEnv.OPENCODE_CONFIG_CONTENT = injected;
+    }
+
     const r = await spawnSafe(bin, args, {
       timeoutMs: 0, // el timeout lo gobierna el AbortSignal enlazado
       signal,
       stdin: 'ignore', // headless: nunca esperar input interactivo (falla rapido, no cuelga)
       maxBuffer: 20 * 1024 * 1024,
-      env: { ...process.env, ...this.extraEnv }
+      env: baseEnv
     });
     if (signal.aborted) throw new Error('generate() cancelado (abort)');
     if (r.code !== 0) {
@@ -283,10 +335,10 @@ class OpencodeAdapter {
     if (!text) {
       // Fallback: stdout no-JSON (p.ej. versiones sin --format json util)
       const raw = (r.stdout || '').trim();
-      if (raw) return { text: raw };
+      if (raw) return { text: raw, sessionID: collectRunSessionID(r.stdout) || opts.sessionID || null };
       throw new Error('opencode run no devolvio texto utilizable');
     }
-    return { text };
+    return { text, sessionID: collectRunSessionID(r.stdout) || opts.sessionID || null };
   }
 
   async _serveJson(method, p, body, signal) {
@@ -306,9 +358,13 @@ class OpencodeAdapter {
   }
 
   async _generateServe(opts, signal) {
-    const session = await this._serveJson('POST', '/session', { title: opts.title || 'ai-scrum-team' }, signal);
-    const sessionID = session && (session.id || session.ID);
-    if (!sessionID) throw new Error('opencode serve no devolvio session.id');
+    // Reutiliza la sesion del agente si se indica (evita duplicadas).
+    let sessionID = opts.sessionID || null;
+    if (!sessionID) {
+      const session = await this._serveJson('POST', '/session', { title: opts.title || 'ai-scrum-team' }, signal);
+      sessionID = session && (session.id || session.ID);
+      if (!sessionID) throw new Error('opencode serve no devolvio session.id');
+    }
     try {
       const msg = {
         agent: opts.agent,
@@ -320,7 +376,7 @@ class OpencodeAdapter {
       const body = await this._serveJson('POST', `/session/${sessionID}/message`, msg, signal);
       const text = collectMessageText(body);
       if (!text) throw new Error('opencode serve devolvio un mensaje sin texto');
-      return { text };
+      return { text, sessionID };
     } finally {
       // Best-effort: aborta la sesion si nos cancelaron a mitad.
       if (signal.aborted) {
@@ -332,4 +388,4 @@ class OpencodeAdapter {
   }
 }
 
-module.exports = { OpencodeAdapter, collectRunText, collectMessageText };
+module.exports = { OpencodeAdapter, collectRunText, collectRunSessionID, collectMessageText };

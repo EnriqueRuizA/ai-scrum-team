@@ -39,3 +39,11 @@
 |---------|----------------|-----------|
 | `npm test` falla en CI | Sin opencode/ollama | Los tests mockean el motor; si falla, es bug real, no entorno |
 | `npm run lint` con errores | Código nuevo sin revisar | `npx eslint <fichero>`; `src/` ya no existe |
+
+## Proveedor Ollama (UnknownError en 2-3s)
+
+Sintoma: `opencode run fallo (code 1): ... "name":"UnknownError","data":{"message":"Unexpected server error..."}` casi al instante, sin que Ollama reciba nada (su `server.log` no muestra la peticion).
+
+Causa: el hijo `opencode run` no tiene proveedor Ollama explicito (ni `OPENCODE_CONFIG_CONTENT` en el entorno ni bloque `provider` en el `opencode.json` efectivo) y muere antes de llamar al proveedor.
+
+Fix: el adapter inyecta `opencode.example/opencode.json` (versionado, sin secretos) al hijo via `OPENCODE_CONFIG_CONTENT`. No requiere accion. Si usas modo `serve`, reinicia `opencode serve` tras actualizar la config, porque el servidor persistente no hereda la inyeccion por llamada.

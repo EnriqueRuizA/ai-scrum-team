@@ -20,6 +20,9 @@ GRAPH_MAP.md
 
 # Config local de herramientas
 opencode.json
+# Excepcion: el template versionado (sin secretos: solo baseURL local y
+# metadatos publicos de modelos). El adapter lo inyecta al hijo opencode run.
+!opencode.example/opencode.json
 .cursor/
 .aider*
 Modelfile

@@ -1,0 +1,201 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "lsp": true,
+  "provider": {
+    "ollama": {
+      "models": {
+        "SparkLLM/Spark-X2.5-4B:latest": {
+          "name": "SparkLLM/Spark-X2.5-4B:latest",
+          "reasoning": true,
+          "variants": {
+            "high": {
+              "disabled": true
+            },
+            "low": {
+              "disabled": true
+            },
+            "medium": {
+              "disabled": true
+            },
+            "none": {
+              "reasoningEffort": "none"
+            }
+          }
+        },
+        "dna5rm/granite4.2:3b-8k": {
+          "name": "dna5rm/granite4.2:3b-8k",
+          "reasoning": true,
+          "variants": {
+            "high": {
+              "disabled": true
+            },
+            "low": {
+              "disabled": true
+            },
+            "medium": {
+              "disabled": true
+            },
+            "none": {
+              "reasoningEffort": "none"
+            }
+          }
+        },
+        "gpt-oss-gpu:20b": {
+          "name": "gpt-oss-gpu:20b",
+          "options": {
+            "reasoningEffort": "medium"
+          },
+          "reasoning": true,
+          "variants": {
+            "high": {
+              "reasoningEffort": "high"
+            },
+            "low": {
+              "reasoningEffort": "low"
+            },
+            "max": {
+              "reasoningEffort": "max"
+            },
+            "medium": {
+              "reasoningEffort": "medium"
+            }
+          }
+        },
+        "gpt-oss-safeguard:20b": {
+          "name": "gpt-oss-safeguard:20b",
+          "options": {
+            "reasoningEffort": "medium"
+          },
+          "reasoning": true,
+          "variants": {
+            "high": {
+              "reasoningEffort": "high"
+            },
+            "low": {
+              "reasoningEffort": "low"
+            },
+            "max": {
+              "reasoningEffort": "max"
+            },
+            "medium": {
+              "reasoningEffort": "medium"
+            }
+          }
+        },
+        "qwen3.5-gpu:9b": {
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "name": "qwen3.5-gpu:9b",
+          "reasoning": true,
+          "variants": {
+            "high": {
+              "disabled": true
+            },
+            "low": {
+              "disabled": true
+            },
+            "medium": {
+              "disabled": true
+            },
+            "none": {
+              "reasoningEffort": "none"
+            }
+          }
+        },
+        "qwen3.5:9b": {
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "name": "qwen3.5:9b",
+          "reasoning": true,
+          "variants": {
+            "high": {
+              "disabled": true
+            },
+            "low": {
+              "disabled": true
+            },
+            "medium": {
+              "disabled": true
+            },
+            "none": {
+              "reasoningEffort": "none"
+            }
+          }
+        },
+        "qwen3.8-optimal:latest": {
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "name": "qwen3.8-optimal:latest",
+          "reasoning": true,
+          "variants": {
+            "high": {
+              "disabled": true
+            },
+            "low": {
+              "disabled": true
+            },
+            "medium": {
+              "disabled": true
+            },
+            "none": {
+              "reasoningEffort": "none"
+            }
+          }
+        },
+        "qwen3.8:27b": {
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "name": "qwen3.8:27b",
+          "reasoning": true,
+          "variants": {
+            "high": {
+              "disabled": true
+            },
+            "low": {
+              "disabled": true
+            },
+            "medium": {
+              "disabled": true
+            },
+            "none": {
+              "reasoningEffort": "none"
+            }
+          }
+        }
+      },
+      "name": "Ollama",
+      "npm": "@ai-sdk/openai-compatible",
+      "options": {
+        "baseURL": "http://127.0.0.1:11434/v1"
+      }
+    }
+  }
+}

@@ -1182,19 +1182,29 @@
       <div class="card" id="sessionRecoveryCard">
         <div class="card-header">
           <div class="card-title">Proyectos</div>
+          <button type="button" class="btn btn-secondary" onclick="refreshSessionsList()" style="padding:4px 10px;font-size:10px" data-tip="Vuelve a leer la carpeta outputs por si hay proyectos nuevos">↻ Actualizar</button>
         </div>
         <p style="font-size:11px;color:var(--text-dim);line-height:1.5;margin-bottom:10px">
           Cada ejecución es un proyecto activo (carpeta <code>outputs/session-…</code>).
-          <strong>Cargar en panel</strong> recupera la vista (logs + artefactos).
-          <strong>Continuar</strong> reanuda el proyecto donde se quedó
-          (conserva lo hecho y sigue desde el siguiente sprint).
-          El proyecto en ejecución aparece marcado como <strong>EN VIVO</strong>.
+          <strong>Ver</strong> lo carga en el panel sin ejecutarlo,
+          <strong>Continuar</strong> lo reanuda donde se quedó y
+          <strong>Borrar</strong> elimina su carpeta (no se puede borrar el que está en ejecución).
         </p>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-          <select id="savedSessionsSelect" class="form-input" style="flex:1;min-width:220px;font-size:11px;padding:8px" data-tip="Proyectos guardados en disco. El que está en ejecución sale marcado EN VIVO"></select>
-          <button type="button" class="btn btn-secondary" onclick="refreshSessionsList()" style="padding:8px 12px;font-size:10px" data-tip="Vuelve a leer la carpeta outputs por si hay sesiones nuevas">↻ Listar</button>
-          <button type="button" class="btn btn-secondary" onclick="loadSelectedSessionIntoDashboard()" style="padding:8px 12px;font-size:10px" data-tip="Muestra logs y artefactos de ese proyecto. No continúa su ejecución">Cargar en panel</button>
-          <button type="button" class="btn btn-primary" onclick="resumeSelectedSession()" style="padding:8px 12px;font-size:10px" data-tip="Reanuda el proyecto donde se quedó: conserva sprints hechos y sigue desde el siguiente">▶ Continuar</button>
+        <div id="sessionsTableWrap" class="scrollbar-custom" style="max-height:260px;overflow:auto">
+          <table class="sess-table">
+            <thead>
+              <tr>
+                <th>Proyecto</th>
+                <th>Estado</th>
+                <th>Sprints</th>
+                <th>Actualizado</th>
+                <th style="text-align:right">Acciones</th>
+              </tr>
+            </thead>
+            <tbody id="sessionsTableBody">
+              <tr><td colspan="5" class="sess-empty">Pulsa Actualizar para listar proyectos…</td></tr>
+            </tbody>
+          </table>
         </div>
       </div>
 
@@ -1479,6 +1489,56 @@
 <!-- NOTIFICATION -->
 <div class="notification" id="notification"></div>
 
+<style>
+  /* Gestor de proyectos (tabla de sesiones) */
+  .sess-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 11px;
+  }
+  .sess-table th,
+  .sess-table td {
+    border-bottom: 1px solid var(--border);
+    padding: 8px 10px;
+    text-align: left;
+    vertical-align: middle;
+  }
+  .sess-table th {
+    color: var(--text-dim);
+    font-weight: 600;
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+  .sess-proj { color: var(--text-bright); font-weight: 600; }
+  .sess-folder { color: var(--text-dim); font-size: 10px; }
+  .sess-live {
+    color: var(--success);
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    margin-left: 6px;
+  }
+  .sess-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 9px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    white-space: nowrap;
+  }
+  .sess-badge.st-running { color: var(--accent); border-color: var(--accent); animation: pulse 1s infinite; }
+  .sess-badge.st-ok { color: var(--success); border-color: var(--success); }
+  .sess-badge.st-error { color: var(--error); border-color: var(--error); }
+  .sess-badge.st-warn { color: var(--warning); border-color: var(--warning); }
+  .sess-actions { text-align: right; white-space: nowrap; }
+  .sess-actions .btn { padding: 4px 10px; font-size: 9px; margin-left: 6px; }
+  .sess-actions .btn:disabled { opacity: 0.35; cursor: not-allowed; }
+  .sess-empty { color: var(--text-dim); text-align: center; padding: 14px !important; }
+</style>
 <script src="/parse-llm-json-browser.js"></script>
 <script>
   // === WEBSOCKET ===
@@ -2415,46 +2475,120 @@
     }
   }
 
+  /** Estado -> clase de badge de la tabla de proyectos. */
+  function sessBadgeClass(status, live) {
+    if (live) return 'st-running';
+    const s = String(status || '').toLowerCase();
+    if (['running', 'starting', 'initializing', 'ready'].includes(s)) return 'st-running';
+    if (s === 'completed') return 'st-ok';
+    if (s === 'error') return 'st-error';
+    if (s === 'stopped') return 'st-warn';
+    return '';
+  }
+
+  function sessRowEl(row) {
+    const tr = document.createElement('tr');
+    const sum = (row && row.summary) || {};
+    const id = row.id || '';
+    const live = row._activeRun === true || sum._activeRun === true;
+    const status = sum.status || row.status || '?';
+
+    const tdProj = document.createElement('td');
+    const nm = document.createElement('div');
+    nm.className = 'sess-proj';
+    nm.textContent = sum.projectName || '(sin nombre)';
+    const fd = document.createElement('div');
+    fd.className = 'sess-folder';
+    fd.textContent = id;
+    tdProj.append(nm, fd);
+
+    const tdSt = document.createElement('td');
+    const badge = document.createElement('span');
+    badge.className = 'sess-badge ' + sessBadgeClass(status, live);
+    badge.textContent = String(status).toUpperCase();
+    tdSt.appendChild(badge);
+    if (live) {
+      const lv = document.createElement('span');
+      lv.className = 'sess-live';
+      lv.textContent = '● EN VIVO';
+      tdSt.appendChild(lv);
+    }
+
+    const tdSp = document.createElement('td');
+    const cur = sum.currentSprint != null ? sum.currentSprint : (row.currentSprint != null ? row.currentSprint : '—');
+    const max = sum.maxSprints || row.maxSprints || '—';
+    tdSp.textContent = `${cur} / ${max}`;
+    if (sum.errorsCount > 0) {
+      const eb = document.createElement('div');
+      eb.className = 'sess-folder';
+      eb.style.color = 'var(--error)';
+      eb.textContent = `${sum.errorsCount} error(es)`;
+      tdSp.appendChild(eb);
+    }
+
+    const tdUp = document.createElement('td');
+    tdUp.className = 'sess-folder';
+    tdUp.textContent = row.mtimeMs ? new Date(row.mtimeMs).toLocaleString() : '—';
+
+    const tdAc = document.createElement('td');
+    tdAc.className = 'sess-actions';
+    const mkBtn = (label, cls, tip, disabled, fn) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'btn ' + cls;
+      b.textContent = label;
+      b.title = tip;
+      b.disabled = !!disabled;
+      b.addEventListener('click', () => fn(id));
+      return b;
+    };
+    tdAc.append(
+      mkBtn('Ver', 'btn-secondary', 'Carga logs y artefactos en el panel sin ejecutar nada', false, viewSessionIntoDashboard),
+      mkBtn('▶ Continuar', 'btn-primary', 'Reanuda el proyecto donde se quedo', live, resumeSession),
+      mkBtn('Borrar', 'btn-danger', 'Elimina la carpeta outputs/session-…', live, deleteSession)
+    );
+
+    tr.append(tdProj, tdSt, tdSp, tdUp, tdAc);
+    return tr;
+  }
+
   async function refreshSessionsList() {
     if (!isAppServerOrigin()) return;
-    const sel = document.getElementById('savedSessionsSelect');
-    if (!sel) return;
-    sel.innerHTML = '<option value="">Cargando…</option>';
+    const body = document.getElementById('sessionsTableBody');
+    if (!body) return;
+    body.innerHTML = '<tr><td colspan="5" class="sess-empty">Cargando…</td></tr>';
     try {
       const res = await fetch('/api/sessions');
       const list = await res.json().catch(() => []);
-      sel.innerHTML = '<option value="">— Elegir sesión —</option>';
+      body.innerHTML = '';
       if (!Array.isArray(list) || list.length === 0) {
-        sel.innerHTML += '<option disabled>(No hay carpetas session- en outputs/)</option>';
+        body.innerHTML = '<tr><td colspan="5" class="sess-empty">(No hay proyectos en outputs/)</td></tr>';
         return;
       }
       list.forEach((row) => {
-        if (row.error) return;
-        const id = row.id || '';
-        if (!id.startsWith('session-')) return;
-        const st = row.status || '?';
-        const sp = row.currentSprint != null ? row.currentSprint : '—';
-        const t = row.mtimeMs ? new Date(row.mtimeMs).toLocaleString() : '';
-        const live = row._activeRun === true ? ' ● EN VIVO' : '';
-        const opt = document.createElement('option');
-        opt.value = id;
-        opt.textContent = `${id} · ${st} · sprint ${sp} · ${t}${live}`;
-        sel.appendChild(opt);
+        if (!row || (row.error && !row.id)) return;
+        if (row.error) {
+          const tr = document.createElement('tr');
+          const td = document.createElement('td');
+          td.colSpan = 5;
+          td.className = 'sess-empty';
+          td.textContent = `${row.id || '?'}: ${row.error}`;
+          tr.appendChild(td);
+          body.appendChild(tr);
+          return;
+        }
+        if (!String(row.id || '').startsWith('session-')) return;
+        body.appendChild(sessRowEl(row));
       });
     } catch (e) {
-      sel.innerHTML = '<option value="">Error al listar</option>';
-      notify('No se pudieron listar sesiones: ' + e.message, 'error');
+      body.innerHTML = '<tr><td colspan="5" class="sess-empty">Error al listar</td></tr>';
+      notify('No se pudieron listar proyectos: ' + e.message, 'error');
     }
   }
 
-  async function loadSelectedSessionIntoDashboard() {
-    if (!isAppServerOrigin()) return;
-    const sel = document.getElementById('savedSessionsSelect');
-    const id = sel && sel.value;
-    if (!id) {
-      notify('Elige una sesión en el desplegable.', 'info');
-      return;
-    }
+  /** Ver un proyecto en el panel (solo vista, no ejecuta nada). */
+  async function viewSessionIntoDashboard(id) {
+    if (!isAppServerOrigin() || !id) return;
     try {
       const res = await fetch('/api/sessions/' + encodeURIComponent(id));
       const state = await res.json().catch(() => ({}));
@@ -2465,20 +2599,15 @@
         body: JSON.stringify({ id })
       }).catch(() => {});
       updateFromState({ ...state, _restoredFromDisk: true, _activeRun: false });
-      notify('Sesión cargada en el panel: ' + id, 'success');
+      notify('Proyecto cargado en el panel: ' + id, 'success');
     } catch (e) {
       notify(e.message || String(e), 'error');
     }
   }
 
-  async function resumeSelectedSession() {
-    if (!isAppServerOrigin()) return;
-    const sel = document.getElementById('savedSessionsSelect');
-    const id = sel && sel.value;
-    if (!id) {
-      notify('Elige un proyecto en el desplegable.', 'info');
-      return;
-    }
+  /** Reanudar un proyecto donde se quedo. */
+  async function resumeSession(id) {
+    if (!isAppServerOrigin() || !id) return;
     try {
       const res = await fetch('/api/sessions/' + encodeURIComponent(id) + '/resume', {
         method: 'POST',
@@ -2488,8 +2617,24 @@
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || 'HTTP ' + res.status);
       notify(data.message || ('Proyecto reanudado: ' + id), 'success');
+      refreshSessionsList();
     } catch (e) {
       notify('No se pudo reanudar: ' + (e.message || e), 'error', 8000);
+    }
+  }
+
+  /** Borrar un proyecto (con confirmacion). */
+  async function deleteSession(id) {
+    if (!isAppServerOrigin() || !id) return;
+    if (!window.confirm(`Borrar el proyecto ${id}?\nSe elimina outputs/${id} con sus artefactos. No se puede deshacer.`)) return;
+    try {
+      const res = await fetch('/api/sessions/' + encodeURIComponent(id), { method: 'DELETE' });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'HTTP ' + res.status);
+      notify('Proyecto borrado: ' + id, 'success');
+      refreshSessionsList();
+    } catch (e) {
+      notify('No se pudo borrar: ' + (e.message || e), 'error', 8000);
     }
   }
 

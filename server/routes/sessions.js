@@ -2,6 +2,41 @@
 const fs = require('fs-extra');
 const path = require('path');
 const { loadDashboardStateFromDisk, limitStateLogs } = require('../helpers');
+
+/**
+ * Resumen gestionable de una sesion (para la tabla Proyectos del dashboard).
+ * projectName: del state (sesiones nuevas) o del snapshot de config (antiguas).
+ */
+async function sessionSummary(outputsDir, id, state, mtimeMs, activeRun) {
+  let projectName = (state && state.projectName) || null;
+  if (!projectName) {
+    try {
+      const snap = await fs.readJson(path.join(outputsDir, id, 'config.snapshot.json'));
+      if (snap && snap.project && typeof snap.project.name === 'string') {
+        projectName = snap.project.name;
+      }
+    } catch (e) {
+      // Sin snapshot (sesion muy antigua): sin nombre de proyecto.
+    }
+  }
+  const sprints = (state && Array.isArray(state.sprints) && state.sprints) || [];
+  const art = (state && state.artifacts) || {};
+  return {
+    id,
+    mtimeMs: mtimeMs || 0,
+    projectName,
+    status: (state && state.status) || '?',
+    currentSprint: (state && state.currentSprint) || 0,
+    maxSprints: (state && state.maxSprints) || 0,
+    sprintsDone: sprints.length,
+    artifactsCount:
+      (Array.isArray(art.implementations) ? art.implementations.length : 0) +
+      (Array.isArray(art.qaReports) ? art.qaReports.length : 0) +
+      (art.prd ? 1 : 0),
+    errorsCount: (state && Array.isArray(state.errors) && state.errors.length) || 0,
+    _activeRun: activeRun === true
+  };
+}
 function registerSessions(app, ctx) {
   const { state, runLock, broadcast, resumeProject } = ctx;
 // Estado del dashboard: orquestador en vivo o última sesión en disco.
@@ -56,7 +91,8 @@ function registerSessions(app, ctx) {
           return {
             id: s,
             mtimeMs: st ? st.mtimeMs : 0,
-            ...state
+            ...state,
+            summary: await sessionSummary(outputsDir, s, state, st ? st.mtimeMs : 0, false)
           };
         } catch (e) {
           return { id: s, error: 'No state file', mtimeMs: 0 };
@@ -75,7 +111,8 @@ function registerSessions(app, ctx) {
           id: liveFolder,
           mtimeMs: Date.now(),
           ...liveState,
-          _activeRun: true
+          _activeRun: true,
+          summary: await sessionSummary(outputsDir, liveFolder, liveState, Date.now(), true)
         });
       } catch (e) {
         // Si el vivo no se puede serializar, la lista de disco sigue valiendo.
@@ -208,6 +245,41 @@ function registerSessions(app, ctx) {
       });
     } catch (e) {
       runLock.release();
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  /**
+   * Borrar un proyecto guardado (carpeta outputs/session-… completa).
+   * No permite borrar el proyecto en ejecucion. Si era la sesion enfocada
+   * (puntero del dashboard), el puntero se limpia.
+   */
+  app.delete('/api/sessions/:id', async (req, res) => {
+    try {
+      const { validateSessionId, safeJoin } = require('../guards');
+      if (!validateSessionId(req.params.id)) {
+        return res.status(400).json({ error: 'id de sesión inválido' });
+      }
+      if (state.orchestrator && path.basename(state.orchestrator.outputDir) === req.params.id) {
+        return res.status(409).json({ error: 'No se puede borrar el proyecto en ejecución' });
+      }
+      const dir = safeJoin('./outputs', req.params.id);
+      if (!(await fs.pathExists(dir))) {
+        return res.status(404).json({ error: 'Sesión no encontrada' });
+      }
+      await fs.remove(dir);
+      // Si el dashboard apuntaba a esta sesion, limpia el puntero.
+      try {
+        const pointerPath = path.join('./outputs', '.last-dashboard-session.json');
+        const ptr = await fs.readJson(pointerPath).catch(() => null);
+        if (ptr && (ptr.outputFolder === req.params.id || ptr.folder === req.params.id)) {
+          await fs.remove(pointerPath);
+        }
+      } catch (e) {
+        // Limpieza del puntero best-effort: el borrado ya se hizo.
+      }
+      res.json({ success: true, id: req.params.id });
+    } catch (e) {
       res.status(500).json({ error: e.message });
     }
   });

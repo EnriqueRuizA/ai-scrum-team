@@ -34,6 +34,10 @@ class ScrumMasterOrchestrator {
       this.config.scrum?.maxSprints || 3
     );
     this.state = this.store.state;
+    // Nombre del proyecto en el estado (la tabla Proyectos lo muestra).
+    if (!this.state.projectName && config.project?.name) {
+      this.state.projectName = config.project.name;
+    }
 
     this.runControl = { paused: false, stopAfterCurrentStep: false };
     this.eventHandlers = {};
@@ -315,6 +319,9 @@ class ScrumMasterOrchestrator {
     }
     if (!Array.isArray(o.state.logs)) o.state.logs = [];
     if (!Array.isArray(o.state.errors)) o.state.errors = [];
+    if (!o.state.projectName && config.project?.name) {
+      o.state.projectName = config.project.name;
+    }
     o.team = normalizeTeam(config);
     o.enabledRoles = getEnabledRoles(o.team);
     o.roles = normalizeRoles(config);
