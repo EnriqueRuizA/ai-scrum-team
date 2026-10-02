@@ -158,6 +158,7 @@ class ScrumMasterOrchestrator {
     this.log('Inicializando equipo de agentes...');
     await fs.ensureDir(this.outputDir);
     await fs.ensureDir(this.sessionDir);
+    await this._writeConfigSnapshot();
 
     this.team = normalizeTeam(this.config);
     this.enabledRoles = getEnabledRoles(this.team);
@@ -237,9 +238,18 @@ class ScrumMasterOrchestrator {
     if (this.state.status !== 'ready' && this.state.status !== 'stopped') {
       throw new Error(`Estado invalido para arrancar: ${this.state.status}`);
     }
+    const maxSprints = this.config.scrum?.maxSprints || 3;
+    const startFrom = (this.state.currentSprint || 0) + 1;
+    if (startFrom > maxSprints) {
+      throw new Error(`La sesion ya completo los ${maxSprints} sprints (nada que reanudar).`);
+    }
+    if (startFrom > 1) {
+      this.log(`Reanudando sesion ${this.sessionId} desde el sprint ${startFrom}/${maxSprints} (${this.state.sprints.length} sprint(s) ya hechos).`, 'info');
+    }
+    await this._writeConfigSnapshot();
     this.state.status = 'running';
     this.emit('status', this.state);
-    this.emit('phase', { phase: 'project_start' });
+    this.emit('phase', { phase: startFrom > 1 ? 'project_resumed' : 'project_start' });
 
     try {
       const result = await runPipeline({
@@ -249,6 +259,7 @@ class ScrumMasterOrchestrator {
         agents: this.agents,
         outputDir: this.outputDir,
         state: this.state,
+        startFrom,
         log: (m, l, a) => this.log(m, l, a),
         emit: (e, d) => this.emit(e, d),
         waitWhilePaused: () => this.waitWhilePaused(),
@@ -270,6 +281,54 @@ class ScrumMasterOrchestrator {
       await this.saveState();
       this.emit('status', this.state);
       throw e;
+    }
+  }
+
+  /**
+   * Reconstruye un orquestador sobre una sesion guardada (outputs/session-…).
+   * La sesion pasa a ser un proyecto activo: conserva logs, artefactos y
+   * sprints ya hechos; runFullProject() continua desde el siguiente sprint.
+   * Si no hay snapshot de config (sesiones antiguas), se usa la config dada.
+   */
+  static resume({ savedState, outputDir, config, credentials }) {
+    if (!savedState || typeof savedState !== 'object') {
+      throw new Error('Estado guardado invalido para reanudar.');
+    }
+    const o = new ScrumMasterOrchestrator(config, credentials);
+    o.sessionId = savedState.sessionId;
+    o.outputDir = outputDir;
+    const maxSprints = config.scrum?.maxSprints || savedState.maxSprints || 3;
+    o.sessionDir = config.agents?.sessionDir || './sessions';
+    o.store = new StateStore(outputDir, savedState.sessionId, maxSprints);
+    // El store adopta el estado tal cual estaba en disco (logs incluidos).
+    o.store.state = savedState;
+    o.state = o.store.state;
+    o.state.maxSprints = maxSprints;
+    o.state.status = 'ready';
+    o.state.runPaused = false;
+    if (!Array.isArray(o.state.sprints)) o.state.sprints = [];
+    if (!o.state.artifacts || typeof o.state.artifacts !== 'object') {
+      o.state.artifacts = {
+        prd: null, architecture: null, testPlan: null, sprintPlan: null,
+        implementations: [], qaReports: [], finalCode: null
+      };
+    }
+    if (!Array.isArray(o.state.logs)) o.state.logs = [];
+    if (!Array.isArray(o.state.errors)) o.state.errors = [];
+    o.team = normalizeTeam(config);
+    o.enabledRoles = getEnabledRoles(o.team);
+    o.roles = normalizeRoles(config);
+    o.flow = normalizeFlow(config);
+    o.enabledRoleIds = enabledRoles(o.roles);
+    return o;
+  }
+
+  /** Snapshot de la config usada (servidor; permite reanudar fielmente). */
+  async _writeConfigSnapshot() {
+    try {
+      await fs.writeJson(path.join(this.outputDir, 'config.snapshot.json'), this.config, { spaces: 2 });
+    } catch (e) {
+      this.log(`No se pudo guardar el snapshot de config: ${e.message}`, 'warn');
     }
   }
 

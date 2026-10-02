@@ -1,6 +1,6 @@
 {
   "project": {
-    "name": "JobTracker Pro",
+    "name": "JobTracker",
     "description": "Aplicación web para comprobar a que ofertas de linkedin me he inscrito y para cuales de ellas tengo respuesta por email y en que sentido (rechazado, interesados... etc)",
     "version": "0.1.0"
   },
@@ -104,8 +104,8 @@
     "backend": "local",
     "opencode": {
       "mode": "run",
-      "model": "opencode/longcat-2.5-preview-free",
-      "variant": "high",
+      "model": "ollama/qwen3.5-gpu:9b",
+      "variant": "",
       "url": "http://127.0.0.1:4096",
       "timeoutMs": 600000,
       "auto": false
@@ -150,6 +150,34 @@
       {
         "id": "opencode/space-bunny-free",
         "label": "opencode/space-bunny-free (opencode cloud)"
+      },
+      {
+        "id": "ollama/qwen3.5-gpu:9b",
+        "label": "qwen3.5-gpu:9b (Ollama local)"
+      },
+      {
+        "id": "ollama/gpt-oss-gpu:20b",
+        "label": "gpt-oss-gpu:20b (Ollama local)"
+      },
+      {
+        "id": "ollama/gpt-oss-safeguard:20b",
+        "label": "gpt-oss-safeguard:20b (Ollama local)"
+      },
+      {
+        "id": "ollama/SparkLLM/Spark-X2.5-4B:latest",
+        "label": "SparkLLM/Spark-X2.5-4B:latest (Ollama local)"
+      },
+      {
+        "id": "ollama/qwen3.8:27b",
+        "label": "qwen3.8:27b (Ollama local)"
+      },
+      {
+        "id": "ollama/dna5rm/granite4.2:3b-8k",
+        "label": "dna5rm/granite4.2:3b-8k (Ollama local)"
+      },
+      {
+        "id": "ollama/qwen3.8-optimal:latest",
+        "label": "qwen3.8-optimal:latest (Ollama local)"
       }
     ],
     "rag": {

@@ -330,7 +330,8 @@ function mapLegacyArtifacts(artifact, run, ctx, outputDir) {
 /**
  * Ejecuta el proyecto completo.
  * ctx = { config, roles, flow, agents (por id), outputDir, state,
- *         log, emit, waitWhilePaused, checkGracefulStopAfterStep, saveState }
+ *         log, emit, waitWhilePaused, checkGracefulStopAfterStep, saveState,
+ *         startFrom? } (startFrom = nº de sprint inicial, para reanudar).
  */
 async function runPipeline(ctx) {
   const { config, outputDir } = ctx;
@@ -343,9 +344,11 @@ async function runPipeline(ctx) {
   await fs.ensureDir(appDir);
 
   const maxSprints = config.scrum?.maxSprints || 3;
+  // Reanudar: no se repiten sprints ya guardados en state.sprints.
+  const startFrom = Math.max(1, Math.min(ctx.startFrom | 0 || 1, maxSprints));
   const exec = { ctx, outputDir, appDir, firstInSprint: true };
 
-  for (let n = 1; n <= maxSprints; n++) {
+  for (let n = startFrom; n <= maxSprints; n++) {
     await ctx.waitWhilePaused();
     ctx.log(`=== Sprint ${n}/${maxSprints} ===`, 'info', 'ScrumMaster');
     ctx.emit('sprint_start', { sprint: n, maxSprints });

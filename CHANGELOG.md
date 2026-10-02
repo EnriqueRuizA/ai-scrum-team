@@ -2,6 +2,28 @@
 
 Formato Keep a Changelog (resumen por fase/entrega).
 
+## [Unreleased]
+
+### Añadido
+
+- Sesiones como proyectos activos: `GET /api/sessions` incluye el proyecto
+  en ejecución marcado `_activeRun` (etiqueta EN VIVO) y
+  `POST /api/sessions/:id/resume` reanuda una sesión guardada desde el
+  siguiente sprint (conserva logs/artefactos/sprints; usa
+  `config.snapshot.json` de la sesión o la config actual; botón
+  **Continuar** en la tarjeta Proyectos del dashboard; `startFrom` en el
+  pipeline + `ScrumMasterOrchestrator.resume()`).
+- Diagnóstico de `opencode run`: el error incluye cola de stdout + stderr +
+  modelo (antes solo stderr, a menudo vacío e indiagnosticable), `--dir`
+  absoluto y `resolveBinary` en Windows que descarta shims no ejecutables
+  (`.cmd`/`.ps1`/script sh) y prefiere el `.exe` real.
+
+### Corregido
+
+- `POST /api/start` y `POST /api/sessions/:id/resume` liberan el `RunLock`
+  en cada 400/409 previo al arranque (antes, un preflight fallido dejaba el
+  servidor en 409 permanente hasta reiniciar).
+
 ## [1.1.0] — 2026-10-01 — Reestructuración completa + UX por roles
 
 Reescritura sobre el motor opencode (modelos gratuitos). Lo viejo roto

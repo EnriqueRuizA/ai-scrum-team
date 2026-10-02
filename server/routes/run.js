@@ -12,13 +12,19 @@ function registerRun(app, ctx) {
   }
 
   try {
+    // Falla liberando el lock: sin esto, un 400 dejaba el servidor
+    // bloqueado (409 para siempre) hasta reiniciar.
+    const fail = (code, body) => {
+      runLock.release();
+      return res.status(code).json(body);
+    };
     const config = await fs.readJson('./config/project-config.json');
     const useLocal = config.agents?.backend === 'local';
     let credentials = {};
     if (!useLocal) {
       credentials = await fs.readJson('./config/credentials.json').catch(() => ({}));
       if (!credentials.claude?.email || !String(credentials.claude.email).trim()) {
-        return res.status(400).json({
+        return fail(400, {
           error: 'Credenciales de Claude.ai: indica al menos el email. La contraseña es opcional si usas enlace mágico por correo.'
         });
       }
@@ -27,7 +33,7 @@ function registerRun(app, ctx) {
       const { createAdapter } = require('../../llm/factory');
       const ocHealth = await createAdapter(config).health();
       if (!ocHealth.ok) {
-        return res.status(400).json({
+        return fail(400, {
           error: `Motor opencode no disponible (${ocHealth.mode}): ${ocHealth.error}. ${ocHealth.hint || ''}`
         });
       }
@@ -37,7 +43,7 @@ function registerRun(app, ctx) {
       const model = localCfg.model || 'llama3.2';
       const httpAdapter = resolveHttpAdapterFromLocal(localCfg);
       if (httpAdapter === 'cursor_cloud') {
-        return res.status(400).json({
+        return fail(400, {
           error:
             'La API oficial de Cursor (api.cursor.com) usa Basic Auth y expone GET /v0/models para Cloud Agents; ' +
             'no ofrece /v1/chat/completions para este orquestador. Para «Iniciar proyecto» elige Ollama, un proveedor OpenAI-compatible (p. ej. OpenAI con sk-…) o backend Claude (navegador). ' +
@@ -54,7 +60,7 @@ function registerRun(app, ctx) {
         } else {
           errorMsg = `No se puede conectar con Ollama en ${baseUrl}. Inicia Ollama ("ollama serve") y revisa agents.local.baseUrl. Detalle: ${detail}`;
         }
-        return res.status(400).json({ error: errorMsg });
+        return fail(400, { error: errorMsg });
       }
       if (health.modelLoaded === false) {
         let errorMsg;
@@ -63,7 +69,7 @@ function registerRun(app, ctx) {
         } else {
           errorMsg = `Ollama está activo pero el modelo "${model}" no está disponible. Ejecuta: ollama pull ${model}`;
         }
-        return res.status(400).json({ error: errorMsg });
+        return fail(400, { error: errorMsg });
       }
 
       const ragOn = localCfg.rag?.enabled === true;
@@ -72,12 +78,12 @@ function registerRun(app, ctx) {
           localCfg.embedModel || localCfg.rag?.embedModel || 'nomic-embed-text';
         const v = await verifyLlmModels(baseUrl, model, embedModel, { authHeaders, local: localCfg });
         if (!v.ok) {
-          return res.status(400).json({
+          return fail(400, {
             error: `No se pudo comprobar modelos: ${v.error}`
           });
         }
         if (!v.hasEmbed) {
-          return res.status(400).json({
+          return fail(400, {
             error:
               httpAdapter === 'openai_compatible'
                 ? `RAG activo pero el proveedor no lista el modelo de embeddings «${embedModel}». Cambia embedModel en Settings o desactiva RAG.`

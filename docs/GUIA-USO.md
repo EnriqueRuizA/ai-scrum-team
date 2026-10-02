@@ -38,8 +38,11 @@ Tres pestañas: **Proyecto**, **Agentes**, **Ajustes**.
 3. En **Ajustes**: proyecto, sprints y motor (modo/modelo/variante). Guardar.
 4. En **Proyecto**: **Iniciar**. Sigue sprints, artefactos y Conversación en vivo.
 5. **Pausa** espera entre pasos; **Stop tras sprint** cierra ordenado y guarda.
-   No se puede reanudar un run parado: lanza otro o recupera la vista desde
-   Sesiones en disco (solo vista, no continúa el trabajo).
+   Cada ejecución es un proyecto activo (`outputs/session-…`): en la tarjeta
+   **Proyectos** el que está en curso sale marcado **EN VIVO**, y
+   **Continuar** reanuda un proyecto parado o en error desde el siguiente
+   sprint (conserva logs, artefactos y sprints hechos). **Cargar en panel**
+   solo recupera la vista sin reanudar.
 
 ## 5. Roles, flow, skills, modelos
 

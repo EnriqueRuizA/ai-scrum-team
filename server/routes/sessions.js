@@ -3,7 +3,7 @@ const fs = require('fs-extra');
 const path = require('path');
 const { loadDashboardStateFromDisk, limitStateLogs } = require('../helpers');
 function registerSessions(app, ctx) {
-  const { state } = ctx;
+  const { state, runLock, broadcast, resumeProject } = ctx;
 // Estado del dashboard: orquestador en vivo o última sesión en disco.
 // FASE 6: ?logs=N (defecto 500, 0=todos, tope 5000) y ?since=ISO (deltas).
   app.get('/api/state', async (req, res) => {
@@ -41,7 +41,7 @@ function registerSessions(app, ctx) {
   }
   });
 
-// Listar sesiones guardadas
+// Listar sesiones guardadas (la primera es el proyecto en ejecucion, si lo hay).
   app.get('/api/sessions', async (req, res) => {
   try {
     const outputsDir = './outputs';
@@ -63,7 +63,29 @@ function registerSessions(app, ctx) {
         }
       })
     );
-    sessionData.sort((a, b) => (b.mtimeMs || 0) - (a.mtimeMs || 0));
+    // El run en vivo es un proyecto activo: va primero y con marca explicita.
+    // (En disco puede haber una copia desactualizada de la misma carpeta.)
+    if (state.orchestrator) {
+      try {
+        const liveFolder = path.basename(state.orchestrator.outputDir);
+        const liveState = state.orchestrator.getState();
+        const idx = sessionData.findIndex((s) => s && s.id === liveFolder);
+        if (idx >= 0) sessionData.splice(idx, 1);
+        sessionData.unshift({
+          id: liveFolder,
+          mtimeMs: Date.now(),
+          ...liveState,
+          _activeRun: true
+        });
+      } catch (e) {
+        // Si el vivo no se puede serializar, la lista de disco sigue valiendo.
+      }
+    }
+    sessionData.sort((a, b) => {
+      if (a._activeRun && !b._activeRun) return -1;
+      if (b._activeRun && !a._activeRun) return 1;
+      return (b.mtimeMs || 0) - (a.mtimeMs || 0);
+    });
     res.json(sessionData);
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -117,6 +139,78 @@ function registerSessions(app, ctx) {
   // U3: endpoints huerfanos eliminados (el dashboard lee artefactos del state):
   // - GET /api/artifact/:session/:name
   // - GET /api/download/:session
+
+  /**
+   * Reanudar una sesion guardada como proyecto activo: conserva logs,
+   * artefactos y sprints hechos; continua desde el siguiente sprint.
+   * Usa el snapshot de config de la sesion (o la config actual si es antigua).
+   */
+  app.post('/api/sessions/:id/resume', async (req, res) => {
+    if (!runLock.tryAcquire({ endpoint: '/api/sessions/:id/resume' })) {
+      return res.status(409).json({ error: 'Ya hay un proyecto en ejecución', run: runLock.getInfo() });
+    }
+    // Falla liberando el lock: sin esto, un 400/409 dejaba el servidor
+    // bloqueado (409 para siempre) hasta reiniciar.
+    const fail = (code, body) => {
+      runLock.release();
+      return res.status(code).json(body);
+    };
+    try {
+      const { validateSessionId, safeJoin } = require('../guards');
+      if (!validateSessionId(req.params.id)) {
+        return fail(400, { error: 'id de sesión inválido' });
+      }
+      if (state.orchestrator) {
+        return fail(409, { error: 'Ya hay un proyecto en ejecución' });
+      }
+      const outputDir = path.join('./outputs', req.params.id);
+      const statePath = safeJoin('./outputs', req.params.id, 'state.json');
+      if (!(await fs.pathExists(statePath))) {
+        return fail(404, { error: 'No existe state.json en esa sesión' });
+      }
+      const savedState = await fs.readJson(statePath);
+      // Config efectiva: snapshot de la sesion si existe, si no la actual.
+      let config = await fs.readJson(path.join(outputDir, 'config.snapshot.json')).catch(() => null);
+      if (!config || typeof config !== 'object') {
+        config = await fs.readJson('./config/project-config.json');
+      }
+      const maxSprints = config.scrum?.maxSprints || savedState.maxSprints || 3;
+      const done = savedState.currentSprint || (Array.isArray(savedState.sprints) ? savedState.sprints.length : 0) || 0;
+      if (done >= maxSprints) {
+        return fail(400, { error: `La sesión ya completó los ${maxSprints} sprints (nada que reanudar).` });
+      }
+      // Credenciales solo si el backend las exige (Claude navegador).
+      const useLocal = config.agents?.backend === 'local';
+      let credentials = {};
+      if (!useLocal && !config.agents?.opencode) {
+        credentials = await fs.readJson('./config/credentials.json').catch(() => ({}));
+        if (!credentials.claude?.email || !String(credentials.claude.email).trim()) {
+          return fail(400, {
+            error: 'Credenciales de Claude.ai: indica al menos el email. La contraseña es opcional si usas enlace mágico por correo.'
+          });
+        }
+      } else if (config.agents?.opencode) {
+        const { createAdapter } = require('../../llm/factory');
+        const ocHealth = await createAdapter(config).health();
+        if (!ocHealth.ok) {
+          return fail(400, {
+            error: `Motor opencode no disponible (${ocHealth.mode}): ${ocHealth.error}. ${ocHealth.hint || ''}`
+          });
+        }
+      }
+
+      broadcast('status', { status: 'starting' });
+      res.json({ success: true, message: `Sesión ${req.params.id} reanudada desde el sprint ${done + 1}`, resumeFrom: done + 1 });
+
+      resumeProject({ savedState, outputDir, config, credentials }).catch((err) => {
+        console.error('Error reanudando proyecto:', err);
+        broadcast('error', { message: err.message });
+      });
+    } catch (e) {
+      runLock.release();
+      res.status(500).json({ error: e.message });
+    }
+  });
 
   // Conversaciones completas por sesion (prompt+respuesta por paso). Para la
   // vista Conversacion del dashboard (tiempo real via WS `exchange`).

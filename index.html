@@ -1181,17 +1181,20 @@
 
       <div class="card" id="sessionRecoveryCard">
         <div class="card-header">
-          <div class="card-title">Sesiones en disco</div>
+          <div class="card-title">Proyectos</div>
         </div>
         <p style="font-size:11px;color:var(--text-dim);line-height:1.5;margin-bottom:10px">
-          Si <strong>paras el servidor</strong> (Ctrl+C), el estado se intenta guardar en <code>outputs/session-…/state.json</code>.
-          Aquí puedes <strong>recuperar la vista</strong> (logs + artefactos) de cualquier sesión anterior.
-          <em>No reanuda</em> llamadas a Ollama/Claude: para eso inicia un proyecto nuevo.
+          Cada ejecución es un proyecto activo (carpeta <code>outputs/session-…</code>).
+          <strong>Cargar en panel</strong> recupera la vista (logs + artefactos).
+          <strong>Continuar</strong> reanuda el proyecto donde se quedó
+          (conserva lo hecho y sigue desde el siguiente sprint).
+          El proyecto en ejecución aparece marcado como <strong>EN VIVO</strong>.
         </p>
         <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-          <select id="savedSessionsSelect" class="form-input" style="flex:1;min-width:220px;font-size:11px;padding:8px" data-tip="Sesiones anteriores guardadas en disco. Cargar solo restaura la vista, no reanuda el trabajo"></select>
+          <select id="savedSessionsSelect" class="form-input" style="flex:1;min-width:220px;font-size:11px;padding:8px" data-tip="Proyectos guardados en disco. El que está en ejecución sale marcado EN VIVO"></select>
           <button type="button" class="btn btn-secondary" onclick="refreshSessionsList()" style="padding:8px 12px;font-size:10px" data-tip="Vuelve a leer la carpeta outputs por si hay sesiones nuevas">↻ Listar</button>
-          <button type="button" class="btn btn-primary" onclick="loadSelectedSessionIntoDashboard()" style="padding:8px 12px;font-size:10px" data-tip="Muestra logs y artefactos de esa sesión. No continúa su ejecución">Cargar en panel</button>
+          <button type="button" class="btn btn-secondary" onclick="loadSelectedSessionIntoDashboard()" style="padding:8px 12px;font-size:10px" data-tip="Muestra logs y artefactos de ese proyecto. No continúa su ejecución">Cargar en panel</button>
+          <button type="button" class="btn btn-primary" onclick="resumeSelectedSession()" style="padding:8px 12px;font-size:10px" data-tip="Reanuda el proyecto donde se quedó: conserva sprints hechos y sigue desde el siguiente">▶ Continuar</button>
         </div>
       </div>
 
@@ -2432,9 +2435,10 @@
         const st = row.status || '?';
         const sp = row.currentSprint != null ? row.currentSprint : '—';
         const t = row.mtimeMs ? new Date(row.mtimeMs).toLocaleString() : '';
+        const live = row._activeRun === true ? ' ● EN VIVO' : '';
         const opt = document.createElement('option');
         opt.value = id;
-        opt.textContent = `${id} · ${st} · sprint ${sp} · ${t}`;
+        opt.textContent = `${id} · ${st} · sprint ${sp} · ${t}${live}`;
         sel.appendChild(opt);
       });
     } catch (e) {
@@ -2464,6 +2468,28 @@
       notify('Sesión cargada en el panel: ' + id, 'success');
     } catch (e) {
       notify(e.message || String(e), 'error');
+    }
+  }
+
+  async function resumeSelectedSession() {
+    if (!isAppServerOrigin()) return;
+    const sel = document.getElementById('savedSessionsSelect');
+    const id = sel && sel.value;
+    if (!id) {
+      notify('Elige un proyecto en el desplegable.', 'info');
+      return;
+    }
+    try {
+      const res = await fetch('/api/sessions/' + encodeURIComponent(id) + '/resume', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: '{}'
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'HTTP ' + res.status);
+      notify(data.message || ('Proyecto reanudado: ' + id), 'success');
+    } catch (e) {
+      notify('No se pudo reanudar: ' + (e.message || e), 'error', 8000);
     }
   }
 

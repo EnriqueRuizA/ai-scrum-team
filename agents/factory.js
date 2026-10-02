@@ -19,6 +19,10 @@ function createOpencodeAgents(roles, config, outputDir) {
   const OpencodeAgent = require('./opencode-agent');
   const adapter = createAdapter(config);
   const oc = config.agents.opencode || {};
+  // Absoluto si es relativo: `--dir` de opencode no debe depender del cwd.
+  const path = require('path');
+  const absOut =
+    outputDir && !path.isAbsolute(outputDir) ? path.resolve(outputDir) : outputDir || undefined;
   const out = {};
   for (const roleDef of roles) {
     if (!roleDef || roleDef.enabled === false) continue;
@@ -31,7 +35,7 @@ function createOpencodeAgents(roles, config, outputDir) {
       variant: roleDef.variant || oc.variant || '',
       files: Array.isArray(roleDef.files) ? roleDef.files : [],
       timeoutMs: oc.timeoutMs,
-      dir: outputDir || oc.dir || undefined
+      dir: absOut || oc.dir || undefined
     });
   }
   return out;

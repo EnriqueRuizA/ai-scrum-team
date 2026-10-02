@@ -12,6 +12,15 @@ const fs = require('fs');
 
 const DEFAULT_TIMEOUT_MS = 10 * 60 * 1000;
 
+// Tope de contexto en mensajes de error (evita volcar megabytes de stdout).
+const ERROR_TAIL_CHARS = 1000;
+
+function tail(s, n = ERROR_TAIL_CHARS) {
+  const t = String(s || '').trim();
+  if (t.length <= n) return t;
+  return '…(recortado) ' + t.slice(-n);
+}
+
 function linkSignals(external, timeoutMs) {
   const ctrl = new AbortController();
   let timer = null;
@@ -121,10 +130,14 @@ class OpencodeAdapter {
         const w = await spawnSafe('where', ['opencode'], { timeoutMs: 10000 });
         if (w.code === 0) {
           const lines = w.stdout.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
-          // .exe primero (ejecutable directo); .cmd/.ps1 no sirven sin shell.
-          const isExe = (p) => (p.toLowerCase().endsWith('.exe') ? 1 : 0);
-          lines.sort((a, b) => isExe(b) - isExe(a));
-          candidates.push(...lines);
+          // En Windows, `opencode` suele resolverse a shims (.cmd/.ps1 o script
+          // sh sin extension) que CreateProcess NO puede lanzar sin shell.
+          // Solo los .exe son ejecutables directos: se descartan los demas.
+          const isDirectExe = (p) => p.toLowerCase().endsWith('.exe') && fs.existsSync(p);
+          const exes = lines.filter(isDirectExe);
+          // .exe primero; los shims no ejecutables ni se intentan.
+          exes.sort();
+          candidates.push(...exes);
         }
       } catch (e) {}
       const appData = process.env.APPDATA || path.join(process.env.USERPROFILE || '', 'AppData', 'Roaming');
@@ -139,8 +152,12 @@ class OpencodeAdapter {
     for (const c of candidates) {
       if (tried.includes(c.toLowerCase())) continue;
       tried.push(c.toLowerCase());
-      if ((c.toLowerCase().endsWith('.cmd') || c.toLowerCase().endsWith('.ps1')) && !fs.existsSync(c)) continue;
-      if (path.isAbsolute(c) && !fs.existsSync(c)) continue;
+      if (path.isAbsolute(c)) {
+        if (!fs.existsSync(c)) continue;
+        // Defensa en Windows: solo ejecutables directos (.exe); los shims
+        // .cmd/.ps1 o scripts sh fallan con ENOENT sin shell.
+        if (process.platform === 'win32' && !c.toLowerCase().endsWith('.exe')) continue;
+      }
       try {
         const r = await spawnSafe(c, ['--version'], { timeoutMs: 15000 });
         if (r.code === 0) {
@@ -219,7 +236,11 @@ class OpencodeAdapter {
 
   /** Construye argv de `opencode run` (puro: testeable sin binario). */
   buildRunArgs(opts = {}) {
-    const dir = opts.dir || this.dir;
+    // Absoluta si es relativa: el servidor puede arrancar desde otro cwd y
+    // `--dir` relativo apuntaria al sitio equivocado (fallo code 1 sin pista).
+    // Las absolutas se respetan tal cual (portabilidad de tests en win32).
+    const rawDir = opts.dir || this.dir;
+    const dir = path.isAbsolute(rawDir) ? rawDir : path.resolve(rawDir);
     const args = ['run', '--format', 'json', '--dir', dir];
     if (opts.agent) args.push('--agent', opts.agent);
     args.push('--model', opts.model || this.model);
@@ -247,7 +268,16 @@ class OpencodeAdapter {
     });
     if (signal.aborted) throw new Error('generate() cancelado (abort)');
     if (r.code !== 0) {
-      throw new Error(`opencode run fallo (code ${r.code}): ${(r.stderr || '').trim().slice(0, 500)}`);
+      // opencode suele explicar el fallo en STDOUT (eventos JSON de error),
+      // no en stderr: incluir ambos, o el mensaje queda vacio e indiagnosticable.
+      const errTail = tail(r.stderr);
+      const outTail = tail(r.stdout);
+      const model = (opts.model || this.model || '').trim();
+      throw new Error(
+        `opencode run fallo (code ${r.code}, model=${model || '?'}):` +
+          (errTail ? ` stderr: ${errTail}` : ' stderr vacio.') +
+          (outTail ? ` stdout: ${outTail}` : ' stdout vacio.')
+      );
     }
     const text = collectRunText(r.stdout);
     if (!text) {

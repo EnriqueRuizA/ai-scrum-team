@@ -51,33 +51,7 @@ function createServer() {
 
   async function runProject(config, credentials) {
   state.orchestrator = new ScrumMasterOrchestrator(config, credentials);
-  
-  // Conectar todos los eventos al WebSocket
-  const events = [
-    'log',
-    'status',
-    'phase',
-    'sprint_start',
-    'sprint_update',
-    'agent_working',
-    'agent_ready',
-    'agent_initializing',
-    'agent_sending',
-    'agent_response',
-    'exchange', // U-conversaciones: prompt+respuesta completos por llamada
-    'artifact_created',
-    'action_required',
-    'delivery',
-    'error',
-    'run_control',
-    'run_pause_waiting'
-  ];
-  
-  events.forEach(event => {
-    state.orchestrator.on(event, (data) => {
-      broadcast(event, data);
-    });
-  });
+  wireOrchestratorEvents(state.orchestrator);
 
   try {
     await state.orchestrator.initialize();
@@ -110,8 +84,77 @@ function createServer() {
   }
   }
 
+  /**
+   * Reanuda una sesion guardada como proyecto activo: conserva logs,
+   * artefactos y sprints hechos; ejecuta desde el siguiente sprint.
+   * Misma gestion de eventos/lock/limpieza que runProject.
+   */
+  async function resumeProject({ savedState, outputDir, config, credentials }) {
+    state.orchestrator = ScrumMasterOrchestrator.resume({ savedState, outputDir, config, credentials });
+    wireOrchestratorEvents(state.orchestrator);
 
-  const ctx = { broadcast, runLock, state, runProject };
+    try {
+      await state.orchestrator.initialize();
+      await state.orchestrator.runFullProject();
+      broadcast('completed', {
+        sessionId: state.orchestrator.state.sessionId,
+        outputDir: path.resolve(state.orchestrator.outputDir),
+        sessionFolder: path.basename(state.orchestrator.outputDir)
+      });
+    } catch (error) {
+      broadcast('error', { message: error.message });
+      throw error;
+    } finally {
+      runLock.release();
+      if (state.orchestrator) {
+        try {
+          await state.orchestrator.saveState();
+        } catch (e) {
+          console.error('[resume] saveState en finally:', e.message);
+        }
+      }
+      if (state.orchestrator) {
+        try {
+          await state.orchestrator.cleanup();
+        } catch (e) {
+          console.error('[resume] cleanup:', e.message);
+        }
+      }
+      state.orchestrator = null;
+    }
+  }
+
+  function wireOrchestratorEvents(orchestrator) {
+  // Conectar todos los eventos al WebSocket
+  const events = [
+    'log',
+    'status',
+    'phase',
+    'sprint_start',
+    'sprint_update',
+    'agent_working',
+    'agent_ready',
+    'agent_initializing',
+    'agent_sending',
+    'agent_response',
+    'exchange', // U-conversaciones: prompt+respuesta completos por llamada
+    'artifact_created',
+    'action_required',
+    'delivery',
+    'error',
+    'run_control',
+    'run_pause_waiting'
+  ];
+
+  events.forEach(event => {
+    orchestrator.on(event, (data) => {
+      broadcast(event, data);
+    });
+  });
+  }
+
+
+  const ctx = { broadcast, runLock, state, runProject, resumeProject };
   registerShutdownSaver(async () => {
     if (state.orchestrator) {
       try {
